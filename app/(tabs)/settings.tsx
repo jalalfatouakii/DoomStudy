@@ -16,7 +16,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function Settings() {
     const { courses } = useCourses();
-    const { streak, timeSaved } = useStats();
+    const { streak, timeSaved, weeklyData, weeklyLabels } = useStats();
 
     // Format time saved
     const hours = Math.floor(timeSaved / 3600);
@@ -37,7 +37,7 @@ export default function Settings() {
             hoursStudied: formattedTimeSaved,
             streakDays: streak
         },
-        weeklyActivity: [2.5, 3.5, 1.5, 4.0, 3.0, 5.5, 2.0] // Hours last 7 days
+        weeklyActivity: weeklyData // Use real data
     };
 
     const ActionItem = ({ icon, title, onPress }: any) => (
@@ -62,28 +62,34 @@ export default function Settings() {
         </View>
     );
 
-    const ActivityGraph = ({ data }: { data: number[] }) => {
-        const max = Math.max(...data);
-        const days = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    const ActivityGraph = ({ data, labels }: { data: number[], labels: string[] }) => {
+        const max = Math.max(...data, 1); // Max is at least 1 hour
 
         return (
             <View style={styles.graphContainer}>
-                {data.map((value, index) => (
-                    <View key={index} style={styles.barContainer}>
-                        <View style={styles.barTrack}>
-                            <View
-                                style={[
-                                    styles.barFill,
-                                    {
-                                        height: `${(value / max) * 100}%`,
-                                        backgroundColor: value === max ? Colors.tint : Colors.tabIconDefault
-                                    }
-                                ]}
-                            />
+                {data.map((value, index) => {
+                    const isToday = index === data.length - 1; // Last item is today
+                    return (
+                        <View key={index} style={styles.barContainer}>
+                            <View style={styles.barTrack}>
+                                <View
+                                    style={[
+                                        styles.barFill,
+                                        {
+                                            height: `${(value / max) * 100}%`,
+                                            backgroundColor: isToday ? Colors.tint : Colors.tabIconDefault,
+                                            opacity: isToday ? 1 : 0.5
+                                        }
+                                    ]}
+                                />
+                            </View>
+                            <Text style={[
+                                styles.dayLabel,
+                                isToday && { color: Colors.tint, fontWeight: 'bold' }
+                            ]}>{labels[index]}</Text>
                         </View>
-                        <Text style={styles.dayLabel}>{days[index]}</Text>
-                    </View>
-                ))}
+                    );
+                })}
             </View>
         );
     };
@@ -131,7 +137,7 @@ export default function Settings() {
                 {/* Activity Graph */}
                 <View style={styles.section}>
                     <Text style={styles.sectionHeader}>Weekly Activity</Text>
-                    <ActivityGraph data={user.weeklyActivity} />
+                    <ActivityGraph data={user.weeklyActivity} labels={weeklyLabels} />
                 </View>
 
                 {/* About Section */}
