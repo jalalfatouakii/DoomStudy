@@ -301,13 +301,13 @@ extension ConfigurationAppIntent {
 #Preview(as: .systemMedium) {
     widget()
 } timeline: {
-    SimpleEntry(date: .now, configuration: .smiley)
+    SimpleEntry(date: .now, configuration: .smiley, streak: 12, timeSaved: 45000)
 }
 
 #Preview(as: .systemLarge) {
     widget()
 } timeline: {
-    SimpleEntry(date: .now, configuration: .smiley)
+    SimpleEntry(date: .now, configuration: .smiley, streak: 12, timeSaved: 45000)
 }
 
 #Preview(as: .accessoryCircular) {
@@ -319,5 +319,5 @@ extension ConfigurationAppIntent {
 #Preview(as: .accessoryRectangular) {
     widget()
 } timeline: {
-    SimpleEntry(date: .now, configuration: .smiley)
+    SimpleEntry(date: .now, configuration: .smiley, streak: 12, timeSaved: 45000)
 }
