@@ -13,11 +13,13 @@
       "bundleIdentifier": "com.doomstudy.jxlxl",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
-      }
+      },
+      "appleTeamId": "KH4448LD3D"
     },
     "android": {
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.doomstudy.jxlxl"
     },
     "web": {
       "output": "static",
@@ -36,7 +38,8 @@
             "backgroundColor": "#151718"
           }
         }
-      ]
+      ],
+      "@bacons/apple-targets"
     ],
     "experiments": {
       "typedRoutes": true,
@@ -45,7 +48,20 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "d3d22b27-56de-4f65-87b4-a7bf925be0a7"
+        "projectId": "d3d22b27-56de-4f65-87b4-a7bf925be0a7",
+        "build": {
+          "experimental": {
+            "ios": {
+              "appExtensions": [
+                {
+                  "bundleIdentifier": "com.doomstudy.jxlxl.widget",
+                  "targetName": "widget",
+                  "entitlements": {}
+                }
+              ]
+            }
+          }
+        }
       }
     }
   }
