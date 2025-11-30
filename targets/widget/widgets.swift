@@ -35,26 +35,22 @@ struct SimpleEntry: TimelineEntry {
 
 struct SmallWidgetView: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Image(systemName: "flame.fill")
-                    .foregroundStyle(Color.doomTint)
-                    .font(.caption)
-                Spacer()
-            }
-            
-            Spacer()
+        VStack(spacing: 4) {
+            Image(systemName: "flame.fill")
+                .font(.system(size: 24))
+                .foregroundStyle(Color.doomTint)
+                .padding(.bottom, 4)
             
             Text("12")
-                .font(.system(size: 44, weight: .bold, design: .rounded))
+                .font(.system(size: 40, weight: .bold, design: .rounded))
                 .foregroundStyle(Color.doomText)
+                .minimumScaleFactor(0.5)
             
             Text("Day Streak")
-                .font(.caption)
-                .fontWeight(.medium)
+                .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(Color.doomText.opacity(0.7))
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
@@ -73,10 +69,10 @@ struct MediumWidgetView: View {
             }
             
             Text("Files = FIFO, Piles = LIFO")
-                .font(.subheadline)
+                .font(.body)
                 .fontWeight(.medium)
                 .foregroundStyle(Color.doomText)
-                .lineLimit(3)
+                .lineLimit(4)
                 .multilineTextAlignment(.leading)
             
             Spacer()
@@ -159,6 +155,34 @@ struct LargeWidgetView: View {
     }
 }
 
+struct AccessoryCircularView: View {
+    var body: some View {
+        Gauge(value: 0.75) {
+            Image(systemName: "book.fill")
+                .font(.system(size: 12))
+        } currentValueLabel: {
+            Text("75%")
+        }
+        .gaugeStyle(.accessoryCircular)
+    }
+}
+
+struct AccessoryRectangularView: View {
+    var body: some View {
+        VStack(alignment: .leading) {
+            Text("SAVED")
+                .font(.caption2)
+                .bold()
+            Text("12h 30m")
+                .font(.headline)
+                .bold()
+            Text("Less Doomscrolling")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
 struct widgetEntryView : View {
     var entry: Provider.Entry
     @Environment(\.widgetFamily) var family
@@ -172,11 +196,15 @@ struct widgetEntryView : View {
                 MediumWidgetView()
             case .systemLarge:
                 LargeWidgetView()
+            case .accessoryCircular:
+                AccessoryCircularView()
+            case .accessoryRectangular:
+                AccessoryRectangularView()
             default:
                 SmallWidgetView()
             }
         }
-        .padding()
+        .padding(family == .accessoryCircular || family == .accessoryRectangular ? 0 : 16)
         .widgetBackground(Color.doomBackground)
     }
 }
@@ -190,7 +218,13 @@ struct widget: Widget {
         }
         .configurationDisplayName("DoomStudy Widget")
         .description("Stay motivated and track your progress.")
-        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+        .supportedFamilies([
+            .systemSmall,
+            .systemMedium,
+            .systemLarge,
+            .accessoryCircular,
+            .accessoryRectangular
+        ])
     }
 }
 
@@ -233,6 +267,18 @@ extension ConfigurationAppIntent {
 }
 
 #Preview(as: .systemLarge) {
+    widget()
+} timeline: {
+    SimpleEntry(date: .now, configuration: .smiley)
+}
+
+#Preview(as: .accessoryCircular) {
+    widget()
+} timeline: {
+    SimpleEntry(date: .now, configuration: .smiley)
+}
+
+#Preview(as: .accessoryRectangular) {
     widget()
 } timeline: {
     SimpleEntry(date: .now, configuration: .smiley)
