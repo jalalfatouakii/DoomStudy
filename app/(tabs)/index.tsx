@@ -76,7 +76,7 @@ export default function Index() {
             data={COURSES}
             keyExtractor={(item) => item.id.toString()}
             renderItem={renderCourseItem}
-            contentContainerStyle={{ paddingHorizontal: 20 }}
+            contentContainerStyle={{ paddingHorizontal: 20, paddingVertical: 20 }}
           />
         </View>
       );
@@ -182,14 +182,6 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: -1, height: 1 },
     textShadowRadius: 10
   },
-  activeIndicator: {
-    width: 20,
-    height: 3,
-    backgroundColor: Colors.text,
-    position: "absolute",
-    bottom: 5,
-    borderRadius: 2,
-  },
   verticalItem: {
     justifyContent: "center",
     alignItems: "center",
@@ -200,8 +192,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.backgroundSecondary,
     backgroundColor: Colors.backgroundLighter, // Assuming you might have this or similar
-    marginBottom: 10,
     borderRadius: 10,
+    marginBottom: 10,
   },
   courseText: {
     color: Colors.text,
