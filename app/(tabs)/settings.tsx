@@ -9,12 +9,16 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { useCourses } from "@/context/CourseContext";
+
 export default function Settings() {
+    const { courses } = useCourses();
+
     // Mock user data
     const user = {
         name: "Jalal",
         stats: {
-            coursesCompleted: 12,
+            coursesCompleted: courses.length,
             hoursStudied: 48.5,
             streakDays: 5
         },

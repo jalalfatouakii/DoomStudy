@@ -1,5 +1,8 @@
 import { Colors } from "@/constants/colors";
-import { useRef, useState } from "react";
+import { Course, useCourses } from "@/context/CourseContext";
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import { useMemo, useRef, useState } from "react";
 import {
   Dimensions,
   FlatList,
@@ -16,31 +19,28 @@ import {
 
 const { width } = Dimensions.get("window");
 
-const CATEGORIES = [
-  { id: 1, title: "For You" },
-  { id: 2, title: "Specific Courses" },
-];
-
-const COURSES = [
-  { id: 1, title: "Course 1" },
-  { id: 2, title: "Course 2" },
-  { id: 3, title: "Course 3" },
-  { id: 4, title: "Course 4" },
-  { id: 5, title: "Course 5" },
-];
-
-const generateData = (categoryId: number) =>
+const generateData = (categoryId: string) =>
   Array.from({ length: 10 }).map((_, i) => ({
-    id: `${categoryId} -${i} `,
-    content: `Course ${categoryId} - Content ${i + 1} `,
+    id: `${categoryId}-${i}`,
+    content: `Content for ${categoryId} - Item ${i + 1}`,
   }));
 
 export default function Index() {
+  const router = useRouter();
+  const { courses, allTags } = useCourses();
   const [activeIndex, setActiveIndex] = useState(0);
   const [itemHeight, setItemHeight] = useState(0);
   const mainListRef = useRef<FlatList>(null);
   const headerListRef = useRef<FlatList>(null);
 
+  const categories = useMemo(() => {
+    const base = [
+      { id: "for-you", title: "For You" },
+      { id: "specific-courses", title: "Specific Courses" },
+    ];
+    const tagCategories = allTags.map(tag => ({ id: `tag-${tag}`, title: tag }));
+    return [...base, ...tagCategories];
+  }, [allTags]);
 
   const onMomentumScrollEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const newIndex = Math.round(e.nativeEvent.contentOffset.x / width);
@@ -62,27 +62,63 @@ export default function Index() {
     </View>
   );
 
-  const renderCourseItem = ({ item }: { item: { title: string } }) => (
-    <TouchableOpacity style={styles.courseItem}>
-      <Text style={styles.courseText}>{item.title}</Text>
+  const renderCourseItem = ({ item }: { item: Course }) => (
+    <TouchableOpacity
+      style={styles.courseItem}
+      onPress={() => router.push({ pathname: "/course/[id]", params: { id: item.id } })}
+    >
+      <View style={{ flex: 1 }}>
+        <Text style={styles.courseTitle}>{item.title}</Text>
+        {item.description ? (
+          <Text style={styles.courseDescription} numberOfLines={2}>
+            {item.description}
+          </Text>
+        ) : null}
+        <View style={styles.tagsRow}>
+          {item.tags.map((tag, idx) => (
+            <View key={idx} style={styles.tagBadge}>
+              <Text style={styles.tagText}>{tag}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+
+      <TouchableOpacity
+        onPress={(e) => {
+          e.stopPropagation();
+          router.push({ pathname: "/(modal)/edit", params: { id: item.id } });
+        }}
+        style={styles.editButton}
+      >
+        <View style={styles.editButtonContainer}>
+          <Ionicons name="pencil" size={18} color={Colors.text} />
+        </View>
+      </TouchableOpacity>
     </TouchableOpacity>
   );
 
-  const renderCategoryPage = ({ item: category }: { item: typeof CATEGORIES[0] }) => {
-    if (category.title === "Specific Courses") {
+  const renderCategoryPage = ({ item: category }: { item: typeof categories[0] }) => {
+    if (category.id === "specific-courses") {
       return (
         <View style={{ width, height: "100%", paddingTop: 100 }}>
-          <FlatList
-            data={COURSES}
-            keyExtractor={(item) => item.id.toString()}
-            renderItem={renderCourseItem}
-            contentContainerStyle={{ paddingHorizontal: 20, paddingVertical: 20 }}
-          />
+          {courses.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateText}>No courses yet. Add one!</Text>
+            </View>
+          ) : (
+            <FlatList
+              data={courses}
+              keyExtractor={(item) => item.id}
+              renderItem={renderCourseItem}
+              contentContainerStyle={{ paddingHorizontal: 20, paddingVertical: 20 }}
+            />
+          )}
         </View>
       );
     }
 
-    const data = generateData(category.id);
+    // For "For You" and Tags, show dummy vertical content
+    const data = generateData(category.title);
     return (
       <View style={{ width, height: "100%" }}>
         <FlatList
@@ -103,10 +139,10 @@ export default function Index() {
       <View style={styles.headerContainer}>
         <FlatList
           ref={headerListRef}
-          data={CATEGORIES}
+          data={categories}
           horizontal
           showsHorizontalScrollIndicator={false}
-          keyExtractor={(item) => item.id.toString()}
+          keyExtractor={(item) => item.id}
           contentContainerStyle={styles.headerContent}
           renderItem={({ item, index }) => (
             <TouchableOpacity
@@ -129,11 +165,11 @@ export default function Index() {
       {/* Main Horizontal Pager */}
       <FlatList
         ref={mainListRef}
-        data={CATEGORIES}
+        data={categories}
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
-        keyExtractor={(item) => item.id.toString()}
+        keyExtractor={(item) => item.id}
         renderItem={renderCategoryPage}
         onMomentumScrollEnd={onMomentumScrollEnd}
         initialNumToRender={1}
@@ -146,7 +182,7 @@ export default function Index() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.backgroundSecondary,
   },
   headerContainer: {
     position: "absolute",
@@ -191,13 +227,56 @@ const styles = StyleSheet.create({
     padding: 20,
     borderBottomWidth: 1,
     borderBottomColor: Colors.backgroundSecondary,
-    backgroundColor: Colors.backgroundLighter, // Assuming you might have this or similar
+    backgroundColor: Colors.backgroundLighter,
     borderRadius: 10,
     marginBottom: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
-  courseText: {
+  editButton: {
+    padding: 8,
+    marginLeft: 8,
+  },
+  courseTitle: {
     color: Colors.text,
     fontSize: 18,
-    fontWeight: "500",
-  }
+    fontWeight: "600",
+    marginBottom: 4,
+  },
+  courseDescription: {
+    color: Colors.tabIconDefault,
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  tagsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  tagBadge: {
+    backgroundColor: Colors.tint + '20',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  tagText: {
+    color: Colors.tint,
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyStateText: {
+    color: Colors.tabIconDefault,
+    fontSize: 16,
+  },
+  editButtonContainer: {
+    backgroundColor: Colors.background,
+    padding: 8,
+    borderRadius: 8,
+  },
 });

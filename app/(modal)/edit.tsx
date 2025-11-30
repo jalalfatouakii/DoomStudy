@@ -1,9 +1,10 @@
 import { Colors } from "@/constants/colors";
 import { useCourses } from "@/context/CourseContext";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useEffect, useState } from "react";
 import {
+    Alert,
     KeyboardAvoidingView,
     Platform,
     ScrollView,
@@ -13,18 +14,28 @@ import {
     TouchableOpacity,
     View
 } from "react-native";
-import {
-    SafeAreaView
-} from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-export default function AddCourse() {
+export default function EditCourse() {
     const router = useRouter();
-    const { addCourse } = useCourses();
+    const { id } = useLocalSearchParams<{ id: string }>();
+    const { courses, updateCourse, deleteCourse } = useCourses();
+
     const [title, setTitle] = useState("");
     const [description, setDescription] = useState("");
     const [tags, setTags] = useState<string[]>([]);
     const [tagInput, setTagInput] = useState("");
     const [files, setFiles] = useState<{ name: string, size: string }[]>([]);
+
+    useEffect(() => {
+        const course = courses.find(c => c.id === id);
+        if (course) {
+            setTitle(course.title);
+            setDescription(course.description);
+            setTags(course.tags);
+            setFiles(course.files);
+        }
+    }, [id, courses]);
 
     const handleAddTag = () => {
         if (tagInput.trim()) {
@@ -38,7 +49,6 @@ export default function AddCourse() {
     };
 
     const handleUploadFile = () => {
-        // Mock file upload
         const newFile = {
             name: `document_${files.length + 1}.pdf`,
             size: "2.5 MB"
@@ -50,22 +60,36 @@ export default function AddCourse() {
         setFiles(files.filter((_, i) => i !== index));
     };
 
-    const handleCreate = async () => {
-        if (!title.trim()) return; // Basic validation
+    const handleUpdate = async () => {
+        if (!title.trim() || !id) return;
 
-        await addCourse({
+        await updateCourse(id, {
             title,
             description,
             tags,
             files
         });
-
-        // Reset form and close modal
-        setTitle("");
-        setDescription("");
-        setTags([]);
-        setFiles([]);
         router.back();
+    };
+
+    const handleDelete = () => {
+        Alert.alert(
+            "Delete Course",
+            "Are you sure you want to delete this course? This action cannot be undone.",
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Delete",
+                    style: "destructive",
+                    onPress: async () => {
+                        if (id) {
+                            await deleteCourse(id);
+                            router.back();
+                        }
+                    }
+                }
+            ]
+        );
     };
 
     return (
@@ -75,7 +99,13 @@ export default function AddCourse() {
                 style={styles.container}
             >
                 <View style={styles.headerContainer}>
-                    <Text style={styles.headerTitle}>Add a Course</Text>
+                    <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+                        <Ionicons name="close" size={24} color={Colors.text} />
+                    </TouchableOpacity>
+                    <Text style={styles.headerTitle}>Edit Course</Text>
+                    <TouchableOpacity onPress={handleDelete} style={styles.deleteButton}>
+                        <Ionicons name="trash-outline" size={24} color="#ff4444" />
+                    </TouchableOpacity>
                 </View>
 
                 <ScrollView
@@ -160,8 +190,8 @@ export default function AddCourse() {
                 </ScrollView>
 
                 <View style={styles.footer}>
-                    <TouchableOpacity style={styles.createButton} onPress={handleCreate}>
-                        <Text style={styles.createButtonText}>Create Course</Text>
+                    <TouchableOpacity style={styles.createButton} onPress={handleUpdate}>
+                        <Text style={styles.createButtonText}>Save Changes</Text>
                     </TouchableOpacity>
                 </View>
             </KeyboardAvoidingView>
@@ -178,6 +208,9 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     headerContainer: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
         paddingHorizontal: 20,
         paddingVertical: 15,
         borderBottomWidth: 1,
@@ -185,10 +218,15 @@ const styles = StyleSheet.create({
         backgroundColor: Colors.background,
     },
     headerTitle: {
-        fontSize: 24,
+        fontSize: 18,
         fontWeight: "bold",
         color: Colors.text,
-        textAlign: "center",
+    },
+    backButton: {
+        padding: 4,
+    },
+    deleteButton: {
+        padding: 4,
     },
     scrollView: {
         flex: 1,
