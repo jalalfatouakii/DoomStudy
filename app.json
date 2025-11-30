@@ -14,6 +14,11 @@
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       },
+      "entitlements": {
+        "com.apple.security.application-groups": [
+          "group.com.doomstudy.jxlxl"
+        ]
+      },
       "appleTeamId": "KH4448LD3D"
     },
     "android": {

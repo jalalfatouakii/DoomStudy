@@ -1,6 +1,7 @@
 import { Colors } from "@/constants/colors";
 import { Ionicons } from "@expo/vector-icons";
 import {
+    Alert,
     ScrollView,
     StyleSheet,
     Text,
@@ -10,17 +11,31 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useCourses } from "@/context/CourseContext";
+import { useStats } from "@/context/StatsContext";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function Settings() {
     const { courses } = useCourses();
+    const { streak, timeSaved } = useStats();
+
+    // Format time saved
+    const hours = Math.floor(timeSaved / 3600);
+    const minutes = Math.floor((timeSaved % 3600) / 60);
+    const formattedTimeSaved = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+
+    // Motivation logic
+    const daysReclaimed = (timeSaved / (24 * 3600)).toFixed(1);
+    const motivationSubtitle = parseFloat(daysReclaimed) < 1
+        ? "You're getting there!"
+        : `That's ~${daysReclaimed} days less of doomscrolling !`;
 
     // Mock user data
     const user = {
         name: "Jalal",
         stats: {
             coursesCompleted: courses.length,
-            hoursStudied: 48.5,
-            streakDays: 5
+            hoursStudied: formattedTimeSaved,
+            streakDays: streak
         },
         weeklyActivity: [2.5, 3.5, 1.5, 4.0, 3.0, 5.5, 2.0] // Hours last 7 days
     };
@@ -92,8 +107,8 @@ export default function Settings() {
                         <Ionicons name="trending-up" size={24} color="#000" />
                     </View>
                     <View style={styles.motivationContent}>
-                        <Text style={styles.motivationTitle}>{user.stats.hoursStudied} Hours Reclaimed</Text>
-                        <Text style={styles.motivationSubtitle}>That's ~2 days less of doomscrolling !</Text>
+                        <Text style={styles.motivationTitle}>{user.stats.hoursStudied} Reclaimed</Text>
+                        <Text style={styles.motivationSubtitle}>{motivationSubtitle}</Text>
                     </View>
                 </View>
 
@@ -106,14 +121,8 @@ export default function Settings() {
                         color="#4CAF50"
                     />
                     <StatCard
-                        label="Hours"
-                        value={user.stats.hoursStudied}
-                        icon="time"
-                        color="#2196F3"
-                    />
-                    <StatCard
                         label="Streak"
-                        value={user.stats.streakDays}
+                        value={user.stats.streakDays + " day" + (user.stats.streakDays === 1 ? "" : "s")}
                         icon="flame"
                         color="#FF9800"
                     />
@@ -144,6 +153,18 @@ export default function Settings() {
                         <View style={styles.versionContainer}>
                             <Text style={styles.versionText}>Version 1.0.0</Text>
                         </View>
+                    </View>
+                </View>
+
+                {/* dev Section */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionHeader}>Developer Options</Text>
+                    <View style={styles.sectionContent}>
+                        <ActionItem
+                            icon="trash"
+                            title="Delete Async Storage"
+                            onPress={() => { AsyncStorage.clear(); Alert.alert("Async Storage cleared, please restart the app") }}
+                        />
                     </View>
                 </View>
 

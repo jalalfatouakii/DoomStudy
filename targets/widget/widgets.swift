@@ -12,28 +12,40 @@ extension Color {
 // MARK: - Provider
 struct Provider: AppIntentTimelineProvider {
     func placeholder(in context: Context) -> SimpleEntry {
-        SimpleEntry(date: Date(), configuration: ConfigurationAppIntent())
+        SimpleEntry(date: Date(), configuration: ConfigurationAppIntent(), streak: 12, timeSaved: 45000)
     }
 
     func snapshot(for configuration: ConfigurationAppIntent, in context: Context) async -> SimpleEntry {
-        SimpleEntry(date: Date(), configuration: configuration)
+        let (streak, timeSaved) = fetchStats()
+        return SimpleEntry(date: Date(), configuration: configuration, streak: streak, timeSaved: timeSaved)
     }
     
     func timeline(for configuration: ConfigurationAppIntent, in context: Context) async -> Timeline<SimpleEntry> {
-        // Static timeline for now
-        let entry = SimpleEntry(date: Date(), configuration: configuration)
-        return Timeline(entries: [entry], policy: .never)
+        let (streak, timeSaved) = fetchStats()
+        let entry = SimpleEntry(date: Date(), configuration: configuration, streak: streak, timeSaved: timeSaved)
+        return Timeline(entries: [entry], policy: .atEnd)
+    }
+    
+    func fetchStats() -> (Int, Double) {
+        let userDefaults = UserDefaults(suiteName: "group.com.doomstudy.jxlxl")
+        let streak = userDefaults?.integer(forKey: "streak") ?? 0
+        let timeSaved = userDefaults?.double(forKey: "timeSaved") ?? 0
+        return (streak, timeSaved)
     }
 }
 
 struct SimpleEntry: TimelineEntry {
     let date: Date
     let configuration: ConfigurationAppIntent
+    let streak: Int
+    let timeSaved: Double
 }
 
 // MARK: - Views
 
 struct SmallWidgetView: View {
+    var entry: Provider.Entry
+    
     var body: some View {
         VStack(spacing: 4) {
             Image(systemName: "flame.fill")
@@ -41,7 +53,7 @@ struct SmallWidgetView: View {
                 .foregroundStyle(Color.doomTint)
                 .padding(.bottom, 4)
             
-            Text("12")
+            Text("\(entry.streak)")
                 .font(.system(size: 40, weight: .bold, design: .rounded))
                 .foregroundStyle(Color.doomText)
                 .minimumScaleFactor(0.5)
@@ -86,6 +98,18 @@ struct MediumWidgetView: View {
 }
 
 struct LargeWidgetView: View {
+    var entry: Provider.Entry
+    
+    var formattedTimeSaved: String {
+        let hours = Int(entry.timeSaved / 3600)
+        let minutes = Int((entry.timeSaved.truncatingRemainder(dividingBy: 3600)) / 60)
+        if hours > 0 {
+            return "\(hours)h \(minutes)m"
+        } else {
+            return "\(minutes)m"
+        }
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             // Top Section: Stats
@@ -100,7 +124,7 @@ struct LargeWidgetView: View {
                             .fontWeight(.bold)
                             .foregroundStyle(Color.doomText.opacity(0.6))
                     }
-                    Text("12 Days")
+                    Text("\(entry.streak) Days")
                         .font(.title2)
                         .fontWeight(.bold)
                         .foregroundStyle(Color.doomText)
@@ -119,7 +143,7 @@ struct LargeWidgetView: View {
                             .fontWeight(.bold)
                             .foregroundStyle(Color.doomText.opacity(0.6))
                     }
-                    Text("12h 30m")
+                    Text(formattedTimeSaved)
                         .font(.title2)
                         .fontWeight(.bold)
                         .foregroundStyle(Color.doomText)
@@ -156,24 +180,38 @@ struct LargeWidgetView: View {
 }
 
 struct AccessoryCircularView: View {
+    var entry: Provider.Entry
+    
     var body: some View {
-        Gauge(value: 0.75) {
+        Gauge(value: Double(entry.streak), in: 0...7) {
             Image(systemName: "book.fill")
                 .font(.system(size: 12))
         } currentValueLabel: {
-            Text("75%")
+            Text("\(entry.streak)")
         }
         .gaugeStyle(.accessoryCircular)
     }
 }
 
 struct AccessoryRectangularView: View {
+    var entry: Provider.Entry
+    
+    var formattedTimeSaved: String {
+        let hours = Int(entry.timeSaved / 3600)
+        let minutes = Int((entry.timeSaved.truncatingRemainder(dividingBy: 3600)) / 60)
+        if hours > 0 {
+            return "\(hours)h \(minutes)m"
+        } else {
+            return "\(minutes)m"
+        }
+    }
+    
     var body: some View {
         VStack(alignment: .leading) {
             Text("SAVED")
                 .font(.caption2)
                 .bold()
-            Text("12h 30m")
+            Text(formattedTimeSaved)
                 .font(.headline)
                 .bold()
             Text("Less Doomscrolling")
@@ -191,17 +229,17 @@ struct widgetEntryView : View {
         Group {
             switch family {
             case .systemSmall:
-                SmallWidgetView()
+                SmallWidgetView(entry: entry)
             case .systemMedium:
                 MediumWidgetView()
             case .systemLarge:
-                LargeWidgetView()
+                LargeWidgetView(entry: entry)
             case .accessoryCircular:
-                AccessoryCircularView()
+                AccessoryCircularView(entry: entry)
             case .accessoryRectangular:
-                AccessoryRectangularView()
+                AccessoryRectangularView(entry: entry)
             default:
-                SmallWidgetView()
+                SmallWidgetView(entry: entry)
             }
         }
         .padding(family == .accessoryCircular || family == .accessoryRectangular ? 0 : 16)
@@ -257,7 +295,7 @@ extension ConfigurationAppIntent {
 #Preview(as: .systemSmall) {
     widget()
 } timeline: {
-    SimpleEntry(date: .now, configuration: .smiley)
+    SimpleEntry(date: .now, configuration: .smiley, streak: 12, timeSaved: 45000)
 }
 
 #Preview(as: .systemMedium) {
@@ -275,7 +313,7 @@ extension ConfigurationAppIntent {
 #Preview(as: .accessoryCircular) {
     widget()
 } timeline: {
-    SimpleEntry(date: .now, configuration: .smiley)
+    SimpleEntry(date: .now, configuration: .smiley, streak: 12, timeSaved: 45000)
 }
 
 #Preview(as: .accessoryRectangular) {
