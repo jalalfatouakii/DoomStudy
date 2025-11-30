@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import SharedGroupPreferences from 'react-native-shared-group-preferences';
+import WidgetCenter from 'react-native-widget-center';
 
 const APP_GROUP_IDENTIFIER = 'group.com.doomstudy.jxlxl';
 
@@ -10,6 +11,7 @@ type StatsContextType = {
     timeSaved: number; // in seconds
     weeklyData: number[]; // hours for last 7 days
     weeklyLabels: string[]; // labels for last 7 days
+    resetStats: () => Promise<void>;
 };
 
 const StatsContext = createContext<StatsContextType | undefined>(undefined);
@@ -134,10 +136,23 @@ export const StatsProvider = ({ children }: { children: React.ReactNode }) => {
         try {
             await SharedGroupPreferences.setItem('streak', currentStreak, APP_GROUP_IDENTIFIER);
             await SharedGroupPreferences.setItem('timeSaved', currentTimeSaved, APP_GROUP_IDENTIFIER);
+            WidgetCenter.reloadAllTimelines();
         } catch (error) {
             // console.error('Failed to sync to widget:', error);
             // Expected to fail on Simulator if App Groups aren't set up correctly,
             // or if not running on a device with proper provisioning.
+        }
+    };
+
+    const resetStats = async () => {
+        try {
+            await AsyncStorage.multiRemove(['streak', 'timeSaved', 'lastOpenedDate', 'dailyHistory']);
+            setStreak(0);
+            setTimeSaved(0);
+            setDailyHistory({});
+            syncToWidget(0, 0);
+        } catch (error) {
+            console.error('Failed to reset stats:', error);
         }
     };
 
@@ -165,7 +180,8 @@ export const StatsProvider = ({ children }: { children: React.ReactNode }) => {
             streak,
             timeSaved,
             weeklyData: data,
-            weeklyLabels: labels
+            weeklyLabels: labels,
+            resetStats
         }}>
             {children}
         </StatsContext.Provider>

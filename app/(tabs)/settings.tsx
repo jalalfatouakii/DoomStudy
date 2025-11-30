@@ -16,7 +16,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function Settings() {
     const { courses } = useCourses();
-    const { streak, timeSaved, weeklyData, weeklyLabels } = useStats();
+    const { streak, timeSaved, weeklyData, weeklyLabels, resetStats } = useStats();
 
     // Format time saved
     const hours = Math.floor(timeSaved / 3600);
@@ -169,7 +169,11 @@ export default function Settings() {
                         <ActionItem
                             icon="trash"
                             title="Delete Async Storage"
-                            onPress={() => { AsyncStorage.clear(); Alert.alert("Async Storage cleared, please restart the app") }}
+                            onPress={async () => {
+                                await AsyncStorage.clear();
+                                await resetStats();
+                                Alert.alert("Async Storage cleared, please restart the app");
+                            }}
                         />
                     </View>
                 </View>
