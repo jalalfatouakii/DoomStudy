@@ -29,6 +29,12 @@ export const StatsProvider = ({ children }: { children: React.ReactNode }) => {
     const [timeSaved, setTimeSaved] = useState(0);
     const [dailyHistory, setDailyHistory] = useState<Record<string, number>>({});
     const sessionStartTime = useRef<number | null>(null);
+    const streakRef = useRef(0);
+
+    // Keep ref in sync with state
+    useEffect(() => {
+        streakRef.current = streak;
+    }, [streak]);
 
     useEffect(() => {
         loadStats();
@@ -126,7 +132,7 @@ export const StatsProvider = ({ children }: { children: React.ReactNode }) => {
                 return newHistory;
             });
 
-            syncToWidget(streak, newTimeSaved);
+            syncToWidget(streakRef.current, newTimeSaved);
         } catch (error) {
             console.error('Failed to save time saved:', error);
         }
