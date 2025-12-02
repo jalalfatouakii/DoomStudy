@@ -1,8 +1,9 @@
+import PdfTextExtractor from "@/components/PdfTextExtractor";
 import { Colors } from "@/constants/colors";
 import { useCourses } from "@/context/CourseContext";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from 'expo-document-picker';
-import { File } from 'expo-file-system';
+import * as FileSystem from 'expo-file-system';
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
@@ -19,7 +20,11 @@ import {
     SafeAreaView
 } from 'react-native-safe-area-context';
 
+
 export default function AddCourse() {
+
+
+
     const router = useRouter();
     const { addCourse } = useCourses();
     const [title, setTitle] = useState("");
@@ -27,6 +32,7 @@ export default function AddCourse() {
     const [tags, setTags] = useState<string[]>([]);
     const [tagInput, setTagInput] = useState("");
     const [files, setFiles] = useState<{ name: string, size: string }[]>([]);
+    const [pdfBase64, setPdfBase64] = useState<string | null>(null);
 
     const handleAddTag = () => {
         if (tagInput.trim()) {
@@ -74,22 +80,37 @@ export default function AddCourse() {
     const filepicker = async () => {
         try {
             const result = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true, type: "application/pdf" });
-            console.log(result);
 
-            const uri = result.assets?.[0]?.uri;
-            console.log(uri);
+            if (result.canceled) return;
 
-            const file = new File(uri || "");
-            console.log(file);
-            console.log(file.textSync());
+            const uri = result.assets[0].uri;
+
+            const file = new FileSystem.File(uri);
+            const base64 = await file.base64();
+
+            console.log(base64);
+
+            setPdfBase64(base64);
 
         } catch (error) {
-            console.error(error);
+            console.error("Error picking file:", error);
         }
     }
 
+    const handlePdfExtracted = (text: string) => {
+        console.log("Extracted Text:", text);
+        setDescription(prev => prev + "\n" + text);
+        setPdfBase64(null); // Reset after extraction
+    };
+
+    const handlePdfError = (error: string) => {
+        console.error("PDF Extraction Error:", error);
+        setPdfBase64(null);
+    };
+
     return (
         <SafeAreaView style={styles.safeArea}>
+
             <KeyboardAvoidingView
                 behavior={Platform.OS === "ios" ? "padding" : "height"}
                 style={styles.container}
@@ -190,6 +211,11 @@ export default function AddCourse() {
                                 <Text style={styles.uploadSubtitle}>PDF, DOCX, PPTX up to 10MB</Text>
                             </View>
                         </TouchableOpacity>
+                        <PdfTextExtractor
+                            pdfBase64={pdfBase64}
+                            onExtract={handlePdfExtracted}
+                            onError={handlePdfError}
+                        />
 
 
 
