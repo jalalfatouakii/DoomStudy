@@ -1,8 +1,77 @@
 import { Colors } from "@/constants/colors";
 import { Ionicons } from "@expo/vector-icons";
-import { Tabs } from "expo-router";
-import React from "react";
-import { Platform, View } from "react-native";
+import { Tabs, usePathname } from "expo-router";
+import React, { useEffect, useRef } from "react";
+import { Animated, Platform } from "react-native";
+
+function AnimatedAddButton() {
+    const pathname = usePathname();
+    const animationValue = useRef(new Animated.Value(pathname === "/add" ? 1 : 0)).current;
+    const isFocused = pathname === "/add";
+
+    useEffect(() => {
+
+        Animated.spring(animationValue, {
+            toValue: isFocused ? 1 : 0,
+            useNativeDriver: false,
+            friction: 8,
+            tension: 50,
+        }).start();
+    }, [pathname, isFocused]);
+
+    const width = animationValue.interpolate({
+        inputRange: [0, 1],
+        outputRange: [56, 48],
+    });
+
+    const height = animationValue.interpolate({
+        inputRange: [0, 1],
+        outputRange: [56, 48],
+    });
+
+    const marginBottom = animationValue.interpolate({
+        inputRange: [0, 1],
+        outputRange: [Platform.OS === "ios" ? 30 : 20, 0],
+    });
+
+    const backgroundColor = animationValue.interpolate({
+        inputRange: [0, 1],
+        outputRange: [Colors.tint, Colors.background],
+    });
+
+    const shadowOpacity = animationValue.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0.3, 0],
+    });
+
+    const elevation = animationValue.interpolate({
+        inputRange: [0, 1],
+        outputRange: [5, 0],
+    });
+
+    const iconColor = isFocused ? Colors.tint : Colors.background;
+
+    return (
+        <Animated.View
+            style={{
+                width,
+                height,
+                marginBottom,
+                backgroundColor,
+                borderRadius: 28,
+                justifyContent: "center",
+                alignItems: "center",
+                shadowColor: Colors.tint,
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity,
+                shadowRadius: 8,
+                elevation,
+            }}
+        >
+            <Ionicons name="add" size={32} color={iconColor} />
+        </Animated.View>
+    );
+}
 
 export default function TabLayout() {
     return (
@@ -21,9 +90,7 @@ export default function TabLayout() {
                 tabBarInactiveTintColor: Colors.tabIconDefault,
                 tabBarShowLabel: false,
                 animation: "fade",
-
             }}
-
         >
             <Tabs.Screen
                 name="index"
@@ -37,31 +104,7 @@ export default function TabLayout() {
             <Tabs.Screen
                 name="add"
                 options={{
-
-                    tabBarIcon: ({ focused }) => {
-                        const width = !focused ? 56 : 48;
-                        const height = !focused ? 56 : 48;
-                        return (
-                            <View
-                                style={{
-                                    width,
-                                    height,
-                                    borderRadius: 28,
-                                    backgroundColor: !focused ? Colors.tint : Colors.background,
-                                    justifyContent: "center",
-                                    alignItems: "center",
-                                    marginBottom: !focused ? Platform.OS === "ios" ? 30 : 20 : 0,
-                                    shadowColor: !focused ? Colors.tint : Colors.background,
-                                    shadowOffset: { width: 0, height: 4 },
-                                    shadowOpacity: !focused ? 0.3 : 0,
-                                    shadowRadius: !focused ? 8 : 0,
-                                    elevation: !focused ? 5 : 0,
-                                }}
-                            >
-                                <Ionicons name="add" size={32} color={!focused ? Colors.background : Colors.tint} />
-                            </View>
-                        );
-                    },
+                    tabBarIcon: () => <AnimatedAddButton />,
                 }}
             />
 
