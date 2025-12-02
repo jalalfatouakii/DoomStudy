@@ -25,7 +25,7 @@ export default function EditCourse() {
     const [description, setDescription] = useState("");
     const [tags, setTags] = useState<string[]>([]);
     const [tagInput, setTagInput] = useState("");
-    const [files, setFiles] = useState<{ name: string, size: string }[]>([]);
+    const [files, setFiles] = useState<{ name: string, size: string, uri?: string, parsedText?: string }[]>([]);
 
     useEffect(() => {
         const course = courses.find(c => c.id === id);

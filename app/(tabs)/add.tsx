@@ -66,7 +66,12 @@ export default function AddCourse() {
             title,
             description,
             tags,
-            files: files.map(f => ({ name: f.name, size: f.size })) // Map back to expected format if needed
+            files: files.map(f => ({
+                name: f.name,
+                size: f.size,
+                uri: f.uri,
+                parsedText: f.parsedText
+            }))
         });
 
         // Reset form and close modal

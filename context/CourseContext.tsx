@@ -6,7 +6,7 @@ export type Course = {
     title: string;
     description: string;
     tags: string[];
-    files: { name: string; size: string }[];
+    files: { name: string; size: string; uri?: string; parsedText?: string }[];
     createdAt: number;
 };
 
