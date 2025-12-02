@@ -14,8 +14,8 @@ function AnimatedAddButton() {
         Animated.spring(animationValue, {
             toValue: isFocused ? 1 : 0,
             useNativeDriver: false,
-            friction: 8,
-            tension: 50,
+            friction: 5,
+            tension: 70,
         }).start();
     }, [pathname, isFocused]);
 
@@ -34,10 +34,8 @@ function AnimatedAddButton() {
         outputRange: [Platform.OS === "ios" ? 30 : 20, 0],
     });
 
-    const backgroundColor = animationValue.interpolate({
-        inputRange: [0, 1],
-        outputRange: [Colors.tint, Colors.background],
-    });
+    // Use direct color switching instead of interpolation to avoid flashing
+    const backgroundColor = isFocused ? Colors.background : Colors.tint;
 
     const shadowOpacity = animationValue.interpolate({
         inputRange: [0, 1],
@@ -50,6 +48,7 @@ function AnimatedAddButton() {
     });
 
     const iconColor = isFocused ? Colors.tint : Colors.background;
+    const shadowColor = isFocused ? "transparent" : Colors.tint;
 
     return (
         <Animated.View
@@ -61,7 +60,7 @@ function AnimatedAddButton() {
                 borderRadius: 28,
                 justifyContent: "center",
                 alignItems: "center",
-                shadowColor: Colors.tint,
+                shadowColor,
                 shadowOffset: { width: 0, height: 4 },
                 shadowOpacity,
                 shadowRadius: 8,
