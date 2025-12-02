@@ -9,21 +9,57 @@ extension Color {
     static let doomSecondary = Color(red: 0x1A / 255.0, green: 0x1C / 255.0, blue: 0x1E / 255.0)
 }
 
+// MARK: - Data Models
+struct WidgetData: Codable {
+    let courseName: String
+    let text: String
+}
+
 // MARK: - Provider
 struct Provider: AppIntentTimelineProvider {
     func placeholder(in context: Context) -> SimpleEntry {
-        SimpleEntry(date: Date(), configuration: ConfigurationAppIntent(), streak: 12, timeSaved: 45000)
+        SimpleEntry(date: Date(), configuration: ConfigurationAppIntent(), streak: 12, timeSaved: 45000, courseName: "IFT 2015", snippetText: "Files = FIFO, Piles = LIFO")
     }
 
     func snapshot(for configuration: ConfigurationAppIntent, in context: Context) async -> SimpleEntry {
         let (streak, timeSaved) = fetchStats()
-        return SimpleEntry(date: Date(), configuration: configuration, streak: streak, timeSaved: timeSaved)
+        let widgetData = fetchWidgetData()
+        let randomItem = widgetData.randomElement()
+        
+        return SimpleEntry(
+            date: Date(),
+            configuration: configuration,
+            streak: streak,
+            timeSaved: timeSaved,
+            courseName: randomItem?.courseName ?? "DoomStudy",
+            snippetText: randomItem?.text ?? "Add courses to see content here."
+        )
     }
     
     func timeline(for configuration: ConfigurationAppIntent, in context: Context) async -> Timeline<SimpleEntry> {
         let (streak, timeSaved) = fetchStats()
-        let entry = SimpleEntry(date: Date(), configuration: configuration, streak: streak, timeSaved: timeSaved)
-        return Timeline(entries: [entry], policy: .atEnd)
+        let widgetData = fetchWidgetData()
+        
+        var entries: [SimpleEntry] = []
+        let currentDate = Date()
+        
+        // Create entries for the next hour (every 15 minutes)
+        for hourOffset in 0 ..< 4 {
+            let entryDate = Calendar.current.date(byAdding: .minute, value: hourOffset * 15, to: currentDate)!
+            let randomItem = widgetData.randomElement()
+            
+            let entry = SimpleEntry(
+                date: entryDate,
+                configuration: configuration,
+                streak: streak,
+                timeSaved: timeSaved,
+                courseName: randomItem?.courseName ?? "DoomStudy",
+                snippetText: randomItem?.text ?? "Add courses to see content here."
+            )
+            entries.append(entry)
+        }
+
+        return Timeline(entries: entries, policy: .atEnd)
     }
     
     func fetchStats() -> (Int, Double) {
@@ -32,6 +68,15 @@ struct Provider: AppIntentTimelineProvider {
         let timeSaved = userDefaults?.double(forKey: "timeSaved") ?? 0
         return (streak, timeSaved)
     }
+    
+    func fetchWidgetData() -> [WidgetData] {
+        let userDefaults = UserDefaults(suiteName: "group.com.doomstudy.jxlxl")
+        guard let data = userDefaults?.data(forKey: "widgetData"),
+              let widgetData = try? JSONDecoder().decode([WidgetData].self, from: data) else {
+            return []
+        }
+        return widgetData
+    }
 }
 
 struct SimpleEntry: TimelineEntry {
@@ -39,6 +84,8 @@ struct SimpleEntry: TimelineEntry {
     let configuration: ConfigurationAppIntent
     let streak: Int
     let timeSaved: Double
+    let courseName: String
+    let snippetText: String
 }
 
 // MARK: - Views
@@ -67,6 +114,8 @@ struct SmallWidgetView: View {
 }
 
 struct MediumWidgetView: View {
+    var entry: Provider.Entry
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -80,7 +129,7 @@ struct MediumWidgetView: View {
                     .foregroundStyle(Color.doomTint.opacity(0.5))
             }
             
-            Text("Files = FIFO, Piles = LIFO")
+            Text(entry.snippetText)
                 .font(.body)
                 .fontWeight(.medium)
                 .foregroundStyle(Color.doomText)
@@ -89,7 +138,7 @@ struct MediumWidgetView: View {
             
             Spacer()
             
-            Text("IFT 2015")
+            Text(entry.courseName)
                 .font(.caption)
                 .foregroundStyle(Color.doomText.opacity(0.6))
         }
@@ -162,7 +211,7 @@ struct LargeWidgetView: View {
                     .foregroundStyle(Color.doomTint)
                     .tracking(1)
                 
-                Text("Your time is limited, so don't waste it living someone else's life.")
+                Text(entry.snippetText)
                     .font(.body)
                     .fontWeight(.medium)
                     .foregroundStyle(Color.doomText)
@@ -170,7 +219,7 @@ struct LargeWidgetView: View {
                 
                 Spacer()
                 
-                Text("IFT 2015")
+                Text(entry.courseName)
                     .font(.caption)
                     .foregroundStyle(Color.doomText.opacity(0.6))
             }
@@ -231,7 +280,7 @@ struct widgetEntryView : View {
             case .systemSmall:
                 SmallWidgetView(entry: entry)
             case .systemMedium:
-                MediumWidgetView()
+                MediumWidgetView(entry: entry)
             case .systemLarge:
                 LargeWidgetView(entry: entry)
             case .accessoryCircular:
@@ -295,29 +344,29 @@ extension ConfigurationAppIntent {
 #Preview(as: .systemSmall) {
     widget()
 } timeline: {
-    SimpleEntry(date: .now, configuration: .smiley, streak: 12, timeSaved: 45000)
+    SimpleEntry(date: .now, configuration: .smiley, streak: 12, timeSaved: 45000, courseName: "IFT 2015", snippetText: "Files = FIFO, Piles = LIFO")
 }
 
 #Preview(as: .systemMedium) {
     widget()
 } timeline: {
-    SimpleEntry(date: .now, configuration: .smiley, streak: 12, timeSaved: 45000)
+    SimpleEntry(date: .now, configuration: .smiley, streak: 12, timeSaved: 45000, courseName: "IFT 2015", snippetText: "Files = FIFO, Piles = LIFO")
 }
 
 #Preview(as: .systemLarge) {
     widget()
 } timeline: {
-    SimpleEntry(date: .now, configuration: .smiley, streak: 12, timeSaved: 45000)
+    SimpleEntry(date: .now, configuration: .smiley, streak: 12, timeSaved: 45000, courseName: "IFT 2015", snippetText: "Files = FIFO, Piles = LIFO")
 }
 
 #Preview(as: .accessoryCircular) {
     widget()
 } timeline: {
-    SimpleEntry(date: .now, configuration: .smiley, streak: 12, timeSaved: 45000)
+    SimpleEntry(date: .now, configuration: .smiley, streak: 12, timeSaved: 45000, courseName: "IFT 2015", snippetText: "Files = FIFO, Piles = LIFO")
 }
 
 #Preview(as: .accessoryRectangular) {
     widget()
 } timeline: {
-    SimpleEntry(date: .now, configuration: .smiley, streak: 12, timeSaved: 45000)
+    SimpleEntry(date: .now, configuration: .smiley, streak: 12, timeSaved: 45000, courseName: "IFT 2015", snippetText: "Files = FIFO, Piles = LIFO")
 }
