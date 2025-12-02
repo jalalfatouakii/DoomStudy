@@ -1,6 +1,8 @@
 import { Colors } from "@/constants/colors";
 import { useCourses } from "@/context/CourseContext";
 import { Ionicons } from "@expo/vector-icons";
+import * as DocumentPicker from 'expo-document-picker';
+import { File } from 'expo-file-system';
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
@@ -46,6 +48,7 @@ export default function AddCourse() {
         setFiles([...files, newFile]);
     };
 
+
     const handleRemoveFile = (index: number) => {
         setFiles(files.filter((_, i) => i !== index));
     };
@@ -67,6 +70,23 @@ export default function AddCourse() {
         setFiles([]);
         router.back();
     };
+
+    const filepicker = async () => {
+        try {
+            const result = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true, type: "application/pdf" });
+            console.log(result);
+
+            const uri = result.assets?.[0]?.uri;
+            console.log(uri);
+
+            const file = new File(uri || "");
+            console.log(file);
+            console.log(file.textSync());
+
+        } catch (error) {
+            console.error(error);
+        }
+    }
 
     return (
         <SafeAreaView style={styles.safeArea}>
@@ -157,6 +177,23 @@ export default function AddCourse() {
                             </View>
                         ))}
                     </View>
+
+
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Upload test</Text>
+                        <TouchableOpacity style={styles.uploadCard} onPress={filepicker}>
+                            <View style={styles.uploadIconContainer}>
+                                <Ionicons name="cloud-upload" size={24} color={Colors.tint} />
+                            </View>
+                            <View>
+                                <Text style={styles.uploadTitle}>Upload Files</Text>
+                                <Text style={styles.uploadSubtitle}>PDF, DOCX, PPTX up to 10MB</Text>
+                            </View>
+                        </TouchableOpacity>
+
+
+
+                    </View>
                 </ScrollView>
 
                 <View style={styles.footer}>
@@ -165,7 +202,7 @@ export default function AddCourse() {
                     </TouchableOpacity>
                 </View>
             </KeyboardAvoidingView>
-        </SafeAreaView>
+        </SafeAreaView >
     );
 }
 
