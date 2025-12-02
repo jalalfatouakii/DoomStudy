@@ -1,5 +1,6 @@
 import { Colors } from "@/constants/colors";
 import { Ionicons } from "@expo/vector-icons";
+import Constants from "expo-constants";
 import {
     Alert,
     ScrollView,
@@ -157,7 +158,7 @@ export default function Settings() {
                         />
                         <View style={styles.separator} />
                         <View style={styles.versionContainer}>
-                            <Text style={styles.versionText}>Version 1.0.0</Text>
+                            <Text style={styles.versionText}>Version {Constants.expoConfig?.version}</Text>
                         </View>
                     </View>
                 </View>
