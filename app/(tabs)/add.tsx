@@ -22,17 +22,26 @@ import {
 
 
 export default function AddCourse() {
-
-
-
     const router = useRouter();
     const { addCourse } = useCourses();
     const [title, setTitle] = useState("");
     const [description, setDescription] = useState("");
     const [tags, setTags] = useState<string[]>([]);
     const [tagInput, setTagInput] = useState("");
-    const [files, setFiles] = useState<{ name: string, size: string }[]>([]);
+
+    // Updated files state to hold more info
+    const [files, setFiles] = useState<{
+        id: string,
+        name: string,
+        size: string,
+        uri: string,
+        parsedText?: string
+    }[]>([]);
+
     const [pdfBase64, setPdfBase64] = useState<string | null>(null);
+    const [isParsing, setIsParsing] = useState(false);
+    const [currentParsingFileId, setCurrentParsingFileId] = useState<string | null>(null);
+    const [viewingTextFileId, setViewingTextFileId] = useState<string | null>(null);
 
     const handleAddTag = () => {
         if (tagInput.trim()) {
@@ -45,18 +54,9 @@ export default function AddCourse() {
         setTags(tags.filter((_, i) => i !== index));
     };
 
-    const handleUploadFile = () => {
-        // Mock file upload
-        const newFile = {
-            name: `document_${files.length + 1}.pdf`,
-            size: "2.5 MB"
-        };
-        setFiles([...files, newFile]);
-    };
-
-
-    const handleRemoveFile = (index: number) => {
-        setFiles(files.filter((_, i) => i !== index));
+    const handleRemoveFile = (id: string) => {
+        setFiles(files.filter(f => f.id !== id));
+        if (viewingTextFileId === id) setViewingTextFileId(null);
     };
 
     const handleCreate = async () => {
@@ -66,7 +66,7 @@ export default function AddCourse() {
             title,
             description,
             tags,
-            files
+            files: files.map(f => ({ name: f.name, size: f.size })) // Map back to expected format if needed
         });
 
         // Reset form and close modal
@@ -83,34 +83,65 @@ export default function AddCourse() {
 
             if (result.canceled) return;
 
-            const uri = result.assets[0].uri;
+            const asset = result.assets[0];
+            const uri = asset.uri;
+            const id = Date.now().toString(); // Simple ID generation
+
+            // Add file to state immediately
+            const newFile = {
+                id,
+                name: asset.name,
+                size: `${(asset.size ? asset.size / 1024 / 1024 : 0).toFixed(2)} MB`,
+                uri
+            };
+            setFiles(prev => [...prev, newFile]);
+
+            // Start parsing
+            setIsParsing(true);
+            setCurrentParsingFileId(id);
 
             const file = new FileSystem.File(uri);
             const base64 = await file.base64();
-
-            console.log(base64);
-
             setPdfBase64(base64);
 
         } catch (error) {
             console.error("Error picking file:", error);
+            setIsParsing(false);
+            setCurrentParsingFileId(null);
         }
     }
 
     const handlePdfExtracted = (text: string) => {
-        console.log("Extracted Text:", text);
-        setDescription(prev => prev + "\n" + text);
+        console.log("Extracted Text Length:", text.length);
+
+        if (currentParsingFileId) {
+            setFiles(prev => prev.map(f =>
+                f.id === currentParsingFileId ? { ...f, parsedText: text } : f
+            ));
+
+            // Auto-append to description if it's empty or user wants it (optional, for now just append)
+            // setDescription(prev => prev + (prev ? "\n\n" : "") + `--- Content from ${files.find(f => f.id === currentParsingFileId)?.name} ---\n` + text);
+        }
+
+        setIsParsing(false);
+        setCurrentParsingFileId(null);
         setPdfBase64(null); // Reset after extraction
     };
 
     const handlePdfError = (error: string) => {
         console.error("PDF Extraction Error:", error);
+        setIsParsing(false);
+        setCurrentParsingFileId(null);
         setPdfBase64(null);
     };
 
     return (
         <SafeAreaView style={styles.safeArea}>
-
+            <PdfTextExtractor
+                pdfBase64={pdfBase64}
+                onExtract={handlePdfExtracted}
+                onError={handlePdfError}
+            />
             <KeyboardAvoidingView
                 behavior={Platform.OS === "ios" ? "padding" : "height"}
                 style={styles.container}
@@ -173,35 +204,6 @@ export default function AddCourse() {
 
                     <View style={styles.section}>
                         <Text style={styles.sectionTitle}>Materials</Text>
-                        <TouchableOpacity style={styles.uploadCard} onPress={handleUploadFile}>
-                            <View style={styles.uploadIconContainer}>
-                                <Ionicons name="cloud-upload" size={24} color={Colors.tint} />
-                            </View>
-                            <View>
-                                <Text style={styles.uploadTitle}>Upload Files</Text>
-                                <Text style={styles.uploadSubtitle}>PDF, DOCX, PPTX up to 10MB</Text>
-                            </View>
-                        </TouchableOpacity>
-
-                        {files.map((file, index) => (
-                            <View key={index} style={styles.fileItem}>
-                                <View style={styles.fileIcon}>
-                                    <Ionicons name="document-text" size={20} color={Colors.tint} />
-                                </View>
-                                <View style={styles.fileInfo}>
-                                    <Text style={styles.fileName}>{file.name}</Text>
-                                    <Text style={styles.fileSize}>{file.size}</Text>
-                                </View>
-                                <TouchableOpacity onPress={() => handleRemoveFile(index)} style={styles.removeFileBtn}>
-                                    <Ionicons name="trash-outline" size={18} color="#ff4444" />
-                                </TouchableOpacity>
-                            </View>
-                        ))}
-                    </View>
-
-
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Upload test</Text>
                         <TouchableOpacity style={styles.uploadCard} onPress={filepicker}>
                             <View style={styles.uploadIconContainer}>
                                 <Ionicons name="cloud-upload" size={24} color={Colors.tint} />
@@ -211,14 +213,43 @@ export default function AddCourse() {
                                 <Text style={styles.uploadSubtitle}>PDF, DOCX, PPTX up to 10MB</Text>
                             </View>
                         </TouchableOpacity>
-                        <PdfTextExtractor
-                            pdfBase64={pdfBase64}
-                            onExtract={handlePdfExtracted}
-                            onError={handlePdfError}
-                        />
 
+                        {isParsing && (
+                            <View style={styles.parsingContainer}>
+                                <Text style={styles.parsingText}>Parsing document... ⏳</Text>
+                            </View>
+                        )}
 
+                        {files.map((file) => (
+                            <View key={file.id} style={styles.fileItem}>
+                                <View style={styles.fileIcon}>
+                                    <Ionicons name="document-text" size={20} color={Colors.tint} />
+                                </View>
+                                <View style={styles.fileInfo}>
+                                    <Text style={styles.fileName}>{file.name}</Text>
+                                    <Text style={styles.fileSize}>{file.size}</Text>
+                                    {file.parsedText && (
+                                        <TouchableOpacity onPress={() => setViewingTextFileId(viewingTextFileId === file.id ? null : file.id)}>
+                                            <Text style={styles.viewTextLink}>
+                                                {viewingTextFileId === file.id ? "Hide Text" : "View Extracted Text"}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    )}
+                                </View>
+                                <TouchableOpacity onPress={() => handleRemoveFile(file.id)} style={styles.removeFileBtn}>
+                                    <Ionicons name="trash-outline" size={18} color="#ff4444" />
+                                </TouchableOpacity>
+                            </View>
+                        ))}
 
+                        {viewingTextFileId && (
+                            <View style={styles.extractedTextContainer}>
+                                <Text style={styles.extractedTextTitle}>Extracted Content:</Text>
+                                <Text style={styles.extractedTextContent}>
+                                    {files.find(f => f.id === viewingTextFileId)?.parsedText}
+                                </Text>
+                            </View>
+                        )}
                     </View>
                 </ScrollView>
 
@@ -354,6 +385,18 @@ const styles = StyleSheet.create({
         fontSize: 13,
         color: Colors.tabIconDefault,
     },
+    parsingContainer: {
+        padding: 12,
+        backgroundColor: Colors.backgroundSecondary,
+        borderRadius: 12,
+        marginBottom: 12,
+        alignItems: 'center',
+    },
+    parsingText: {
+        color: Colors.tint,
+        fontSize: 14,
+        fontWeight: '500',
+    },
     fileItem: {
         flexDirection: "row",
         alignItems: "center",
@@ -384,8 +427,32 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: Colors.tabIconDefault,
     },
+    viewTextLink: {
+        color: Colors.tint,
+        fontSize: 12,
+        marginTop: 4,
+        textDecorationLine: 'underline',
+    },
     removeFileBtn: {
         padding: 8,
+    },
+    extractedTextContainer: {
+        marginTop: 8,
+        padding: 12,
+        backgroundColor: Colors.backgroundLighter,
+        borderRadius: 8,
+        marginBottom: 16,
+    },
+    extractedTextTitle: {
+        color: Colors.text,
+        fontWeight: 'bold',
+        marginBottom: 8,
+        fontSize: 14,
+    },
+    extractedTextContent: {
+        color: Colors.tabIconDefault,
+        fontSize: 12,
+        lineHeight: 18,
     },
     footer: {
         paddingHorizontal: 20,

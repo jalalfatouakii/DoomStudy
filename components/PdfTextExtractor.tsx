@@ -1,5 +1,5 @@
-import React, { useEffect, useRef } from 'react';
-import { Text, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View } from 'react-native';
 import { WebView } from 'react-native-webview';
 
 interface PdfTextExtractorProps {
@@ -10,13 +10,14 @@ interface PdfTextExtractorProps {
 
 export default function PdfTextExtractor({ pdfBase64, onExtract, onError }: PdfTextExtractorProps) {
     const webViewRef = useRef<WebView>(null);
+    const [isWebViewLoaded, setIsWebViewLoaded] = useState(false);
 
     useEffect(() => {
-        if (pdfBase64 && webViewRef.current) {
+        if (pdfBase64 && isWebViewLoaded && webViewRef.current) {
             // Send the base64 data to the WebView
             webViewRef.current.postMessage(JSON.stringify({ type: 'EXTRACT', data: pdfBase64 }));
         }
-    }, [pdfBase64]);
+    }, [pdfBase64, isWebViewLoaded]);
 
     const htmlContent = `
     <!DOCTYPE html>
@@ -72,18 +73,16 @@ export default function PdfTextExtractor({ pdfBase64, onExtract, onError }: PdfT
         }
     };
 
-    if (!pdfBase64) return null;
-
     return (
         <View style={{ height: 0, width: 0, overflow: 'hidden' }}>
             <WebView
                 ref={webViewRef}
                 source={{ html: htmlContent }}
                 onMessage={onMessage}
+                onLoad={() => setIsWebViewLoaded(true)}
                 javaScriptEnabled={true}
                 originWhitelist={['*']}
             />
-            <Text>hio</Text>
         </View>
     );
 }
