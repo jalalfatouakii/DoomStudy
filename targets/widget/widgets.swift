@@ -71,11 +71,15 @@ struct Provider: AppIntentTimelineProvider {
     
     func fetchWidgetData() -> [WidgetData] {
         let userDefaults = UserDefaults(suiteName: "group.com.doomstudy.jxlxl")
-        guard let data = userDefaults?.data(forKey: "widgetData"),
-              let widgetData = try? JSONDecoder().decode([WidgetData].self, from: data) else {
-            return []
+        
+        // React Native saves as JSON string, so we must read as string first
+        if let jsonString = userDefaults?.string(forKey: "widgetData"),
+           let data = jsonString.data(using: .utf8),
+           let widgetData = try? JSONDecoder().decode([WidgetData].self, from: data) {
+            return widgetData
         }
-        return widgetData
+        
+        return []
     }
 }
 
