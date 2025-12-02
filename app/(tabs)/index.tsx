@@ -145,7 +145,7 @@ export default function Index() {
   const renderSnippetItem = useCallback(({ item }: { item: ContentSnippet }) => (
     <TouchableOpacity
       style={[styles.verticalItem, { height: itemHeight }]}
-      onPress={() => router.push({ pathname: "/course/[id]", params: { id: item.courseId } })}
+      onPress={() => router.push({ pathname: "/course/[id]", params: { id: item.courseId, snippetId: item.id } })}
     >
       <View style={styles.snippetCard}>
         <Text style={styles.snippetText} numberOfLines={8}>{item.text}</Text>

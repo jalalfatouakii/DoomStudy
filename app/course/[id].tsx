@@ -19,7 +19,7 @@ const INITIAL_LOAD = 20;
 const LOAD_MORE_COUNT = 10;
 
 export default function CourseDetail() {
-    const { id } = useLocalSearchParams<{ id: string }>();
+    const { id, snippetId } = useLocalSearchParams<{ id: string; snippetId?: string }>();
     const { courses, getRandomSnippets } = useCourses();
     const router = useRouter();
     const [itemHeight, setItemHeight] = useState(0);
@@ -30,10 +30,54 @@ export default function CourseDetail() {
 
     useEffect(() => {
         if (id) {
-            const initialSnippets = getRandomSnippets(INITIAL_LOAD, undefined, id);
-            setSnippets(initialSnippets);
+            let allSnippets = getRandomSnippets(INITIAL_LOAD, undefined, id);
+
+            // If a specific snippet was tapped, ensure it's in the list and at the front
+            if (snippetId && course) {
+                // Try to find the snippet in the current list
+                const existingIndex = allSnippets.findIndex(s => s.id === snippetId);
+
+                if (existingIndex >= 0) {
+                    // Snippet exists, move it to front if not already there
+                    if (existingIndex > 0) {
+                        const tappedSnippet = allSnippets[existingIndex];
+                        allSnippets.splice(existingIndex, 1);
+                        allSnippets.unshift(tappedSnippet);
+                    }
+                } else {
+                    // Snippet not in list, we need to create it from the course data
+                    // Parse the snippetId to extract file info
+                    const parts = snippetId.split('-');
+                    if (parts.length >= 3) {
+                        const fileName = parts.slice(1, -1).join('-');
+                        const sentenceIndex = parseInt(parts[parts.length - 1]);
+
+                        const file = course.files.find(f => f.name === fileName);
+                        if (file && file.parsedText) {
+                            const sentences = file.parsedText
+                                .split(/[.!?]\s+|\n+/)
+                                .map(s => s.trim())
+                                .filter(s => s.length > 20);
+
+                            if (sentences[sentenceIndex]) {
+                                const tappedSnippet = {
+                                    id: snippetId,
+                                    text: sentences[sentenceIndex],
+                                    courseId: id,
+                                    courseName: course.title,
+                                    fileName: file.name,
+                                    tags: course.tags,
+                                };
+                                allSnippets.unshift(tappedSnippet);
+                            }
+                        }
+                    }
+                }
+            }
+
+            setSnippets(allSnippets);
         }
-    }, [id]);
+    }, [id, snippetId]);
 
     const loadMoreSnippets = () => {
         if (!id) return;

@@ -3,7 +3,7 @@ import { emitTabPress } from "@/hooks/useTabPress";
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs, usePathname } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
-import { Animated, Platform, TouchableOpacity } from "react-native";
+import { Animated, Platform } from "react-native";
 
 function AnimatedAddButton() {
     const pathname = usePathname();
@@ -73,24 +73,21 @@ function AnimatedAddButton() {
     );
 }
 
-function AnimatedHomeButton({ focused, onPress }: { focused: boolean; onPress: () => void }) {
+function AnimatedHomeButton({ focused, shouldSpin }: { focused: boolean; shouldSpin: boolean }) {
     const spinValue = useRef(new Animated.Value(0)).current;
     const [isSpinning, setIsSpinning] = useState(false);
 
-    const startSpin = () => {
-        setIsSpinning(true);
-        spinValue.setValue(0);
-        Animated.timing(spinValue, {
-            toValue: 1,
-            duration: 800,
-            useNativeDriver: true,
-        }).start(() => setIsSpinning(false));
-    };
-
-    const handlePress = () => {
-        startSpin();
-        onPress();
-    };
+    useEffect(() => {
+        if (shouldSpin) {
+            setIsSpinning(true);
+            spinValue.setValue(0);
+            Animated.timing(spinValue, {
+                toValue: 1,
+                duration: 800,
+                useNativeDriver: true,
+            }).start(() => setIsSpinning(false));
+        }
+    }, [shouldSpin]);
 
     const spin = spinValue.interpolate({
         inputRange: [0, 1],
@@ -98,29 +95,41 @@ function AnimatedHomeButton({ focused, onPress }: { focused: boolean; onPress: (
     });
 
     return (
-        <TouchableOpacity onPress={handlePress} style={{ padding: 4 }}>
-            <Animated.View style={{ transform: [{ rotate: isSpinning ? spin : '0deg' }] }}>
-                <Ionicons
-                    name={focused ? "home" : "home-outline"}
-                    size={24}
-                    color={focused ? Colors.tint : Colors.tabIconDefault}
-                />
-            </Animated.View>
-        </TouchableOpacity>
+        <Animated.View style={{ transform: [{ rotate: isSpinning ? spin : '0deg' }] }}>
+            <Ionicons
+                name={isSpinning ? "refresh" : (focused ? "home" : "home-outline")}
+                size={24}
+                color={focused ? Colors.tint : Colors.tabIconDefault}
+            />
+        </Animated.View>
     );
 }
 
 export default function TabLayout() {
     const pathname = usePathname();
-    const [homeRefreshTrigger, setHomeRefreshTrigger] = useState(0);
+    const [spinTrigger, setSpinTrigger] = useState(0);
+    const previousPathRef = useRef(pathname);
+    const isMountedRef = useRef(false);
 
-    const handleHomePress = () => {
-        if (pathname === "/") {
-            // User is already on home, trigger refresh
-            emitTabPress("home");
-            setHomeRefreshTrigger(prev => prev + 1);
+    useEffect(() => {
+        // Skip the first render (initial mount)
+        if (!isMountedRef.current) {
+            isMountedRef.current = true;
+            previousPathRef.current = pathname;
+            return;
         }
-    };
+
+        // When pathname changes to home
+        if (pathname === "/") {
+            // Check if we were already on home (refresh) or coming from another tab (navigation)
+            if (previousPathRef.current === "/") {
+                // Already on home, trigger refresh
+                setSpinTrigger(prev => prev + 1);
+                emitTabPress("home");
+            }
+        }
+        previousPathRef.current = pathname;
+    }, [pathname]);
 
     return (
         <Tabs
@@ -146,7 +155,7 @@ export default function TabLayout() {
                     tabBarIcon: ({ color, focused }) => (
                         <AnimatedHomeButton
                             focused={focused}
-                            onPress={handleHomePress}
+                            shouldSpin={spinTrigger > 0}
                         />
                     ),
                 }}
