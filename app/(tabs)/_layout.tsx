@@ -73,12 +73,14 @@ function AnimatedAddButton() {
     );
 }
 
-function AnimatedHomeButton({ focused, shouldSpin }: { focused: boolean; shouldSpin: boolean }) {
+function AnimatedHomeButton({ focused, spinTrigger }: { focused: boolean; spinTrigger: number }) {
     const spinValue = useRef(new Animated.Value(0)).current;
     const [isSpinning, setIsSpinning] = useState(false);
+    const prevSpinTriggerRef = useRef(spinTrigger);
 
     useEffect(() => {
-        if (shouldSpin) {
+        // Only spin if the trigger actually changed (not initial render)
+        if (spinTrigger > 0 && spinTrigger !== prevSpinTriggerRef.current) {
             setIsSpinning(true);
             spinValue.setValue(0);
             Animated.timing(spinValue, {
@@ -87,7 +89,8 @@ function AnimatedHomeButton({ focused, shouldSpin }: { focused: boolean; shouldS
                 useNativeDriver: true,
             }).start(() => setIsSpinning(false));
         }
-    }, [shouldSpin]);
+        prevSpinTriggerRef.current = spinTrigger;
+    }, [spinTrigger]);
 
     const spin = spinValue.interpolate({
         inputRange: [0, 1],
@@ -108,28 +111,6 @@ function AnimatedHomeButton({ focused, shouldSpin }: { focused: boolean; shouldS
 export default function TabLayout() {
     const pathname = usePathname();
     const [spinTrigger, setSpinTrigger] = useState(0);
-    const previousPathRef = useRef(pathname);
-    const isMountedRef = useRef(false);
-
-    useEffect(() => {
-        // Skip the first render (initial mount)
-        if (!isMountedRef.current) {
-            isMountedRef.current = true;
-            previousPathRef.current = pathname;
-            return;
-        }
-
-        // When pathname changes to home
-        if (pathname === "/") {
-            // Check if we were already on home (refresh) or coming from another tab (navigation)
-            if (previousPathRef.current === "/") {
-                // Already on home, trigger refresh
-                setSpinTrigger(prev => prev + 1);
-                emitTabPress("home");
-            }
-        }
-        previousPathRef.current = pathname;
-    }, [pathname]);
 
     return (
         <Tabs
@@ -155,9 +136,20 @@ export default function TabLayout() {
                     tabBarIcon: ({ color, focused }) => (
                         <AnimatedHomeButton
                             focused={focused}
-                            shouldSpin={spinTrigger > 0}
+                            spinTrigger={spinTrigger}
                         />
                     ),
+                }}
+                listeners={{
+                    tabPress: (e) => {
+                        // Only trigger refresh if already on home
+                        if (pathname === "/") {
+                            e.preventDefault(); // Prevent default navigation
+                            setSpinTrigger(prev => prev + 1);
+                            emitTabPress("home");
+                        }
+                        // If not on home, let normal navigation happen
+                    },
                 }}
             />
 
