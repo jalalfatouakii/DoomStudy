@@ -35,6 +35,7 @@ export default function Index() {
   // Store snippets for each category
   const [categorySnippets, setCategorySnippets] = useState<Record<string, ContentSnippet[]>>({});
   const [refreshing, setRefreshing] = useState<Record<string, boolean>>({});
+  const [listKeys, setListKeys] = useState<Record<string, number>>({});
 
   const categories = useMemo(() => {
     const base = [
@@ -68,9 +69,6 @@ export default function Index() {
     if (activeIndex === 0) { // "For You" is at index 0
       const forYouCategory = categories[0];
       refreshSnippets(forYouCategory.id);
-      setTimeout(() => {
-        verticalListRefs.current[forYouCategory.id]?.scrollToIndex({ index: 0, animated: true });
-      }, 100);
     }
   });
 
@@ -85,13 +83,9 @@ export default function Index() {
   const onHeaderPress = (index: number) => {
     const category = categories[index];
 
-    // If pressing the already active tab, refresh the snippets and scroll to top
+    // If pressing the already active tab, refresh the snippets
     if (index === activeIndex && category.id !== "specific-courses") {
       refreshSnippets(category.id);
-      // Scroll to first item
-      setTimeout(() => {
-        verticalListRefs.current[category.id]?.scrollToIndex({ index: 0, animated: true });
-      }, 100);
     }
 
     setActiveIndex(index);
@@ -119,6 +113,12 @@ export default function Index() {
     setCategorySnippets(prev => ({
       ...prev,
       [categoryId]: newSnippets,
+    }));
+
+    // Update list key to force FlatList recreation
+    setListKeys(prev => ({
+      ...prev,
+      [categoryId]: (prev[categoryId] || 0) + 1,
     }));
 
     setRefreshing(prev => ({ ...prev, [categoryId]: false }));
@@ -241,6 +241,7 @@ export default function Index() {
     return (
       <View style={{ width, height: "100%" }}>
         <FlatList
+          key={`${category.id}-${listKeys[category.id] || 0}`}
           ref={(ref) => { verticalListRefs.current[category.id] = ref; }}
           data={snippets}
           keyExtractor={(item) => item.id}
