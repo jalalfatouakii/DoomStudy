@@ -7,6 +7,7 @@ import * as FileSystem from 'expo-file-system';
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
+    Alert,
     KeyboardAvoidingView,
     Platform,
     ScrollView,
@@ -60,7 +61,17 @@ export default function AddCourse() {
     };
 
     const handleCreate = async () => {
-        if (!title.trim()) return; // Basic validation
+        if (!title.trim()) {
+            Alert.alert("Please enter a title.");
+            return;
+        } // Basic validation
+
+        // Require at least one file with parsed text
+        const hasValidFile = files.some(f => f.parsedText && f.parsedText.trim().length > 0);
+        if (!hasValidFile) {
+            Alert.alert("Please add at least one PDF file with content before creating a course.");
+            return;
+        }
 
         await addCourse({
             title,

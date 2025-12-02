@@ -1,8 +1,9 @@
 import { Colors } from "@/constants/colors";
+import { emitTabPress } from "@/hooks/useTabPress";
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs, usePathname } from "expo-router";
-import React, { useEffect, useRef } from "react";
-import { Animated, Platform } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { Animated, Platform, TouchableOpacity } from "react-native";
 
 function AnimatedAddButton() {
     const pathname = usePathname();
@@ -72,7 +73,55 @@ function AnimatedAddButton() {
     );
 }
 
+function AnimatedHomeButton({ focused, onPress }: { focused: boolean; onPress: () => void }) {
+    const spinValue = useRef(new Animated.Value(0)).current;
+    const [isSpinning, setIsSpinning] = useState(false);
+
+    const startSpin = () => {
+        setIsSpinning(true);
+        spinValue.setValue(0);
+        Animated.timing(spinValue, {
+            toValue: 1,
+            duration: 800,
+            useNativeDriver: true,
+        }).start(() => setIsSpinning(false));
+    };
+
+    const handlePress = () => {
+        startSpin();
+        onPress();
+    };
+
+    const spin = spinValue.interpolate({
+        inputRange: [0, 1],
+        outputRange: ['0deg', '360deg'],
+    });
+
+    return (
+        <TouchableOpacity onPress={handlePress} style={{ padding: 4 }}>
+            <Animated.View style={{ transform: [{ rotate: isSpinning ? spin : '0deg' }] }}>
+                <Ionicons
+                    name={focused ? "home" : "home-outline"}
+                    size={24}
+                    color={focused ? Colors.tint : Colors.tabIconDefault}
+                />
+            </Animated.View>
+        </TouchableOpacity>
+    );
+}
+
 export default function TabLayout() {
+    const pathname = usePathname();
+    const [homeRefreshTrigger, setHomeRefreshTrigger] = useState(0);
+
+    const handleHomePress = () => {
+        if (pathname === "/") {
+            // User is already on home, trigger refresh
+            emitTabPress("home");
+            setHomeRefreshTrigger(prev => prev + 1);
+        }
+    };
+
     return (
         <Tabs
             detachInactiveScreens={false}
@@ -95,7 +144,10 @@ export default function TabLayout() {
                 name="index"
                 options={{
                     tabBarIcon: ({ color, focused }) => (
-                        <Ionicons name={focused ? "home" : "home-outline"} size={24} color={color} />
+                        <AnimatedHomeButton
+                            focused={focused}
+                            onPress={handleHomePress}
+                        />
                     ),
                 }}
             />

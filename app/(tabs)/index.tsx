@@ -1,14 +1,16 @@
 import { Colors } from "@/constants/colors";
-import { Course, useCourses } from "@/context/CourseContext";
+import { ContentSnippet, Course, useCourses } from "@/context/CourseContext";
+import { useTabPress } from "@/hooks/useTabPress";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Dimensions,
   FlatList,
   NativeScrollEvent,
   NativeSyntheticEvent,
   Platform,
+  RefreshControl,
   StatusBar,
   StyleSheet,
   Text,
@@ -18,20 +20,21 @@ import {
 
 
 const { width } = Dimensions.get("window");
-
-const generateData = (categoryId: string) =>
-  Array.from({ length: 10 }).map((_, i) => ({
-    id: `${categoryId}-${i}`,
-    content: `Content for ${categoryId} - Item ${i + 1}`,
-  }));
+const INITIAL_LOAD = 20;
+const LOAD_MORE_COUNT = 10;
 
 export default function Index() {
   const router = useRouter();
-  const { courses, allTags } = useCourses();
+  const { courses, allTags, getRandomSnippets } = useCourses();
   const [activeIndex, setActiveIndex] = useState(0);
   const [itemHeight, setItemHeight] = useState(0);
   const mainListRef = useRef<FlatList>(null);
   const headerListRef = useRef<FlatList>(null);
+  const verticalListRefs = useRef<Record<string, FlatList | null>>({});
+
+  // Store snippets for each category
+  const [categorySnippets, setCategorySnippets] = useState<Record<string, ContentSnippet[]>>({});
+  const [refreshing, setRefreshing] = useState<Record<string, boolean>>({});
 
   const categories = useMemo(() => {
     const base = [
@@ -42,6 +45,35 @@ export default function Index() {
     return [...base, ...tagCategories];
   }, [allTags]);
 
+  // Load initial snippets for all categories
+  useEffect(() => {
+    const initialSnippets: Record<string, ContentSnippet[]> = {};
+
+    categories.forEach(cat => {
+      if (cat.id === "specific-courses") return;
+
+      if (cat.id === "for-you") {
+        initialSnippets[cat.id] = getRandomSnippets(INITIAL_LOAD);
+      } else if (cat.id.startsWith("tag-")) {
+        const tag = cat.title;
+        initialSnippets[cat.id] = getRandomSnippets(INITIAL_LOAD, [tag]);
+      }
+    });
+
+    setCategorySnippets(initialSnippets);
+  }, [courses, categories]);
+
+  // Listen for home button press to refresh "For You"
+  useTabPress("home", () => {
+    if (activeIndex === 0) { // "For You" is at index 0
+      const forYouCategory = categories[0];
+      refreshSnippets(forYouCategory.id);
+      setTimeout(() => {
+        verticalListRefs.current[forYouCategory.id]?.scrollToIndex({ index: 0, animated: true });
+      }, 100);
+    }
+  });
+
   const onMomentumScrollEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const newIndex = Math.round(e.nativeEvent.contentOffset.x / width);
     if (newIndex !== activeIndex) {
@@ -51,16 +83,86 @@ export default function Index() {
   };
 
   const onHeaderPress = (index: number) => {
+    const category = categories[index];
+
+    // If pressing the already active tab, refresh the snippets and scroll to top
+    if (index === activeIndex && category.id !== "specific-courses") {
+      refreshSnippets(category.id);
+      // Scroll to first item
+      setTimeout(() => {
+        verticalListRefs.current[category.id]?.scrollToIndex({ index: 0, animated: true });
+      }, 100);
+    }
+
     setActiveIndex(index);
     mainListRef.current?.scrollToIndex({ index, animated: true });
     headerListRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.5 });
   };
 
-  const renderVerticalItem = ({ item }: { item: { content: string } }) => (
-    <View style={[styles.verticalItem, { height: itemHeight }]}>
-      <Text style={{ color: Colors.text }}>{item.content}</Text>
-    </View>
-  );
+  const refreshSnippets = async (categoryId: string) => {
+    const category = categories.find(c => c.id === categoryId);
+    if (!category || category.id === "specific-courses") return;
+
+    setRefreshing(prev => ({ ...prev, [categoryId]: true }));
+
+    // Simulate a brief delay for better UX
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    let newSnippets: ContentSnippet[] = [];
+    if (category.id === "for-you") {
+      newSnippets = getRandomSnippets(INITIAL_LOAD);
+    } else if (category.id.startsWith("tag-")) {
+      const tag = category.title;
+      newSnippets = getRandomSnippets(INITIAL_LOAD, [tag]);
+    }
+
+    setCategorySnippets(prev => ({
+      ...prev,
+      [categoryId]: newSnippets,
+    }));
+
+    setRefreshing(prev => ({ ...prev, [categoryId]: false }));
+  };
+
+  const loadMoreSnippets = (categoryId: string) => {
+    const category = categories.find(c => c.id === categoryId);
+    if (!category || category.id === "specific-courses") return;
+
+    let moreSnippets: ContentSnippet[] = [];
+    if (category.id === "for-you") {
+      moreSnippets = getRandomSnippets(LOAD_MORE_COUNT);
+    } else if (category.id.startsWith("tag-")) {
+      const tag = category.title;
+      moreSnippets = getRandomSnippets(LOAD_MORE_COUNT, [tag]);
+    }
+
+    setCategorySnippets(prev => ({
+      ...prev,
+      [categoryId]: [...(prev[categoryId] || []), ...moreSnippets],
+    }));
+  };
+
+  const renderSnippetItem = useCallback(({ item }: { item: ContentSnippet }) => (
+    <TouchableOpacity
+      style={[styles.verticalItem, { height: itemHeight }]}
+      onPress={() => router.push({ pathname: "/course/[id]", params: { id: item.courseId } })}
+    >
+      <View style={styles.snippetCard}>
+        <Text style={styles.snippetText} numberOfLines={8}>{item.text}</Text>
+        <View style={styles.snippetMeta}>
+          <Text style={styles.metaText} numberOfLines={1}>📚 {item.courseName}</Text>
+          <Text style={styles.metaText} numberOfLines={1}>📄 {item.fileName}</Text>
+          <View style={styles.tagsRow}>
+            {item.tags.slice(0, 3).map((tag, idx) => (
+              <View key={idx} style={styles.tagBadge}>
+                <Text style={styles.tagText}>{tag}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      </View>
+    </TouchableOpacity>
+  ), [itemHeight, router]);
 
   const renderCourseItem = ({ item }: { item: Course }) => (
     <TouchableOpacity
@@ -117,17 +219,46 @@ export default function Index() {
       );
     }
 
-    // For "For You" and Tags, show dummy vertical content
-    const data = generateData(category.title);
+    // For content feeds
+    const snippets = categorySnippets[category.id] || [];
+
+    if (courses.length === 0) {
+      return (
+        <View style={{ width, height: "100%", justifyContent: "center", alignItems: "center" }}>
+          <Text style={styles.emptyStateText}>No courses yet. Add one to see content!</Text>
+        </View>
+      );
+    }
+
+    if (snippets.length === 0) {
+      return (
+        <View style={{ width, height: "100%", justifyContent: "center", alignItems: "center" }}>
+          <Text style={styles.emptyStateText}>No content found for this tag.</Text>
+        </View>
+      );
+    }
+
     return (
       <View style={{ width, height: "100%" }}>
         <FlatList
-          data={data}
+          ref={(ref) => { verticalListRefs.current[category.id] = ref; }}
+          data={snippets}
           keyExtractor={(item) => item.id}
-          renderItem={renderVerticalItem}
+          renderItem={renderSnippetItem}
           pagingEnabled
           showsVerticalScrollIndicator={false}
           onLayout={(e) => setItemHeight(e.nativeEvent.layout.height)}
+          onEndReached={() => loadMoreSnippets(category.id)}
+          onEndReachedThreshold={0.5}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing[category.id] || false}
+              onRefresh={() => refreshSnippets(category.id)}
+              tintColor={Colors.tint}
+              title="Pull to refresh"
+              titleColor={Colors.tint}
+            />
+          }
         />
       </View>
     );
@@ -233,6 +364,33 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: Colors.backgroundSecondary,
+    paddingTop: 120,
+    paddingBottom: 40,
+    paddingHorizontal: 20,
+  },
+  snippetCard: {
+    justifyContent: "space-between",
+    backgroundColor: Colors.backgroundLighter,
+    borderRadius: 16,
+    padding: 24,
+    width: width * 0.9,
+    maxHeight: "80%",
+  },
+  snippetText: {
+    color: Colors.text,
+    fontSize: 22,
+    fontWeight: "600",
+    lineHeight: 32,
+    marginBottom: 20,
+    flexShrink: 1,
+  },
+  snippetMeta: {
+    gap: 6,
+    flexShrink: 0,
+  },
+  metaText: {
+    color: Colors.tabIconDefault,
+    fontSize: 13,
   },
   courseItem: {
     padding: 20,

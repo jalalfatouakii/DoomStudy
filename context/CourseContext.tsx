@@ -1,3 +1,4 @@
+import { ContentSnippet, generateSnippets } from '@/utils/contentExtractor';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
@@ -10,12 +11,15 @@ export type Course = {
     createdAt: number;
 };
 
+export { ContentSnippet };
+
 type CourseContextType = {
     courses: Course[];
     addCourse: (course: Omit<Course, 'id' | 'createdAt'>) => Promise<void>;
     updateCourse: (id: string, updates: Partial<Omit<Course, 'id' | 'createdAt'>>) => Promise<void>;
     deleteCourse: (id: string) => Promise<void>;
     allTags: string[];
+    getRandomSnippets: (count: number, filterTags?: string[], filterCourseId?: string) => ContentSnippet[];
 };
 
 const CourseContext = createContext<CourseContextType | undefined>(undefined);
@@ -83,8 +87,12 @@ export const CourseProvider = ({ children }: { children: React.ReactNode }) => {
     // Derive unique tags from all courses
     const allTags = Array.from(new Set(courses.flatMap(course => course.tags)));
 
+    const getRandomSnippets = (count: number, filterTags?: string[], filterCourseId?: string) => {
+        return generateSnippets(courses, count, filterTags, filterCourseId);
+    };
+
     return (
-        <CourseContext.Provider value={{ courses, addCourse, updateCourse, deleteCourse, allTags }}>
+        <CourseContext.Provider value={{ courses, addCourse, updateCourse, deleteCourse, allTags, getRandomSnippets }}>
             {children}
         </CourseContext.Provider>
     );
