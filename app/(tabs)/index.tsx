@@ -148,7 +148,7 @@ export default function Index() {
       onPress={() => router.push({ pathname: "/course/[id]", params: { id: item.courseId, snippetId: item.id } })}
     >
       <View style={styles.snippetCard}>
-        <Text style={styles.snippetText} numberOfLines={8}>{item.text}</Text>
+        <Text style={styles.snippetText} numberOfLines={20}>{item.text}</Text>
         <View style={styles.snippetMeta}>
           <Text style={styles.metaText} numberOfLines={1}>📚 {item.courseName}</Text>
           <Text style={styles.metaText} numberOfLines={1}>📄 {item.fileName}</Text>
@@ -365,8 +365,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: Colors.backgroundSecondary,
-    paddingTop: 120,
-    paddingBottom: 40,
+    paddingTop: 80,
+    paddingBottom: 20,
     paddingHorizontal: 20,
   },
   snippetCard: {
@@ -375,7 +375,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 24,
     width: width * 0.9,
-    maxHeight: "80%",
+    maxHeight: "90%",
   },
   snippetText: {
     color: Colors.text,

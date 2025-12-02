@@ -97,7 +97,7 @@ export default function CourseDetail() {
     const renderSnippetItem = ({ item }: { item: ContentSnippet }) => (
         <View style={[styles.verticalItem, { height: itemHeight }]}>
             <View style={styles.snippetCard}>
-                <Text style={styles.snippetText} numberOfLines={8}>{item.text}</Text>
+                <Text style={styles.snippetText} numberOfLines={20}>{item.text}</Text>
                 <View style={styles.snippetMeta}>
                     <Text style={styles.metaText} numberOfLines={1}>📄 {item.fileName}</Text>
                     <View style={styles.tagsRow}>
@@ -212,7 +212,7 @@ const styles = StyleSheet.create({
         justifyContent: "center",
         alignItems: "center",
         backgroundColor: Colors.backgroundSecondary,
-        paddingTop: 120,
+        paddingTop: 40,
         paddingBottom: 40,
         paddingHorizontal: 20,
     },
@@ -222,7 +222,7 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         padding: 24,
         width: width * 0.9,
-        maxHeight: "80%",
+        maxHeight: "100%",
     },
     snippetText: {
         color: Colors.text,
