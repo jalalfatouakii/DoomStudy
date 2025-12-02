@@ -39,25 +39,26 @@ export default function TabLayout() {
                 options={{
 
                     tabBarIcon: ({ focused }) => {
-                        if (focused) return null;
+                        const width = !focused ? 56 : 48;
+                        const height = !focused ? 56 : 48;
                         return (
                             <View
                                 style={{
-                                    width: 56,
-                                    height: 56,
+                                    width,
+                                    height,
                                     borderRadius: 28,
-                                    backgroundColor: Colors.tint,
+                                    backgroundColor: !focused ? Colors.tint : Colors.background,
                                     justifyContent: "center",
                                     alignItems: "center",
-                                    marginBottom: Platform.OS === "ios" ? 30 : 20,
-                                    shadowColor: Colors.tint,
+                                    marginBottom: !focused ? Platform.OS === "ios" ? 30 : 20 : 0,
+                                    shadowColor: !focused ? Colors.tint : Colors.background,
                                     shadowOffset: { width: 0, height: 4 },
-                                    shadowOpacity: 0.3,
-                                    shadowRadius: 8,
-                                    elevation: 5,
+                                    shadowOpacity: !focused ? 0.3 : 0,
+                                    shadowRadius: !focused ? 8 : 0,
+                                    elevation: !focused ? 5 : 0,
                                 }}
                             >
-                                <Ionicons name="add" size={32} color={Colors.background} />
+                                <Ionicons name="add" size={32} color={!focused ? Colors.background : Colors.tint} />
                             </View>
                         );
                     },
