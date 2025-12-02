@@ -174,6 +174,17 @@ export default function Index() {
         onMomentumScrollEnd={onMomentumScrollEnd}
         initialNumToRender={1}
         windowSize={2}
+        getItemLayout={(data, index) => ({
+          length: width,
+          offset: width * index,
+          index,
+        })}
+        onScrollToIndexFailed={(info) => {
+          const wait = new Promise((resolve) => setTimeout(resolve, 500));
+          wait.then(() => {
+            mainListRef.current?.scrollToIndex({ index: info.index, animated: true });
+          });
+        }}
       />
     </View>
   );
