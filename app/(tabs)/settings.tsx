@@ -14,8 +14,11 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useCourses } from "@/context/CourseContext";
 import { useStats } from "@/context/StatsContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter } from "expo-router";
+
 
 export default function Settings() {
+    const router = useRouter();
     const { courses } = useCourses();
     const { streak, timeSaved, weeklyData, weeklyLabels, resetStats } = useStats();
 
@@ -177,6 +180,15 @@ export default function Settings() {
                             }}
                         />
                     </View>
+
+                    <View style={styles.separator} />
+                    <ActionItem
+                        icon="alert"
+                        title="Go to Onboarding"
+                        onPress={async () => {
+                            router.push("/(onboarding)/");
+                        }}
+                    />
                 </View>
 
             </ScrollView>
