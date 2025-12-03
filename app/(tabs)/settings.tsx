@@ -189,6 +189,29 @@ export default function Settings() {
                             router.push("/(onboarding)/");
                         }}
                     />
+
+                    <View style={styles.separator} />
+                    <ActionItem
+                        icon="text"
+                        title="Add gemini key"
+                        onPress={async () => {
+                            Alert.prompt("Add gemini key", "Add your gemini key", [
+                                {
+                                    text: "Cancel",
+                                    onPress: () => console.log("Cancel Pressed"),
+                                    style: "cancel",
+                                },
+                                {
+                                    text: "OK",
+                                    onPress: (value?: string) => {
+                                        if (value) {
+                                            AsyncStorage.setItem("geminiKey", value);
+                                        }
+                                    },
+                                },
+                            ]);
+                        }}
+                    />
                 </View>
 
             </ScrollView>
