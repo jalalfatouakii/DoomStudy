@@ -12,6 +12,7 @@ export default function RootLayout() {
         <Stack screenOptions={{ contentStyle: { backgroundColor: Colors.background }, headerShown: false }}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="(modal)/edit" options={{ presentation: "modal" }} />
+          <Stack.Screen name="(onboarding)/index" />
         </Stack>
         <StatusBar style="light" />
       </CourseProvider>

@@ -15,6 +15,7 @@ import { useCourses } from "@/context/CourseContext";
 import { useStats } from "@/context/StatsContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
+import { useEffect, useState } from "react";
 
 
 export default function Settings() {
@@ -43,6 +44,26 @@ export default function Settings() {
         },
         weeklyActivity: weeklyData // Use real data
     };
+
+
+    const [geminiKey, setGeminiKey] = useState<string>("");
+
+    useEffect(() => {
+        const loadGeminiKey = async () => {
+            const key = await AsyncStorage.getItem("geminiKey");
+            if (key) {
+                setGeminiKey(key);
+            }
+        };
+        loadGeminiKey();
+    }, []);
+
+    useEffect(() => {
+        const saveGeminiKey = async () => {
+            await AsyncStorage.setItem("geminiKey", geminiKey);
+        };
+        saveGeminiKey();
+    }, [geminiKey]);
 
     const ActionItem = ({ icon, title, onPress }: any) => (
         <TouchableOpacity style={styles.settingItem} onPress={onPress}>
@@ -182,6 +203,7 @@ export default function Settings() {
                     </View>
 
                     <View style={styles.separator} />
+
                     <ActionItem
                         icon="alert"
                         title="Go to Onboarding"
@@ -205,13 +227,16 @@ export default function Settings() {
                                     text: "OK",
                                     onPress: (value?: string) => {
                                         if (value) {
-                                            AsyncStorage.setItem("geminiKey", value);
+                                            setGeminiKey(value);
                                         }
                                     },
                                 },
                             ]);
                         }}
                     />
+
+                    <View style={styles.separator} />
+                    <Text style={{ color: Colors.text, fontSize: 12, marginTop: 10, marginLeft: 10, marginRight: 10, marginBottom: 10 }}>Gemini Key: {geminiKey}</Text>
                 </View>
 
             </ScrollView>
