@@ -23,8 +23,8 @@ export async function generateSnippetsWithGemini(text: string, apiKey: string): 
         Format the output as a JSON array of objects with this structure:
         {
             "type": "fact" | "concept" | "qna" | "true_false",
-            "content": "The main text, question, or statement in the original language of the material" ,
-            "answer": "The answer or explanation (required for qna and true_false in the original language of the material)",
+            "content": "The main text, question, or statement in the original language of the material not the prompt. For Q&A, this is ONLY the question. Do NOT include the answer here.",
+            "answer": "The answer or explanation (required for qna and true_false in the original language of the material not the prompt.)",
             "label": "Optional label like 'Did you know?' or 'Key Concept' like the type, don't add extra text"
         }
         All in the original language of the material that is provided.

@@ -1,8 +1,9 @@
 import { Colors } from "@/constants/colors";
 import { ContentSnippet } from "@/utils/contentExtractor";
 import { Ionicons } from "@expo/vector-icons";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
+    Animated,
     LayoutAnimation,
     Platform,
     StyleSheet,
@@ -26,10 +27,28 @@ type SnippetCardProps = {
 
 export default function SnippetCard({ snippet, height }: SnippetCardProps) {
     const [isRevealed, setIsRevealed] = useState(false);
+    const fadeAnim = useRef(new Animated.Value(1)).current;
 
     const handleReveal = () => {
-        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-        setIsRevealed(true);
+        Animated.timing(fadeAnim, {
+            toValue: 0,
+            duration: 150,
+            useNativeDriver: true,
+        }).start(() => {
+            LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+            setIsRevealed(true);
+        });
+    };
+
+    const cleanContent = (text: string) => {
+        if (snippet.type === 'qna') {
+            // Remove "Question:" prefix and any "Answer:" part if present
+            return text
+                .replace(/^Question:\s*/i, '')
+                .replace(/Answer:[\s\S]*/i, '')
+                .trim();
+        }
+        return text;
     };
 
     const renderIcon = () => {
@@ -75,16 +94,18 @@ export default function SnippetCard({ snippet, height }: SnippetCardProps) {
 
             <View style={styles.contentContainer}>
                 <Text style={[styles.mainText, snippet.type === 'concept' && styles.conceptText]}>
-                    {snippet.content}
+                    {cleanContent(snippet.content)}
                 </Text>
 
                 {(snippet.type === "qna" || snippet.type === "true_false") && snippet.answer && (
                     <View style={styles.interactiveContainer}>
                         {!isRevealed ? (
-                            <TouchableOpacity style={styles.revealButton} onPress={handleReveal}>
-                                <Text style={styles.revealButtonText}>Reveal Answer</Text>
-                                <Ionicons name="eye-outline" size={20} color={Colors.background} />
-                            </TouchableOpacity>
+                            <Animated.View style={{ opacity: fadeAnim }}>
+                                <TouchableOpacity style={styles.revealButton} onPress={handleReveal}>
+                                    <Text style={styles.revealButtonText}>Reveal Answer</Text>
+                                    <Ionicons name="eye-outline" size={20} color={Colors.background} />
+                                </TouchableOpacity>
+                            </Animated.View>
                         ) : (
                             <View style={styles.answerContainer}>
                                 <View style={styles.answerHeader}>
@@ -145,6 +166,7 @@ const styles = StyleSheet.create({
         color: Colors.tabIconDefault,
         textTransform: "uppercase",
         letterSpacing: 1,
+        maxWidth: "50%",
     },
     contentContainer: {
         flex: 1,
