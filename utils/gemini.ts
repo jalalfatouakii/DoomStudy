@@ -6,7 +6,7 @@ export async function generateSnippetsWithGemini(text: string, apiKey: string): 
         const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
         const prompt = `
-        You are an expert tutor. Your goal is to help a student learn the following material by creating engaging, bite-sized learning snippets.
+        You are an expert tutor. Your goal is to help a student learn the following material by creating engaging, bite-sized learning snippets in the original language of the material not the prompt.
         
         Material:
         "${text.substring(0, 30000)}" 
@@ -20,7 +20,9 @@ export async function generateSnippetsWithGemini(text: string, apiKey: string): 
         3. Short Q&A ("Question: ... Answer: ...")
         4. True/False statements with explanation.
 
-        Format the output as a JSON array of strings, e.g., ["Snippet 1", "Snippet 2"]. 
+        All in the original language of the material that is provided.
+
+        Format the output as a JSON array of objects, e.g., [{"type": "Fact", "snippet": "..."}]. 
         Do not include markdown formatting like \`\`\`json. Just the raw JSON array.
         Make sure each snippet is standalone and understandable without context.
         `;
@@ -37,7 +39,11 @@ export async function generateSnippetsWithGemini(text: string, apiKey: string): 
         const snippets = JSON.parse(cleanedText);
 
         if (Array.isArray(snippets)) {
-            return snippets.map(s => String(s));
+            return snippets.map(s => {
+                if (typeof s === 'string') return s;
+                if (typeof s === 'object' && s !== null && 'snippet' in s) return s.snippet;
+                return JSON.stringify(s);
+            });
         } else {
             console.warn("Gemini response was not an array:", snippets);
             return [];
