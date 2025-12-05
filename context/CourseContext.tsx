@@ -57,18 +57,34 @@ export const CourseProvider = ({ children }: { children: React.ReactNode }) => {
     const updateWidgetData = async (currentCourses: Course[]) => {
         try {
             const appGroup = "group.com.doomstudy.jxlxl";
+            const widgetSnippets: { courseName: string; text: string }[] = [];
 
-            // Generate 50 random snippets for the widget to cycle through
-            const widgetSnippets = generateSnippets(currentCourses, 50).map(s => ({
-                courseName: s.courseName,
-                text: s.content // Map content to text for widget compatibility if needed, or update widget logic
-            }));
+            // Filter for AI snippets that are Facts or Concepts
+            currentCourses.forEach(course => {
+                if (course.aiSnippets && course.aiSnippets.length > 0) {
+                    course.aiSnippets.forEach(snippetStr => {
+                        try {
+                            const parsed = JSON.parse(snippetStr);
+                            if (parsed && (parsed.type === 'fact' || parsed.type === 'concept')) {
+                                widgetSnippets.push({
+                                    courseName: course.title,
+                                    text: parsed.content
+                                });
+                            }
+                        } catch (e) {
+                            // Skip invalid JSON
+                        }
+                    });
+                }
+            });
+
+            // If no AI snippets found, maybe fallback to something or just empty? 
+            // The user specifically said "disable basic snippets", so we leave it empty if no AI data.
+
+            // Randomize and limit to 50 items
+            const shuffled = widgetSnippets.sort(() => 0.5 - Math.random()).slice(0, 20);
 
             // Save to shared group preferences
-            // We need to dynamically import these to avoid issues if native modules aren't linked in Expo Go
-            // But since this is a dev client build, it should be fine.
-            // However, for safety, we'll use try-catch blocks around the imports or usage
-
             let SharedGroupPreferences = require('react-native-shared-group-preferences');
             if (SharedGroupPreferences.default) {
                 SharedGroupPreferences = SharedGroupPreferences.default;
@@ -79,7 +95,7 @@ export const CourseProvider = ({ children }: { children: React.ReactNode }) => {
                 WidgetCenter = WidgetCenter.default;
             }
 
-            await SharedGroupPreferences.setItem('widgetData', JSON.stringify(widgetSnippets), appGroup);
+            await SharedGroupPreferences.setItem('widgetData', JSON.stringify(shuffled), appGroup);
 
             if (WidgetCenter && typeof WidgetCenter.reloadAllTimelines === 'function') {
                 WidgetCenter.reloadAllTimelines();
