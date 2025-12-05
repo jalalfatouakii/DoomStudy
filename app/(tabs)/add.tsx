@@ -1,12 +1,16 @@
+import GeminiKeyModal from "@/components/GeminiKeyModal";
 import PdfTextExtractor from "@/components/PdfTextExtractor";
 import { Colors } from "@/constants/colors";
 import { useCourses } from "@/context/CourseContext";
+import { generateSnippetsWithGemini } from "@/utils/gemini";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
+    ActivityIndicator,
     Alert,
     KeyboardAvoidingView,
     Platform,
@@ -44,6 +48,33 @@ export default function AddCourse() {
     const [currentParsingFileId, setCurrentParsingFileId] = useState<string | null>(null);
     const [viewingTextFileId, setViewingTextFileId] = useState<string | null>(null);
 
+    // AI Integration State
+    const [showKeyModal, setShowKeyModal] = useState(false);
+    const [geminiKey, setGeminiKey] = useState<string | null>(null);
+    const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+    const [generationStatus, setGenerationStatus] = useState("");
+
+    useEffect(() => {
+        checkGeminiKey();
+    }, []);
+
+    const checkGeminiKey = async () => {
+        const key = await AsyncStorage.getItem("geminiKey");
+        if (key) {
+            setGeminiKey(key);
+        } else {
+            // Show modal if no key found on first load (optional logic, or just show it)
+            // For now, let's show it if it's the first time visiting add page? 
+            // Or just show it. The user requested "if its the first time the user opens the add page"
+            // We can check a separate flag for "hasSeenKeyPrompt" if needed, but checking key existence is simpler.
+            setShowKeyModal(true);
+        }
+    };
+
+    const handleKeySaved = (key: string) => {
+        setGeminiKey(key);
+    };
+
     const handleAddTag = () => {
         if (tagInput.trim()) {
             setTags([...tags, tagInput.trim()]);
@@ -73,6 +104,30 @@ export default function AddCourse() {
             return;
         }
 
+        let aiSnippets: string[] = [];
+
+        if (geminiKey) {
+            setIsGeneratingAI(true);
+            setGenerationStatus("Preparing content...");
+
+            try {
+                // Combine text from all files
+                const allText = files
+                    .map(f => f.parsedText || "")
+                    .join("\n\n");
+
+                setGenerationStatus("Consulting AI...");
+                aiSnippets = await generateSnippetsWithGemini(allText, geminiKey);
+
+                setGenerationStatus("Finalizing course...");
+            } catch (error) {
+                console.error("AI Generation failed:", error);
+                Alert.alert("AI Generation Failed", "Course will be created without AI snippets.");
+            } finally {
+                setIsGeneratingAI(false);
+            }
+        }
+
         await addCourse({
             title,
             description,
@@ -82,7 +137,8 @@ export default function AddCourse() {
                 size: f.size,
                 uri: f.uri,
                 parsedText: f.parsedText
-            }))
+            })),
+            aiSnippets
         });
 
         // Reset form and close modal
@@ -158,6 +214,20 @@ export default function AddCourse() {
                 onExtract={handlePdfExtracted}
                 onError={handlePdfError}
             />
+
+            <GeminiKeyModal
+                visible={showKeyModal}
+                onClose={() => setShowKeyModal(false)}
+                onSave={handleKeySaved}
+            />
+
+            {isGeneratingAI && (
+                <View style={styles.loadingOverlay}>
+                    <ActivityIndicator size="large" color={Colors.tint} />
+                    <Text style={styles.loadingText}>{generationStatus}</Text>
+                </View>
+            )}
+
             <KeyboardAvoidingView
                 behavior={Platform.OS === "ios" ? "padding" : "height"}
                 style={styles.container}
@@ -271,7 +341,9 @@ export default function AddCourse() {
 
                 <View style={styles.footer}>
                     <TouchableOpacity style={styles.createButton} onPress={handleCreate}>
-                        <Text style={styles.createButtonText}>Create Course</Text>
+                        <Text style={styles.createButtonText}>
+                            {geminiKey ? "Create Course & Generate AI Content" : "Create Course"}
+                        </Text>
                     </TouchableOpacity>
                 </View>
             </KeyboardAvoidingView>
@@ -491,5 +563,18 @@ const styles = StyleSheet.create({
         color: Colors.background,
         fontSize: 16,
         fontWeight: "bold",
+    },
+    loadingOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: "rgba(0,0,0,0.8)",
+        justifyContent: "center",
+        alignItems: "center",
+        zIndex: 1000,
+    },
+    loadingText: {
+        color: Colors.text,
+        marginTop: 20,
+        fontSize: 18,
+        fontWeight: "600",
     },
 });

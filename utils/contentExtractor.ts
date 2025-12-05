@@ -41,6 +41,26 @@ export function generateSnippets(
 
     // Extract snippets from each course
     filteredCourses.forEach(course => {
+        // Add AI Snippets if available
+        if (course.aiSnippets && course.aiSnippets.length > 0) {
+            // Check tags for AI snippets too (using course tags)
+            const hasMatchingTag = !filterTags || filterTags.length === 0 ||
+                course.tags.some(tag => filterTags.includes(tag));
+
+            if (hasMatchingTag) {
+                course.aiSnippets.forEach((snippet, idx) => {
+                    allSnippets.push({
+                        id: `${course.id}-ai-${idx}`,
+                        text: snippet,
+                        courseId: course.id,
+                        courseName: course.title,
+                        fileName: "AI Generated",
+                        tags: course.tags,
+                    });
+                });
+            }
+        }
+
         course.files.forEach(file => {
             if (!file.parsedText) return;
 

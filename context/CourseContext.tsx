@@ -8,6 +8,7 @@ export type Course = {
     description: string;
     tags: string[];
     files: { name: string; size: string; uri?: string; parsedText?: string }[];
+    aiSnippets?: string[]; // New field for AI generated snippets
     createdAt: number;
 };
 

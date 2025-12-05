@@ -1,9 +1,12 @@
 import { Colors } from "@/constants/colors";
 import { ContentSnippet, useCourses } from "@/context/CourseContext";
+import { generateSnippetsWithGemini } from "@/utils/gemini";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
+    ActivityIndicator,
     Dimensions,
     FlatList,
     RefreshControl,
@@ -25,6 +28,9 @@ export default function CourseDetail() {
     const [itemHeight, setItemHeight] = useState(0);
     const [snippets, setSnippets] = useState<ContentSnippet[]>([]);
     const [refreshing, setRefreshing] = useState(false);
+
+    // AI Generation State
+    const [isGeneratingMore, setIsGeneratingMore] = useState(false);
 
     const course = courses.find(c => c.id === id);
 
@@ -78,6 +84,45 @@ export default function CourseDetail() {
             setSnippets(allSnippets);
         }
     }, [id, snippetId]);
+
+    const generateMoreAiContent = async () => {
+        if (isGeneratingMore || !course) return;
+
+        const key = await AsyncStorage.getItem("geminiKey");
+        if (!key) return;
+
+        setIsGeneratingMore(true);
+        console.log(`Generating more AI content for course ${course.title}...`);
+
+        try {
+            // Combine text from files
+            const allText = course.files
+                .map(f => f.parsedText || "")
+                .join("\n\n");
+
+            if (!allText.trim()) return;
+
+            const newAiSnippets = await generateSnippetsWithGemini(allText, key);
+
+            if (newAiSnippets.length > 0) {
+                const newContentSnippets: ContentSnippet[] = newAiSnippets.map((text, idx) => ({
+                    id: `${course.id}-ai-gen-${Date.now()}-${idx}`,
+                    text,
+                    courseId: course.id,
+                    courseName: course.title,
+                    fileName: "AI Generated (Infinite)",
+                    tags: course.tags
+                }));
+
+                setSnippets(prev => [...prev, ...newContentSnippets]);
+            }
+
+        } catch (error) {
+            console.error("Error generating infinite AI content:", error);
+        } finally {
+            setIsGeneratingMore(false);
+        }
+    };
 
     const loadMoreSnippets = () => {
         if (!id) return;
@@ -165,7 +210,10 @@ export default function CourseDetail() {
                 showsVerticalScrollIndicator={false}
                 onLayout={(e) => setItemHeight(e.nativeEvent.layout.height)}
                 style={styles.list}
-                onEndReached={loadMoreSnippets}
+                onEndReached={() => {
+                    loadMoreSnippets();
+                    generateMoreAiContent();
+                }}
                 onEndReachedThreshold={0.5}
                 refreshControl={
                     <RefreshControl
@@ -176,6 +224,22 @@ export default function CourseDetail() {
                         titleColor={Colors.tint}
                     />
                 }
+                ListFooterComponent={
+                    isGeneratingMore ? (
+                        <View style={{ padding: 20, alignItems: 'center' }}>
+                            <ActivityIndicator size="small" color={Colors.tint} />
+                            <Text style={{ color: Colors.tabIconDefault, marginTop: 8, fontSize: 12 }}>Generating fresh insights...</Text>
+                        </View>
+                    ) : null
+                }
+                onViewableItemsChanged={({ viewableItems }) => {
+                    if (viewableItems.length > 0) {
+                        const lastIndex = viewableItems[0].index;
+                        if (lastIndex !== null && lastIndex > 0 && lastIndex % 10 === 0) {
+                            generateMoreAiContent();
+                        }
+                    }
+                }}
             />
         </SafeAreaView>
     );
