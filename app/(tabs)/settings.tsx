@@ -316,7 +316,7 @@ export default function Settings() {
                         icon="alert"
                         title="Go to Onboarding"
                         onPress={async () => {
-                            router.push('/(onboarding)');
+                            router.push('/(onboarding)/onboard');
                         }}
                     />
 
