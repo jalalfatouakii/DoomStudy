@@ -33,23 +33,16 @@ const FEATURES = [
     {
         id: "feature-1",
         type: "feature",
-        title: "Stop Doomscrolling",
-        description: "Take back control of your time. Turn endless scrolling into productive learning sessions.",
-        icon: "hourglass-outline" as const,
+        title: "Upload Class Content",
+        description: "Simply upload your lecture PDF notes or slides. We handle the rest.",
+        icon: "cloud-upload-outline" as const,
     },
     {
         id: "feature-2",
         type: "feature",
-        title: "Learn Anything",
-        description: "Import content from your favorite classes and let AI turn it into bite-sized content.",
-        icon: "school-outline" as const,
-    },
-    {
-        id: "feature-3",
-        type: "feature",
-        title: "Track Progress",
-        description: "Visualize your journey. See how many hours you've reclaimed !",
-        icon: "trending-up-outline" as const,
+        title: "Doomscroll Your Exams",
+        description: "We convert your boring study material into a fun, endless feed of bite-sized text snippets.",
+        icon: "phone-portrait-outline" as const,
     },
 ];
 
