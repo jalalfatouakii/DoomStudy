@@ -1,7 +1,8 @@
 import { Colors } from "@/constants/colors";
 import { emitTabPress } from "@/hooks/useTabPress";
 import { Ionicons } from "@expo/vector-icons";
-import { Tabs, usePathname } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Tabs, usePathname, useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import { Animated, Platform } from "react-native";
 
@@ -9,6 +10,25 @@ function AnimatedAddButton() {
     const pathname = usePathname();
     const animationValue = useRef(new Animated.Value(pathname === "/add" ? 1 : 0)).current;
     const isFocused = pathname === "/add";
+
+    const router = useRouter();
+    const [isOnboarded, setIsOnboarded] = useState(false);
+    const checkOnboarding = async () => {
+        try {
+            const hasOnboarded = await AsyncStorage.getItem("hasOnboarded");
+            if (hasOnboarded !== "true") {
+                setIsOnboarded(true);
+                router.replace("/(onboarding)/onboard");
+                AsyncStorage.setItem("hasOnboarded", "true");
+            }
+        } catch (error) {
+            console.error("Error checking onboarding status:", error);
+        }
+    };
+
+    useEffect(() => {
+        checkOnboarding();
+    }, []);
 
     useEffect(() => {
 
