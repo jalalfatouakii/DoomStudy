@@ -310,6 +310,7 @@ export default function Settings() {
                         />
                     </View>
 
+                    {/* AI Section 
                     <View style={styles.separator} />
 
                     <ActionItem
@@ -345,7 +346,10 @@ export default function Settings() {
 
                     <View style={styles.separator} />
                     <Text style={{ color: Colors.text, fontSize: 12, marginTop: 10, marginLeft: 10, marginRight: 10, marginBottom: 10 }}>Gemini Key: {geminiKey}</Text>
+                */}
                 </View>
+
+
 
             </ScrollView>
 
