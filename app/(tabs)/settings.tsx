@@ -1,12 +1,19 @@
+
 import { Colors } from "@/constants/colors";
 import { Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
 import {
     Alert,
+    Animated,
+    Keyboard,
+    Modal,
+    Pressable,
     ScrollView,
     StyleSheet,
     Text,
+    TextInput,
     TouchableOpacity,
+    TouchableWithoutFeedback,
     View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -15,7 +22,80 @@ import { useCourses } from "@/context/CourseContext";
 import { useStats } from "@/context/StatsContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+
+const EditNameModal = ({ visible, onClose, onSave, initialName }: { visible: boolean, onClose: () => void, onSave: (name: string) => void, initialName: string }) => {
+    const [name, setName] = useState(initialName);
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+        if (visible) {
+            setName(initialName);
+            fadeAnim.setValue(0);
+            Animated.timing(fadeAnim, {
+                toValue: 1,
+                duration: 200,
+                useNativeDriver: true,
+            }).start();
+        }
+    }, [visible, initialName]);
+
+    const animateClose = () => {
+        Animated.timing(fadeAnim, {
+            toValue: 0,
+            duration: 150,
+            useNativeDriver: true,
+        }).start(() => {
+            onClose();
+        });
+    };
+
+    const handleSave = () => {
+        onSave(name);
+        animateClose();
+    };
+
+    if (!visible) return null;
+
+    return (
+        <Modal
+            transparent
+            visible={visible}
+            onRequestClose={animateClose}
+            animationType="none"
+        >
+            <TouchableWithoutFeedback onPress={animateClose}>
+                <View style={styles.modalOverlay}>
+                    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                        <Animated.View style={[styles.modalContent, { opacity: fadeAnim, transform: [{ scale: fadeAnim.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] }) }] }]}>
+                            <Text style={styles.modalTitle}>Edit Name</Text>
+                            <Text style={styles.modalSubtitle}>Enter your new name</Text>
+
+                            <TextInput
+                                style={styles.input}
+                                value={name}
+                                onChangeText={setName}
+                                placeholder="Your Name"
+                                placeholderTextColor={Colors.tabIconDefault}
+                                autoFocus
+                                selectionColor={Colors.tint}
+                            />
+
+                            <View style={styles.modalButtons}>
+                                <Pressable style={[styles.modalButton, styles.cancelButton]} onPress={animateClose}>
+                                    <Text style={styles.cancelButtonText}>Cancel</Text>
+                                </Pressable>
+                                <Pressable style={[styles.modalButton, styles.saveButton]} onPress={handleSave}>
+                                    <Text style={styles.saveButtonText}>Save</Text>
+                                </Pressable>
+                            </View>
+                        </Animated.View>
+                    </TouchableWithoutFeedback>
+                </View>
+            </TouchableWithoutFeedback>
+        </Modal>
+    );
+};
 
 
 export default function Settings() {
@@ -26,7 +106,7 @@ export default function Settings() {
     // Format time saved
     const hours = Math.floor(timeSaved / 3600);
     const minutes = Math.floor((timeSaved % 3600) / 60);
-    const formattedTimeSaved = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+    const formattedTimeSaved = hours > 0 ? `${hours}h ${minutes} m` : `${minutes} m`;
 
     // Motivation logic
     const daysReclaimed = (timeSaved / (24 * 3600)).toFixed(1);
@@ -34,15 +114,39 @@ export default function Settings() {
         ? "You're getting there!"
         : `That's ~${daysReclaimed} days less of doomscrolling !`;
 
+    const [username, setUsername] = useState<string>("User");
+
     // Mock user data
     const user = {
-        name: "Jalal",
+        name: username,
         stats: {
             coursesCompleted: courses.length,
             hoursStudied: formattedTimeSaved,
             streakDays: streak
         },
         weeklyActivity: weeklyData // Use real data
+    };
+    const [editModalVisible, setEditModalVisible] = useState(false);
+
+    useEffect(() => {
+        const loadUsername = async () => {
+            const name = await AsyncStorage.getItem("userName");
+            if (name) {
+                setUsername(name);
+            }
+        };
+        loadUsername();
+    }, []);
+
+    useEffect(() => {
+        const saveUsername = async () => {
+            await AsyncStorage.setItem("userName", username);
+        };
+        saveUsername();
+    }, [username]);
+
+    const editUsername = () => {
+        setEditModalVisible(true);
     };
 
 
@@ -127,9 +231,13 @@ export default function Settings() {
                 {/* User Profile Section */}
                 <View style={styles.profileSection}>
                     <View style={styles.avatarContainer}>
-                        <Text style={styles.avatarText}>{user.name.charAt(0)}</Text>
+                        <Ionicons name="person" size={58} color="black" />
                     </View>
-                    <Text style={styles.userName}> Keep it going <Text style={styles.userNameBold}>{user.name}</Text>!</Text>
+                    <View style={styles.userNameContainer}>
+                        <Text style={styles.userName}> Keep it going <Text style={styles.userNameBold}>{user.name}</Text>!</Text>
+                        <Ionicons name="pencil" size={20} color="white" style={styles.editIcon} onPress={editUsername} />
+                    </View>
+
                 </View>
 
                 {/* Motivation Card */}
@@ -240,6 +348,16 @@ export default function Settings() {
                 </View>
 
             </ScrollView>
+
+            <EditNameModal
+                visible={editModalVisible}
+                onClose={() => setEditModalVisible(false)}
+                onSave={(newName) => {
+                    setUsername(newName);
+                    setEditModalVisible(false);
+                }}
+                initialName={username}
+            />
         </SafeAreaView>
     );
 }
@@ -462,4 +580,86 @@ const styles = StyleSheet.create({
     userNameBold: {
         fontWeight: "bold",
     },
+    userNameContainer: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+    },
+    editIcon: {
+        marginLeft: 10,
+
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    modalContent: {
+        backgroundColor: Colors.backgroundSecondary,
+        borderRadius: 20,
+        padding: 24,
+        width: '85%',
+        maxWidth: 400,
+        shadowColor: "#000",
+        shadowOffset: {
+            width: 0,
+            height: 2,
+        },
+        shadowOpacity: 0.25,
+        shadowRadius: 4,
+        elevation: 5,
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: Colors.text,
+        marginBottom: 8,
+        textAlign: 'center',
+    },
+    modalSubtitle: {
+        fontSize: 14,
+        color: Colors.tabIconDefault,
+        marginBottom: 20,
+        textAlign: 'center',
+    },
+    input: {
+        backgroundColor: Colors.backgroundLighter,
+        borderRadius: 12,
+        padding: 16,
+        color: Colors.text,
+        fontSize: 16,
+        marginBottom: 24,
+        borderWidth: 1,
+        borderColor: Colors.backgroundLighter,
+    },
+    modalButtons: {
+        flexDirection: 'row',
+        gap: 12,
+    },
+    modalButton: {
+        flex: 1,
+        paddingVertical: 12,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    cancelButton: {
+        backgroundColor: Colors.backgroundLighter,
+    },
+    saveButton: {
+        backgroundColor: Colors.tint,
+    },
+    cancelButtonText: {
+        color: Colors.text,
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    saveButtonText: {
+        color: Colors.background,
+        fontSize: 16,
+        fontWeight: 'bold',
+    },
 });
+
+
