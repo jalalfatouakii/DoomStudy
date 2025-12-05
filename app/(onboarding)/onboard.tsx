@@ -249,6 +249,7 @@ const styles = StyleSheet.create({
     },
     skipButton: {
         padding: 8,
+        height: 60,
     },
     skipText: {
         color: Colors.tabIconDefault,

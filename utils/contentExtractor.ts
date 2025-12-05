@@ -89,6 +89,8 @@ export function generateSnippets(
             }
         }
 
+        /* 
+        // Disable raw text snippets for now, per user request
         course.files.forEach(file => {
             if (!file.parsedText) return;
 
@@ -112,6 +114,7 @@ export function generateSnippets(
                 });
             });
         });
+        */
     });
 
     // Shuffle and return requested count
