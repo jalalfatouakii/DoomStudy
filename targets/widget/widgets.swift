@@ -129,22 +129,20 @@ struct MediumWidgetView: View {
                     .foregroundStyle(Color.doomTint)
                     .tracking(1)
                 Spacer()
-                Image(systemName: "quote.opening")
-                    .foregroundStyle(Color.doomTint.opacity(0.5))
+                Text(entry.courseName)
+                    .font(.caption2)
+                    .foregroundStyle(Color.doomText.opacity(0.6))
+                    .lineLimit(1)
             }
             
             Text(entry.snippetText)
-                .font(.body)
+                .font(.caption)
                 .fontWeight(.medium)
                 .foregroundStyle(Color.doomText)
-                .lineLimit(4)
+                .lineLimit(nil)
                 .multilineTextAlignment(.leading)
             
             Spacer()
-            
-            Text(entry.courseName)
-                .font(.caption)
-                .foregroundStyle(Color.doomText.opacity(0.6))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     }
@@ -209,23 +207,28 @@ struct LargeWidgetView: View {
             
             // Bottom Section: Quote
             VStack(alignment: .leading, spacing: 8) {
+            HStack {
                 Text("COURSE FACT")
                     .font(.caption2)
                     .fontWeight(.bold)
                     .foregroundStyle(Color.doomTint)
                     .tracking(1)
                 
-                Text(entry.snippetText)
-                    .font(.body)
-                    .fontWeight(.medium)
-                    .foregroundStyle(Color.doomText)
-                    .lineLimit(4)
-                
                 Spacer()
                 
                 Text(entry.courseName)
-                    .font(.caption)
+                    .font(.caption2)
                     .foregroundStyle(Color.doomText.opacity(0.6))
+                    .lineLimit(1)
+            }
+                
+                Text(entry.snippetText)
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundStyle(Color.doomText)
+                    .lineLimit(nil)
+                
+                Spacer()
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
