@@ -1,6 +1,8 @@
+import SnippetCard from "@/components/SnippetCard";
 import { Colors } from "@/constants/colors";
 import { ContentSnippet, Course, useCourses } from "@/context/CourseContext";
 import { useTabPress } from "@/hooks/useTabPress";
+import { SnippetType } from "@/utils/contentExtractor";
 import { generateSnippetsWithGemini } from "@/utils/gemini";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -166,14 +168,36 @@ export default function Index() {
       const newAiSnippets = await generateSnippetsWithGemini(allText, key);
 
       if (newAiSnippets.length > 0) {
-        const newContentSnippets: ContentSnippet[] = newAiSnippets.map((text, idx) => ({
-          id: `${randomCourse.id}-ai-gen-${Date.now()}-${idx}`,
-          text,
-          courseId: randomCourse.id,
-          courseName: randomCourse.title,
-          fileName: "AI Generated (Infinite)",
-          tags: randomCourse.tags
-        }));
+        const newContentSnippets: ContentSnippet[] = newAiSnippets.map((snippetStr, idx) => {
+          let type: SnippetType = 'text';
+          let content = snippetStr;
+          let answer = undefined;
+          let label = undefined;
+
+          try {
+            const parsed = JSON.parse(snippetStr);
+            if (parsed && typeof parsed === 'object' && parsed.content) {
+              type = parsed.type || 'text';
+              content = parsed.content;
+              answer = parsed.answer;
+              label = parsed.label;
+            }
+          } catch (e) {
+            // fallback
+          }
+
+          return {
+            id: `${randomCourse.id}-ai-gen-${Date.now()}-${idx}`,
+            type,
+            content,
+            answer,
+            label,
+            courseId: randomCourse.id,
+            courseName: randomCourse.title,
+            fileName: "AI Generated (Infinite)",
+            tags: randomCourse.tags
+          };
+        });
 
         setCategorySnippets(prev => ({
           ...prev,
@@ -234,21 +258,9 @@ export default function Index() {
     <TouchableOpacity
       style={[styles.verticalItem, { height: itemHeight }]}
       onPress={() => router.push({ pathname: "/course/[id]", params: { id: item.courseId, snippetId: item.id } })}
+      activeOpacity={0.9}
     >
-      <View style={styles.snippetCard}>
-        <Text style={styles.snippetText} numberOfLines={20}>{item.text}</Text>
-        <View style={styles.snippetMeta}>
-          <Text style={styles.metaText} numberOfLines={1}>📚 {item.courseName}</Text>
-          <Text style={styles.metaText} numberOfLines={1}>📄 {item.fileName}</Text>
-          <View style={styles.tagsRow}>
-            {item.tags.slice(0, 3).map((tag, idx) => (
-              <View key={idx} style={styles.tagBadge}>
-                <Text style={styles.tagText}>{tag}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-      </View>
+      <SnippetCard snippet={item} height={itemHeight ? itemHeight * 0.85 : undefined} />
     </TouchableOpacity>
   ), [itemHeight, router]);
 
@@ -479,8 +491,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: Colors.backgroundSecondary,
-    paddingTop: 80,
-    paddingBottom: 20,
+    paddingTop: 120,
+    paddingBottom: 30,
     paddingHorizontal: 20,
   },
   snippetCard: {

@@ -1,5 +1,7 @@
+import SnippetCard from "@/components/SnippetCard";
 import { Colors } from "@/constants/colors";
 import { ContentSnippet, useCourses } from "@/context/CourseContext";
+import { SnippetType } from "@/utils/contentExtractor";
 import { generateSnippetsWithGemini } from "@/utils/gemini";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -66,9 +68,10 @@ export default function CourseDetail() {
                                 .filter(s => s.length > 20);
 
                             if (sentences[sentenceIndex]) {
-                                const tappedSnippet = {
+                                const tappedSnippet: ContentSnippet = {
                                     id: snippetId,
-                                    text: sentences[sentenceIndex],
+                                    type: 'text',
+                                    content: sentences[sentenceIndex],
                                     courseId: id,
                                     courseName: course.title,
                                     fileName: file.name,
@@ -105,14 +108,36 @@ export default function CourseDetail() {
             const newAiSnippets = await generateSnippetsWithGemini(allText, key);
 
             if (newAiSnippets.length > 0) {
-                const newContentSnippets: ContentSnippet[] = newAiSnippets.map((text, idx) => ({
-                    id: `${course.id}-ai-gen-${Date.now()}-${idx}`,
-                    text,
-                    courseId: course.id,
-                    courseName: course.title,
-                    fileName: "AI Generated (Infinite)",
-                    tags: course.tags
-                }));
+                const newContentSnippets: ContentSnippet[] = newAiSnippets.map((snippetStr, idx) => {
+                    let type: SnippetType = 'text';
+                    let content = snippetStr;
+                    let answer = undefined;
+                    let label = undefined;
+
+                    try {
+                        const parsed = JSON.parse(snippetStr);
+                        if (parsed && typeof parsed === 'object' && parsed.content) {
+                            type = parsed.type || 'text';
+                            content = parsed.content;
+                            answer = parsed.answer;
+                            label = parsed.label;
+                        }
+                    } catch (e) {
+                        // fallback
+                    }
+
+                    return {
+                        id: `${course.id}-ai-gen-${Date.now()}-${idx}`,
+                        type,
+                        content,
+                        answer,
+                        label,
+                        courseId: course.id,
+                        courseName: course.title,
+                        fileName: "AI Generated (Infinite)",
+                        tags: course.tags
+                    };
+                });
 
                 setSnippets(prev => [...prev, ...newContentSnippets]);
             }
@@ -141,19 +166,7 @@ export default function CourseDetail() {
 
     const renderSnippetItem = ({ item }: { item: ContentSnippet }) => (
         <View style={[styles.verticalItem, { height: itemHeight }]}>
-            <View style={styles.snippetCard}>
-                <Text style={styles.snippetText} numberOfLines={20}>{item.text}</Text>
-                <View style={styles.snippetMeta}>
-                    <Text style={styles.metaText} numberOfLines={1}>📄 {item.fileName}</Text>
-                    <View style={styles.tagsRow}>
-                        {item.tags.slice(0, 3).map((tag, idx) => (
-                            <View key={idx} style={styles.tagBadge}>
-                                <Text style={styles.tagText}>{tag}</Text>
-                            </View>
-                        ))}
-                    </View>
-                </View>
-            </View>
+            <SnippetCard snippet={item} height={itemHeight ? itemHeight * 0.85 : undefined} />
         </View>
     );
 

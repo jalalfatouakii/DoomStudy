@@ -61,7 +61,7 @@ export const CourseProvider = ({ children }: { children: React.ReactNode }) => {
             // Generate 50 random snippets for the widget to cycle through
             const widgetSnippets = generateSnippets(currentCourses, 50).map(s => ({
                 courseName: s.courseName,
-                text: s.text
+                text: s.content // Map content to text for widget compatibility if needed, or update widget logic
             }));
 
             // Save to shared group preferences

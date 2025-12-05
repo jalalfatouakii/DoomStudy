@@ -1,8 +1,13 @@
 import { Course } from "@/context/CourseContext";
 
+export type SnippetType = 'text' | 'fact' | 'qna' | 'true_false' | 'concept';
+
 export type ContentSnippet = {
     id: string;
-    text: string;
+    type: SnippetType;
+    content: string; // Main text, question, or statement
+    answer?: string; // For Q&A and True/False
+    label?: string; // Optional subtitle or label
     courseId: string;
     courseName: string;
     fileName: string;
@@ -48,10 +53,33 @@ export function generateSnippets(
                 course.tags.some(tag => filterTags.includes(tag));
 
             if (hasMatchingTag) {
-                course.aiSnippets.forEach((snippet, idx) => {
+                course.aiSnippets.forEach((snippetStr, idx) => {
+                    try {
+                        // Try to parse as structured snippet
+                        const parsed = JSON.parse(snippetStr);
+                        if (parsed && typeof parsed === 'object' && parsed.type && parsed.content) {
+                            allSnippets.push({
+                                id: `${course.id}-ai-${idx}`,
+                                type: parsed.type as SnippetType,
+                                content: parsed.content,
+                                answer: parsed.answer,
+                                label: parsed.label,
+                                courseId: course.id,
+                                courseName: course.title,
+                                fileName: "AI Generated",
+                                tags: course.tags,
+                            });
+                            return;
+                        }
+                    } catch (e) {
+                        // Not JSON, fall through to simple text
+                    }
+
+                    // Fallback for legacy or plain string snippets
                     allSnippets.push({
                         id: `${course.id}-ai-${idx}`,
-                        text: snippet,
+                        type: 'text',
+                        content: snippetStr,
                         courseId: course.id,
                         courseName: course.title,
                         fileName: "AI Generated",
@@ -75,7 +103,8 @@ export function generateSnippets(
             sentences.forEach((sentence, idx) => {
                 allSnippets.push({
                     id: `${course.id}-${file.name}-${idx}`,
-                    text: sentence,
+                    type: 'text',
+                    content: sentence,
                     courseId: course.id,
                     courseName: course.title,
                     fileName: file.name,
