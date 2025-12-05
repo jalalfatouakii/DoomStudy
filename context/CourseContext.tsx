@@ -47,7 +47,7 @@ export const CourseProvider = ({ children }: { children: React.ReactNode }) => {
                 const parsedCourses = JSON.parse(storedCourses);
                 setCourses(parsedCourses);
                 // Update widget data on load to ensure it's fresh
-                updateWidgetData(parsedCourses);
+                //updateWidgetData(parsedCourses);
             }
         } catch (error) {
             console.error('Failed to load courses:', error);

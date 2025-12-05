@@ -121,7 +121,7 @@ struct MediumWidgetView: View {
     var entry: Provider.Entry
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text("COURSE FACT")
                     .font(.caption2)
@@ -140,6 +140,7 @@ struct MediumWidgetView: View {
                 .fontWeight(.medium)
                 .foregroundStyle(Color.doomText)
                 .lineLimit(nil)
+                .minimumScaleFactor(0.8)
                 .multilineTextAlignment(.leading)
             
             Spacer()
