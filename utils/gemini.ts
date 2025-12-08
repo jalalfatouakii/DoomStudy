@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-export async function generateSnippetsWithGemini(text: string, apiKey: string): Promise<string[]> {
+export async function generateSnippetsWithGemini(text: string, apiKey: string, numberOfSnippets: number = 20): Promise<string[]> {
     try {
         const genAI = new GoogleGenerativeAI(apiKey);
         const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
@@ -14,7 +14,7 @@ export async function generateSnippetsWithGemini(text: string, apiKey: string): 
         
         (Note: Text truncated to first 30k chars to fit context if needed)
 
-        Please generate 20 distinct, short, and engaging snippets in the original language of the material and based on this text.
+        Please generate ${numberOfSnippets} distinct, short, and engaging snippets in the original language of the material and based on this text.
         Mix the following types:
         1. Interesting Facts ("Did you know...?") -> type: "fact"
         2. Key Concepts defined simply. -> type: "concept"

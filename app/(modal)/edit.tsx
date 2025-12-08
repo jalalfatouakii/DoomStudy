@@ -171,6 +171,26 @@ export default function EditCourse() {
         const existingCourse = courses.find(c => c.id === id);
         let currentAiSnippets = existingCourse?.aiSnippets ? [...existingCourse.aiSnippets] : [];
 
+        // 1. Clean up snippets from deleted files
+        // We only keep snippets if their sourceFileName matches one of the current files (by name)
+        // OR if they don't have a sourceFileName (legacy snippets)
+        const currentFileNames = new Set(files.map(f => f.name));
+
+        currentAiSnippets = currentAiSnippets.filter(snippetStr => {
+            try {
+                const parsed = JSON.parse(snippetStr);
+                // If snippet has a source file tag, check if that file still exists
+                if (parsed.sourceFileName) {
+                    return currentFileNames.has(parsed.sourceFileName);
+                }
+                // If it doesn't have a tag, keep it (legacy data safety)
+                return true;
+            } catch (e) {
+                // Keep malformed strings to avoid data loss, or drop them? Let's keep.
+                return true;
+            }
+        });
+
         // Identify new files that have content
         const newFilesWithContent = files.filter(f => f.isNew && f.parsedText && f.parsedText.trim().length > 0);
 
@@ -184,7 +204,19 @@ export default function EditCourse() {
                     try {
                         // Force non-null assertion because we filtered for parsedText above
                         const snippets = await generateSnippetsWithGemini(file.parsedText!, geminiKey);
-                        currentAiSnippets.push(...snippets);
+
+                        // Tag newly generated snippets
+                        const taggedSnippets = snippets.map(s => {
+                            try {
+                                const parsed = JSON.parse(s);
+                                parsed.sourceFileName = file.name;
+                                return JSON.stringify(parsed);
+                            } catch (e) {
+                                return s;
+                            }
+                        });
+
+                        currentAiSnippets.push(...taggedSnippets);
                     } catch (err) {
                         console.error(`Error generating snippets for ${file.name}`, err);
                     }

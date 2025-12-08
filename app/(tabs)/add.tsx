@@ -120,9 +120,19 @@ export default function AddCourse() {
 
                     try {
                         const fileSnippets = await generateSnippetsWithGemini(file.parsedText, geminiKey);
-                        // Optional: You could tag these snippets with the filename if you wanted to track origin better
-                        // but for now we just dump them into the pool.
-                        aiSnippets.push(...fileSnippets);
+
+                        // Tag snippets with the source filename so we can delete them later if the file is removed
+                        const taggedSnippets = fileSnippets.map(s => {
+                            try {
+                                const parsed = JSON.parse(s);
+                                parsed.sourceFileName = file.name;
+                                return JSON.stringify(parsed);
+                            } catch (e) {
+                                return s;
+                            }
+                        });
+
+                        aiSnippets.push(...taggedSnippets);
                     } catch (err) {
                         console.error(`Failed to generate snippets for ${file.name}:`, err);
                         // Continue with other files even if one fails

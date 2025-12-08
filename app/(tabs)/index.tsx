@@ -171,8 +171,7 @@ export default function Index() {
     console.log(`Generating more AI content for ${categoryId}...`);
 
     try {
-      // Pick a random course to generate content from
-      // If category is a tag, pick a course with that tag
+      // Pick courses to generate content from
       let candidateCourses = courses;
       if (categoryId.startsWith("tag-")) {
         const tag = categories.find(c => c.id === categoryId)?.title;
@@ -183,49 +182,84 @@ export default function Index() {
 
       if (candidateCourses.length === 0) return;
 
-      const randomCourse = candidateCourses[Math.floor(Math.random() * candidateCourses.length)];
+      // Gather all 'valid' files from these courses
+      const allFiles: { parsedText: string, courseId: string, courseName: string, fileName: string, tags: string[] }[] = [];
 
-      // Combine text from files
-      const allText = randomCourse.files
-        .map(f => f.parsedText || "")
-        .join("\n\n");
-
-      if (!allText.trim()) return;
-
-      const newAiSnippets = await generateSnippetsWithGemini(allText, key);
-
-      if (newAiSnippets.length > 0) {
-        const newContentSnippets: ContentSnippet[] = newAiSnippets.map((snippetStr, idx) => {
-          let type: SnippetType = 'text';
-          let content = snippetStr;
-          let answer = undefined;
-          let label = undefined;
-
-          try {
-            const parsed = JSON.parse(snippetStr);
-            if (parsed && typeof parsed === 'object' && parsed.content) {
-              type = parsed.type || 'text';
-              content = parsed.content;
-              answer = parsed.answer;
-              label = parsed.label;
-            }
-          } catch (e) {
-            // fallback
+      candidateCourses.forEach(course => {
+        course.files.forEach(f => {
+          if (f.parsedText && f.parsedText.trim().length > 0) {
+            allFiles.push({
+              parsedText: f.parsedText,
+              courseId: course.id,
+              courseName: course.title,
+              fileName: f.name,
+              tags: course.tags
+            });
           }
-
-          return {
-            id: `${randomCourse.id}-ai-gen-${Date.now()}-${idx}`,
-            type,
-            content,
-            answer,
-            label,
-            courseId: randomCourse.id,
-            courseName: randomCourse.title,
-            fileName: "AI Generated (Infinite)",
-            tags: randomCourse.tags
-          };
         });
+      });
 
+      if (allFiles.length === 0) return;
+
+      // Shuffle files to ensure variety if we have many
+      const shuffledFiles = allFiles.sort(() => 0.5 - Math.random());
+
+      // We want ~20 snippets total
+      const TOTAL_SNIPPETS_TARGET = 20;
+
+      // Limit to max 10 files to avoid too many parallel requests, 
+      // but try to use as many as possible to be "from all files"
+      const maxFilesToUse = Math.min(shuffledFiles.length, 10);
+      const targetFiles = shuffledFiles.slice(0, maxFilesToUse);
+
+      const snippetsPerFile = Math.max(1, Math.floor(TOTAL_SNIPPETS_TARGET / targetFiles.length));
+
+      const newContentSnippets: ContentSnippet[] = [];
+
+      // Generate content for each selected file
+      // We can run these in parallel
+      const promises = targetFiles.map(async (file) => {
+        try {
+          const fileSnippets = await generateSnippetsWithGemini(file.parsedText, key, snippetsPerFile);
+
+          fileSnippets.forEach((snippetStr, idx) => {
+            let type: SnippetType = 'text';
+            let content = snippetStr;
+            let answer = undefined;
+            let label = undefined;
+
+            try {
+              const parsed = JSON.parse(snippetStr);
+              if (parsed && typeof parsed === 'object' && parsed.content) {
+                type = parsed.type || 'text';
+                content = parsed.content;
+                answer = parsed.answer;
+                label = parsed.label;
+              }
+            } catch (e) {
+              // fallback
+            }
+
+            newContentSnippets.push({
+              id: `${file.courseId}-${file.fileName}-ai-gen-${Date.now()}-${Math.random()}`,
+              type,
+              content,
+              answer,
+              label,
+              courseId: file.courseId,
+              courseName: file.courseName,
+              fileName: file.fileName, // Use real filename
+              tags: file.tags
+            });
+          });
+        } catch (err) {
+          console.error(`Failed to generate for file ${file.fileName}`, err);
+        }
+      });
+
+      await Promise.all(promises);
+
+      if (newContentSnippets.length > 0) {
         setCategorySnippets(prev => ({
           ...prev,
           [categoryId]: enrichWithAds([...(prev[categoryId] || []), ...newContentSnippets])
