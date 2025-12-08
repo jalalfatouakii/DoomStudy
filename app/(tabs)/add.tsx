@@ -111,13 +111,23 @@ export default function AddCourse() {
             setGenerationStatus("Preparing content...");
 
             try {
-                // Combine text from all files
-                const allText = files
-                    .map(f => f.parsedText || "")
-                    .join("\n\n");
+                // Process each file individually
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    if (!file.parsedText || file.parsedText.trim().length === 0) continue;
 
-                setGenerationStatus("Consulting AI...");
-                aiSnippets = await generateSnippetsWithGemini(allText, geminiKey);
+                    setGenerationStatus(`Analyzing file ${i + 1} of ${files.length}: ${file.name}...`);
+
+                    try {
+                        const fileSnippets = await generateSnippetsWithGemini(file.parsedText, geminiKey);
+                        // Optional: You could tag these snippets with the filename if you wanted to track origin better
+                        // but for now we just dump them into the pool.
+                        aiSnippets.push(...fileSnippets);
+                    } catch (err) {
+                        console.error(`Failed to generate snippets for ${file.name}:`, err);
+                        // Continue with other files even if one fails
+                    }
+                }
 
                 setGenerationStatus("Finalizing course...");
             } catch (error) {

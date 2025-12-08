@@ -1,9 +1,16 @@
+import GeminiKeyModal from "@/components/GeminiKeyModal";
+import PdfTextExtractor from "@/components/PdfTextExtractor";
 import { Colors } from "@/constants/colors";
 import { useCourses } from "@/context/CourseContext";
+import { generateSnippetsWithGemini } from "@/utils/gemini";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
+    ActivityIndicator,
     Alert,
     KeyboardAvoidingView,
     Platform,
@@ -16,6 +23,15 @@ import {
 } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+type FileState = {
+    id: string; // Temp ID for UI management
+    name: string;
+    size: string;
+    uri?: string;
+    parsedText?: string;
+    isNew?: boolean; // Track if file was added in this session
+};
+
 export default function EditCourse() {
     const router = useRouter();
     const { id } = useLocalSearchParams<{ id: string }>();
@@ -25,7 +41,37 @@ export default function EditCourse() {
     const [description, setDescription] = useState("");
     const [tags, setTags] = useState<string[]>([]);
     const [tagInput, setTagInput] = useState("");
-    const [files, setFiles] = useState<{ name: string, size: string, uri?: string, parsedText?: string }[]>([]);
+    const [files, setFiles] = useState<FileState[]>([]);
+
+    // PDF & parsing state
+    const [pdfBase64, setPdfBase64] = useState<string | null>(null);
+    const [isParsing, setIsParsing] = useState(false);
+    const [currentParsingFileId, setCurrentParsingFileId] = useState<string | null>(null);
+    const [viewingTextFileId, setViewingTextFileId] = useState<string | null>(null);
+
+    // AI Integration State
+    const [showKeyModal, setShowKeyModal] = useState(false);
+    const [geminiKey, setGeminiKey] = useState<string | null>(null);
+    const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+    const [generationStatus, setGenerationStatus] = useState("");
+
+    useEffect(() => {
+        checkGeminiKey();
+    }, []);
+
+    const checkGeminiKey = async () => {
+        const key = await AsyncStorage.getItem("geminiKey");
+        if (key) {
+            setGeminiKey(key);
+        }
+        // Don't auto-show modal in Edit unless they try to use AI, or assume they have it if they have content. 
+        // We'll leave it as passive check.
+    };
+
+    const handleKeySaved = (key: string) => {
+        setGeminiKey(key);
+    };
+
 
     useEffect(() => {
         const course = courses.find(c => c.id === id);
@@ -33,7 +79,15 @@ export default function EditCourse() {
             setTitle(course.title);
             setDescription(course.description);
             setTags(course.tags);
-            setFiles(course.files);
+            // Map existing files to FileState with isNew: false
+            setFiles(course.files.map((f, index) => ({
+                id: `existing-${index}`,
+                name: f.name,
+                size: f.size,
+                uri: f.uri,
+                parsedText: f.parsedText,
+                isNew: false
+            })));
         }
     }, [id, courses]);
 
@@ -48,26 +102,116 @@ export default function EditCourse() {
         setTags(tags.filter((_, i) => i !== index));
     };
 
-    const handleUploadFile = () => {
-        const newFile = {
-            name: `document_${files.length + 1}.pdf`,
-            size: "2.5 MB"
-        };
-        setFiles([...files, newFile]);
+    const handleRemoveFile = (id: string) => {
+        setFiles(files.filter(f => f.id !== id));
+        if (viewingTextFileId === id) setViewingTextFileId(null);
     };
 
-    const handleRemoveFile = (index: number) => {
-        setFiles(files.filter((_, i) => i !== index));
+    const filepicker = async () => {
+        try {
+            const result = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true, type: "application/pdf" });
+
+            if (result.canceled) return;
+
+            const asset = result.assets[0];
+            const uri = asset.uri;
+            const tempId = Date.now().toString();
+
+            // Add file to state immediately
+            const newFile: FileState = {
+                id: tempId,
+                name: asset.name,
+                size: `${(asset.size ? asset.size / 1024 / 1024 : 0).toFixed(2)} MB`,
+                uri,
+                isNew: true
+            };
+            setFiles(prev => [...prev, newFile]);
+
+            // Start parsing
+            setIsParsing(true);
+            setCurrentParsingFileId(tempId);
+
+            const file = new FileSystem.File(uri);
+            const base64 = await file.base64();
+            setPdfBase64(base64);
+
+        } catch (error) {
+            console.error("Error picking file:", error);
+            setIsParsing(false);
+            setCurrentParsingFileId(null);
+        }
+    }
+
+    const handlePdfExtracted = (text: string) => {
+        console.log("Extracted Text Length:", text.length);
+
+        if (currentParsingFileId) {
+            setFiles(prev => prev.map(f =>
+                f.id === currentParsingFileId ? { ...f, parsedText: text } : f
+            ));
+        }
+
+        setIsParsing(false);
+        setCurrentParsingFileId(null);
+        setPdfBase64(null); // Reset after extraction
     };
+
+    const handlePdfError = (error: string) => {
+        console.error("PDF Extraction Error:", error);
+        setIsParsing(false);
+        setCurrentParsingFileId(null);
+        setPdfBase64(null);
+    };
+
 
     const handleUpdate = async () => {
         if (!title.trim() || !id) return;
+
+        // Logic for AI generation on NEW files
+        const existingCourse = courses.find(c => c.id === id);
+        let currentAiSnippets = existingCourse?.aiSnippets ? [...existingCourse.aiSnippets] : [];
+
+        // Identify new files that have content
+        const newFilesWithContent = files.filter(f => f.isNew && f.parsedText && f.parsedText.trim().length > 0);
+
+        if (newFilesWithContent.length > 0 && geminiKey) {
+            setIsGeneratingAI(true);
+            try {
+                for (let i = 0; i < newFilesWithContent.length; i++) {
+                    const file = newFilesWithContent[i];
+                    setGenerationStatus(`Analyzing new file ${i + 1} of ${newFilesWithContent.length}: ${file.name}...`);
+
+                    try {
+                        // Force non-null assertion because we filtered for parsedText above
+                        const snippets = await generateSnippetsWithGemini(file.parsedText!, geminiKey);
+                        currentAiSnippets.push(...snippets);
+                    } catch (err) {
+                        console.error(`Error generating snippets for ${file.name}`, err);
+                    }
+                }
+            } catch (error) {
+                console.error("AI Generation in Edit failed:", error);
+                Alert.alert("AI update failed", "Could not generate snippets for some files.");
+            } finally {
+                setIsGeneratingAI(false);
+            }
+        } else if (newFilesWithContent.length > 0 && !geminiKey) {
+            // New content but no key? Maybe prompt? 
+            // For now, proceed without AI, maybe Alert user?
+            // "You added files but no AI key is saved, so no new snippets will be generated."
+        }
 
         await updateCourse(id, {
             title,
             description,
             tags,
-            files
+            files: files.map(f => ({
+                name: f.name,
+                size: f.size,
+                uri: f.uri,
+                parsedText: f.parsedText
+            })),
+            aiSnippets: currentAiSnippets
         });
         router.back();
     };
@@ -94,6 +238,25 @@ export default function EditCourse() {
 
     return (
         <SafeAreaView style={styles.safeArea}>
+            <PdfTextExtractor
+                pdfBase64={pdfBase64}
+                onExtract={handlePdfExtracted}
+                onError={handlePdfError}
+            />
+
+            <GeminiKeyModal
+                visible={showKeyModal}
+                onClose={() => setShowKeyModal(false)}
+                onSave={handleKeySaved}
+            />
+
+            {isGeneratingAI && (
+                <View style={styles.loadingOverlay}>
+                    <ActivityIndicator size="large" color={Colors.tint} />
+                    <Text style={styles.loadingText}>{generationStatus}</Text>
+                </View>
+            )}
+
             <KeyboardAvoidingView
                 behavior={Platform.OS === "ios" ? "padding" : "height"}
                 style={styles.container}
@@ -162,7 +325,7 @@ export default function EditCourse() {
 
                     <View style={styles.section}>
                         <Text style={styles.sectionTitle}>Materials</Text>
-                        <TouchableOpacity style={styles.uploadCard} onPress={handleUploadFile}>
+                        <TouchableOpacity style={styles.uploadCard} onPress={filepicker}>
                             <View style={styles.uploadIconContainer}>
                                 <Ionicons name="cloud-upload" size={24} color={Colors.tint} />
                             </View>
@@ -172,20 +335,42 @@ export default function EditCourse() {
                             </View>
                         </TouchableOpacity>
 
+                        {isParsing && (
+                            <View style={styles.parsingContainer}>
+                                <Text style={styles.parsingText}>Parsing document... ⏳</Text>
+                            </View>
+                        )}
+
                         {files.map((file, index) => (
-                            <View key={index} style={styles.fileItem}>
+                            <View key={file.id} style={styles.fileItem}>
                                 <View style={styles.fileIcon}>
                                     <Ionicons name="document-text" size={20} color={Colors.tint} />
                                 </View>
                                 <View style={styles.fileInfo}>
                                     <Text style={styles.fileName}>{file.name}</Text>
                                     <Text style={styles.fileSize}>{file.size}</Text>
+                                    {file.parsedText && (
+                                        <TouchableOpacity onPress={() => setViewingTextFileId(viewingTextFileId === file.id ? null : file.id)}>
+                                            <Text style={styles.viewTextLink}>
+                                                {viewingTextFileId === file.id ? "Hide Text" : "View Extracted Text"}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    )}
                                 </View>
-                                <TouchableOpacity onPress={() => handleRemoveFile(index)} style={styles.removeFileBtn}>
+                                <TouchableOpacity onPress={() => handleRemoveFile(file.id)} style={styles.removeFileBtn}>
                                     <Ionicons name="trash-outline" size={18} color="#ff4444" />
                                 </TouchableOpacity>
                             </View>
                         ))}
+
+                        {viewingTextFileId && (
+                            <View style={styles.extractedTextContainer}>
+                                <Text style={styles.extractedTextTitle}>Extracted Content:</Text>
+                                <Text style={styles.extractedTextContent}>
+                                    {files.find(f => f.id === viewingTextFileId)?.parsedText}
+                                </Text>
+                            </View>
+                        )}
                     </View>
                 </ScrollView>
 
@@ -329,6 +514,18 @@ const styles = StyleSheet.create({
         fontSize: 13,
         color: Colors.tabIconDefault,
     },
+    parsingContainer: {
+        padding: 12,
+        backgroundColor: Colors.backgroundSecondary,
+        borderRadius: 12,
+        marginBottom: 12,
+        alignItems: 'center',
+    },
+    parsingText: {
+        color: Colors.tint,
+        fontSize: 14,
+        fontWeight: '500',
+    },
     fileItem: {
         flexDirection: "row",
         alignItems: "center",
@@ -359,8 +556,32 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: Colors.tabIconDefault,
     },
+    viewTextLink: {
+        color: Colors.tint,
+        fontSize: 12,
+        marginTop: 4,
+        textDecorationLine: 'underline',
+    },
     removeFileBtn: {
         padding: 8,
+    },
+    extractedTextContainer: {
+        marginTop: 8,
+        padding: 12,
+        backgroundColor: Colors.backgroundLighter,
+        borderRadius: 8,
+        marginBottom: 16,
+    },
+    extractedTextTitle: {
+        color: Colors.text,
+        fontWeight: 'bold',
+        marginBottom: 8,
+        fontSize: 14,
+    },
+    extractedTextContent: {
+        color: Colors.tabIconDefault,
+        fontSize: 12,
+        lineHeight: 18,
     },
     footer: {
         paddingHorizontal: 20,
@@ -383,5 +604,18 @@ const styles = StyleSheet.create({
         color: Colors.background,
         fontSize: 16,
         fontWeight: "bold",
+    },
+    loadingOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: "rgba(0,0,0,0.8)",
+        justifyContent: "center",
+        alignItems: "center",
+        zIndex: 1000,
+    },
+    loadingText: {
+        color: Colors.text,
+        marginTop: 20,
+        fontSize: 18,
+        fontWeight: "600",
     },
 });
