@@ -50,6 +50,13 @@
         {
           "iCloudContainerEnvironment": "Production"
         }
+      ],
+      [
+        "react-native-google-mobile-ads",
+        {
+          "iosAppId": "ca-app-pub-7857372081627659~5771451405",
+          "androidAppId": "ca-app-pub-7857372081627659~3062253933"
+        }
       ]
     ],
     "experiments": {
