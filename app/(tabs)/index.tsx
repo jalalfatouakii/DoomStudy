@@ -25,10 +25,37 @@ import {
 } from "react-native";
 
 
+import NativeAdCard from "@/components/NativeAdCard"; // [NEW]
+
 const { width } = Dimensions.get("window");
 const INITIAL_LOAD = 20;
 const LOAD_MORE_COUNT = 10;
-const GENERATION_THRESHOLD = 10; // Generate more when user reaches this index
+const GENERATION_THRESHOLD = 10;
+const AD_INTERVAL = 15; // [NEW]
+
+// Helper to inject ads every AD_INTERVAL items
+const enrichWithAds = (items: ContentSnippet[]): ContentSnippet[] => {
+  const contentOnly = items.filter(i => i.type !== 'ad');
+  const result: ContentSnippet[] = [];
+
+  contentOnly.forEach((item, index) => {
+    result.push(item);
+    // Inject ad after every AD_INTERVAL items
+    if ((index + 1) % AD_INTERVAL === 0) {
+      result.push({
+        id: `ad-mob-${index}-${Date.now()}`,
+        type: 'ad',
+        content: 'Sponsored',
+        courseId: 'sponsored',
+        courseName: 'Sponsored',
+        fileName: '',
+        tags: []
+      });
+    }
+  });
+
+  return result;
+};
 
 export default function Index() {
   const router = useRouter();
@@ -122,7 +149,7 @@ export default function Index() {
 
     setCategorySnippets(prev => ({
       ...prev,
-      [categoryId]: newSnippets,
+      [categoryId]: enrichWithAds(newSnippets),
     }));
 
     // Update list key to force FlatList recreation
@@ -201,7 +228,7 @@ export default function Index() {
 
         setCategorySnippets(prev => ({
           ...prev,
-          [categoryId]: [...(prev[categoryId] || []), ...newContentSnippets]
+          [categoryId]: enrichWithAds([...(prev[categoryId] || []), ...newContentSnippets])
         }));
       }
 
@@ -226,7 +253,7 @@ export default function Index() {
 
     setCategorySnippets(prev => ({
       ...prev,
-      [categoryId]: [...(prev[categoryId] || []), ...moreSnippets],
+      [categoryId]: enrichWithAds([...(prev[categoryId] || []), ...moreSnippets]),
     }));
   };
 
@@ -254,15 +281,25 @@ export default function Index() {
     }
   }, []);
 
-  const renderSnippetItem = useCallback(({ item }: { item: ContentSnippet }) => (
-    <TouchableOpacity
-      style={[styles.verticalItem, { height: itemHeight }]}
-      onPress={() => router.push({ pathname: "/course/[id]", params: { id: item.courseId, snippetId: item.id } })}
-      activeOpacity={0.9}
-    >
-      <SnippetCard snippet={item} height={itemHeight ? itemHeight * 0.85 : undefined} />
-    </TouchableOpacity>
-  ), [itemHeight, router]);
+  const renderSnippetItem = useCallback(({ item }: { item: ContentSnippet }) => {
+    if (item.type === 'ad') {
+      return (
+        <View style={[styles.verticalItem, { height: itemHeight }]}>
+          <NativeAdCard height={itemHeight ? itemHeight * 0.5 : undefined} />
+        </View>
+      );
+    }
+
+    return (
+      <TouchableOpacity
+        style={[styles.verticalItem, { height: itemHeight }]}
+        onPress={() => router.push({ pathname: "/course/[id]", params: { id: item.courseId, snippetId: item.id } })}
+        activeOpacity={0.9}
+      >
+        <SnippetCard snippet={item} height={itemHeight ? itemHeight * 0.85 : undefined} />
+      </TouchableOpacity>
+    );
+  }, [itemHeight, router]);
 
   const renderCourseItem = ({ item }: { item: Course }) => (
     <TouchableOpacity

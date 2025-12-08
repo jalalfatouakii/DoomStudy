@@ -6,14 +6,15 @@ export async function generateSnippetsWithGemini(text: string, apiKey: string): 
         const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
         const prompt = `
-        You are an expert tutor. Your goal is to help a student learn the following material by creating engaging, bite-sized learning snippets in the original language of the material.
+        You are an expert tutor. Your goal is to help a student learn the following material by creating engaging, bite-sized learning snippets in the original language of the material (this is important).
         
+        Please do not translate the material to another language.
         Material:
         "${text.substring(0, 30000)}" 
         
         (Note: Text truncated to first 30k chars to fit context if needed)
 
-        Please generate 20 distinct, short, and engaging snippets based on this text.
+        Please generate 20 distinct, short, and engaging snippets in the original language of the material and based on this text.
         Mix the following types:
         1. Interesting Facts ("Did you know...?") -> type: "fact"
         2. Key Concepts defined simply. -> type: "concept"

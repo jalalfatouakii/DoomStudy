@@ -1,6 +1,6 @@
 import { Course } from "@/context/CourseContext";
 
-export type SnippetType = 'text' | 'fact' | 'qna' | 'true_false' | 'concept';
+export type SnippetType = 'text' | 'fact' | 'qna' | 'true_false' | 'concept' | 'ad';
 
 export type ContentSnippet = {
     id: string;
