@@ -50,6 +50,7 @@ const EditNameModal = ({ visible, onClose, onSave, initialName }: { visible: boo
         });
     };
 
+
     const handleSave = () => {
         onSave(name);
         animateClose();
@@ -223,6 +224,26 @@ export default function Settings() {
         );
     };
 
+    const updateGeminiKey = () => {
+        Alert.prompt(
+            "Update Gemini Key",
+            "Enter your new Gemini API key",
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Save",
+                    onPress: (text: string) => {
+                        if (text) {
+                            setGeminiKey(text.trim());
+                        }
+                    }
+                }
+            ],
+            "plain-text",
+            geminiKey
+        );
+    };
+
     return (
         <SafeAreaView style={styles.safeArea} edges={['top']}>
 
@@ -287,6 +308,19 @@ export default function Settings() {
                             icon="document-text"
                             title="Privacy Policy"
                             onPress={() => { }}
+                        />
+                        <View style={styles.separator} />
+                        <View style={styles.separator} />
+                        <ActionItem
+                            icon="document-text"
+                            title="Terms of Service"
+                            onPress={() => { }}
+                        />
+                        <View style={styles.separator} />
+                        <ActionItem
+                            icon="key"
+                            title="Update Gemini Key"
+                            onPress={() => updateGeminiKey()}
                         />
                         <View style={styles.separator} />
                         <View style={styles.versionContainer}>
