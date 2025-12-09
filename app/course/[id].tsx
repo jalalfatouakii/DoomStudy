@@ -98,14 +98,16 @@ export default function CourseDetail() {
         console.log(`Generating more AI content for course ${course.title}...`);
 
         try {
-            // Combine text from files
-            const allText = course.files
-                .map(f => f.parsedText || "")
-                .join("\n\n");
+            // Pick a random file to generate content from so we can attribute it correctly
+            const validFiles = course.files.filter(f => f.parsedText && f.parsedText.trim().length > 0);
 
-            if (!allText.trim()) return;
+            if (validFiles.length === 0) return;
 
-            const newAiSnippets = await generateSnippetsWithGemini(allText, key);
+            const randomFile = validFiles[Math.floor(Math.random() * validFiles.length)];
+
+            console.log(`Selected file for generation: ${randomFile.name}`);
+
+            const newAiSnippets = await generateSnippetsWithGemini(randomFile.parsedText!, key, 10);
 
             if (newAiSnippets.length > 0) {
                 const newContentSnippets: ContentSnippet[] = newAiSnippets.map((snippetStr, idx) => {
@@ -127,14 +129,14 @@ export default function CourseDetail() {
                     }
 
                     return {
-                        id: `${course.id}-ai-gen-${Date.now()}-${idx}`,
+                        id: `${course.id}-${randomFile.name}-ai-gen-${Date.now()}-${idx}`,
                         type,
                         content,
                         answer,
                         label,
                         courseId: course.id,
                         courseName: course.title,
-                        fileName: "AI Generated (Infinite)",
+                        fileName: randomFile.name,
                         tags: course.tags
                     };
                 });

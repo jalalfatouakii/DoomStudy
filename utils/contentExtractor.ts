@@ -66,11 +66,17 @@ export function generateSnippets(
                                 label: parsed.label,
                                 courseId: course.id,
                                 courseName: course.title,
-                                fileName: "AI Generated",
+                                fileName: parsed.sourceFileName || "AI Generated",
                                 tags: course.tags,
                             });
                             return;
                         }
+
+                        // Handle case where it might be parsed but fields missing or different structure
+                        // but specifically check if it was our tagged format even if type check failed above? 
+                        // Actually the check `parsed.type && parsed.content` is strict. 
+                        // If we just have sourceFileName but not type/content, it's weird.
+                        // Let's stick to the logic: if valid structure, use sourceFileName.
                     } catch (e) {
                         // Not JSON, fall through to simple text
                     }
