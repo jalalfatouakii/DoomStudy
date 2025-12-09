@@ -1,5 +1,6 @@
 import GeminiKeyModal from "@/components/GeminiKeyModal";
 import PdfTextExtractor from "@/components/PdfTextExtractor";
+import ProcessingModal from "@/components/ProcessingModal";
 import { Colors } from "@/constants/colors";
 import { useCourses } from "@/context/CourseContext";
 import { generateSnippetsWithGemini } from "@/utils/gemini";
@@ -10,7 +11,6 @@ import * as FileSystem from 'expo-file-system';
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
     Alert,
     KeyboardAvoidingView,
     Platform,
@@ -19,7 +19,7 @@ import {
     Text,
     TextInput,
     TouchableOpacity,
-    View
+    View,
 } from "react-native";
 import {
     SafeAreaView
@@ -53,6 +53,14 @@ export default function AddCourse() {
     const [geminiKey, setGeminiKey] = useState<string | null>(null);
     const [isGeneratingAI, setIsGeneratingAI] = useState(false);
     const [generationStatus, setGenerationStatus] = useState("");
+
+    // Processing Modal State
+    const [processingVisible, setProcessingVisible] = useState(false);
+    const [processingTitle, setProcessingTitle] = useState("");
+    const [processingStep, setProcessingStep] = useState("");
+    const [processingStatus, setProcessingStatus] = useState("");
+    const [processingProgress, setProcessingProgress] = useState<number | undefined>(undefined);
+
 
     useEffect(() => {
         checkGeminiKey();
@@ -108,15 +116,21 @@ export default function AddCourse() {
 
         if (geminiKey) {
             setIsGeneratingAI(true);
-            setGenerationStatus("Preparing content...");
+            setProcessingVisible(true);
+            setProcessingTitle("Creating Course");
+            setProcessingStep("Generating AI Content");
+            setProcessingStatus("Preparing content...");
+            setProcessingProgress(0);
 
             try {
                 // Process each file individually
-                for (let i = 0; i < files.length; i++) {
+                const totalFiles = files.length;
+                for (let i = 0; i < totalFiles; i++) {
                     const file = files[i];
                     if (!file.parsedText || file.parsedText.trim().length === 0) continue;
 
-                    setGenerationStatus(`Analyzing file ${i + 1} of ${files.length}: ${file.name}...`);
+                    setProcessingStatus(`Analyzing file ${i + 1} of ${totalFiles}: ${file.name}...`);
+                    setProcessingProgress(i / totalFiles);
 
                     try {
                         const fileSnippets = await generateSnippetsWithGemini(file.parsedText, geminiKey);
@@ -139,12 +153,14 @@ export default function AddCourse() {
                     }
                 }
 
-                setGenerationStatus("Finalizing course...");
+                setProcessingStatus("Finalizing course...");
+                setProcessingProgress(1);
             } catch (error) {
                 console.error("AI Generation failed:", error);
                 Alert.alert("AI Generation Failed", "Course will be created without AI snippets.");
             } finally {
                 setIsGeneratingAI(false);
+                setProcessingVisible(false); // Hide it immediately or wait a beat? Immediate is fine for now.
             }
         }
 
@@ -166,6 +182,7 @@ export default function AddCourse() {
         setDescription("");
         setTags([]);
         setFiles([]);
+        setProcessingVisible(false);
         router.back();
     };
 
@@ -178,6 +195,12 @@ export default function AddCourse() {
             const asset = result.assets[0];
             const uri = asset.uri;
             const id = Date.now().toString(); // Simple ID generation
+
+            setProcessingVisible(true);
+            setProcessingTitle("Reading File");
+            setProcessingStep("Processing PDF");
+            setProcessingStatus(`Parsing ${asset.name}...`);
+            setProcessingProgress(undefined); // Indeterminate
 
             // Add file to state immediately
             const newFile = {
@@ -199,6 +222,7 @@ export default function AddCourse() {
         } catch (error) {
             console.error("Error picking file:", error);
             setIsParsing(false);
+            setProcessingVisible(false);
             setCurrentParsingFileId(null);
         }
     }
@@ -216,6 +240,7 @@ export default function AddCourse() {
         }
 
         setIsParsing(false);
+        setProcessingVisible(false);
         setCurrentParsingFileId(null);
         setPdfBase64(null); // Reset after extraction
     };
@@ -223,8 +248,10 @@ export default function AddCourse() {
     const handlePdfError = (error: string) => {
         console.error("PDF Extraction Error:", error);
         setIsParsing(false);
+        setProcessingVisible(false);
         setCurrentParsingFileId(null);
         setPdfBase64(null);
+        Alert.alert("Error", "Failed to extract text from PDF.");
     };
 
     return (
@@ -241,12 +268,13 @@ export default function AddCourse() {
                 onSave={handleKeySaved}
             />
 
-            {isGeneratingAI && (
-                <View style={styles.loadingOverlay}>
-                    <ActivityIndicator size="large" color={Colors.tint} />
-                    <Text style={styles.loadingText}>{generationStatus}</Text>
-                </View>
-            )}
+            <ProcessingModal
+                visible={processingVisible}
+                title={processingTitle}
+                step={processingStep}
+                status={processingStatus}
+                progress={processingProgress}
+            />
 
             <KeyboardAvoidingView
                 behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -320,11 +348,7 @@ export default function AddCourse() {
                             </View>
                         </TouchableOpacity>
 
-                        {isParsing && (
-                            <View style={styles.parsingContainer}>
-                                <Text style={styles.parsingText}>Parsing document... ⏳</Text>
-                            </View>
-                        )}
+                        {/* Old Parsing Text Removed */}
 
                         {files.map((file) => (
                             <View key={file.id} style={styles.fileItem}>

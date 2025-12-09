@@ -103,7 +103,6 @@ export default function SnippetCard({ snippet, height }: SnippetCardProps) {
                             <Animated.View style={{ opacity: fadeAnim }}>
                                 <TouchableOpacity style={styles.revealButton} onPress={handleReveal}>
                                     <Text style={styles.revealButtonText}>Reveal Answer</Text>
-                                    <Ionicons name="eye-outline" size={20} color={Colors.background} />
                                 </TouchableOpacity>
                             </Animated.View>
                         ) : (
@@ -205,8 +204,8 @@ const styles = StyleSheet.create({
         backgroundColor: Colors.backgroundSecondary,
         padding: 16,
         borderRadius: 16,
-        borderLeftWidth: 4,
-        borderLeftColor: Colors.tint,
+        borderWidth: 1,
+        borderColor: Colors.tint,
     },
     answerHeader: {
         flexDirection: "row",
