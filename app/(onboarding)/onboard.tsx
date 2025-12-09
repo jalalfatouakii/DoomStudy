@@ -29,33 +29,32 @@ const GOALS = [
     "Track Progress"
 ];
 
+const SNIPPET_TYPES = [
+    { id: 'fact', label: 'Fact', description: 'Interesting facts and insights' },
+    { id: 'concept', label: 'Concept', description: 'Key concepts explained simply' },
+    { id: 'qna', label: 'Q&A', description: 'Question and answer format' },
+    { id: 'true_false', label: 'True/False', description: 'True or false statements' },
+];
+
 const FEATURES = [
     {
-        id: "feature-1",
-        type: "feature",
-        title: "Upload Class Content",
-        description: "Simply upload your lecture PDF notes or slides. We handle the rest.",
+        title: "Upload Content",
+        description: "Upload your lecture notes or slides",
         icon: "cloud-upload-outline" as const,
     },
     {
-        id: "feature-2",
-        type: "feature",
-        title: "Doomscroll Your Exams",
-        description: "We convert your boring study material into a fun, endless feed of bite-sized text snippets.",
+        title: "Doomscroll",
+        description: "Learn through endless feed",
         icon: "phone-portrait-outline" as const,
     },
     {
-        id: "feature-3",
-        type: "feature",
-        title: "Track Your Progress",
-        description: "Keep track of your progress and stay motivated with our progress tracker.",
+        title: "Track Progress",
+        description: "Monitor your learning journey",
         icon: "bar-chart-outline" as const,
     },
     {
-        id: "feature-4",
-        type: "feature",
         title: "100% Free",
-        description: "No hidden fees. No commitments. The best way to learn.",
+        description: "No hidden fees or commitments",
         icon: "cash-outline" as const,
     }
 ];
@@ -68,11 +67,13 @@ export default function Onboarding() {
     // User Data State
     const [name, setName] = useState("");
     const [selectedGoals, setSelectedGoals] = useState<string[]>([]);
+    const [selectedSnippetTypes, setSelectedSnippetTypes] = useState<string[]>(['fact', 'concept', 'qna', 'true_false']);
 
     const slides = [
         { id: "name", type: "input" },
         { id: "goals", type: "selection" },
-        ...FEATURES
+        { id: "snippets", type: "snippets" },
+        { id: "features", type: "features" }
     ];
 
     const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
@@ -100,6 +101,7 @@ export default function Onboarding() {
         try {
             await AsyncStorage.setItem("userName", name);
             await AsyncStorage.setItem("userGoals", JSON.stringify(selectedGoals));
+            await AsyncStorage.setItem("snippetTypePreferences", JSON.stringify(selectedSnippetTypes));
             await AsyncStorage.setItem("hasOnboarded", "true");
             router.replace("/(tabs)");
         } catch (error) {
@@ -115,9 +117,21 @@ export default function Onboarding() {
         }
     };
 
+    const toggleSnippetType = (typeId: string) => {
+        if (selectedSnippetTypes.includes(typeId)) {
+            // Prevent deselecting if it's the last one
+            if (selectedSnippetTypes.length > 1) {
+                setSelectedSnippetTypes(selectedSnippetTypes.filter(t => t !== typeId));
+            }
+        } else {
+            setSelectedSnippetTypes([...selectedSnippetTypes, typeId]);
+        }
+    };
+
     const isNextDisabled = () => {
         if (currentIndex === 0) return name.trim().length === 0;
         if (currentIndex === 1) return selectedGoals.length === 0;
+        if (currentIndex === 2) return selectedSnippetTypes.length === 0;
         return false;
     };
 
@@ -172,20 +186,66 @@ export default function Onboarding() {
             );
         }
 
-        // Feature Slide
-        return (
-            <View style={styles.slide}>
-                <View style={styles.iconContainer}>
-                    <View style={styles.iconCircle}>
-                        <Ionicons name={item.icon} size={80} color={Colors.tint} />
+        if (item.type === "snippets") {
+            return (
+                <View style={styles.slide}>
+                    <View style={styles.contentContainer}>
+                        <Text style={styles.title}>What snippets do you want?</Text>
+                        <Text style={styles.description}>Choose the types of learning content you prefer.</Text>
+                        <View style={styles.goalsContainer}>
+                            {SNIPPET_TYPES.map((type) => (
+                                <TouchableOpacity
+                                    key={type.id}
+                                    style={[
+                                        styles.goalItem,
+                                        selectedSnippetTypes.includes(type.id) && styles.goalItemActive
+                                    ]}
+                                    onPress={() => toggleSnippetType(type.id)}
+                                >
+                                    <View style={styles.snippetTypeInfo}>
+                                        <Text style={[
+                                            styles.goalText,
+                                            selectedSnippetTypes.includes(type.id) && styles.goalTextActive
+                                        ]}>{type.label}</Text>
+                                        <Text style={[
+                                            styles.snippetTypeDescription,
+                                            selectedSnippetTypes.includes(type.id) && styles.snippetTypeDescriptionActive
+                                        ]}>{type.description}</Text>
+                                    </View>
+                                    {selectedSnippetTypes.includes(type.id) && (
+                                        <Ionicons name="checkmark-circle" size={20} color={Colors.background} />
+                                    )}
+                                </TouchableOpacity>
+                            ))}
+                        </View>
                     </View>
                 </View>
-                <View style={styles.textContainer}>
-                    <Text style={styles.title}>{item.title}</Text>
-                    <Text style={styles.description}>{item.description}</Text>
+            );
+        }
+
+        if (item.type === "features") {
+            return (
+                <View style={styles.slide}>
+                    <View style={styles.featuresContent}>
+                        <Text style={styles.title}>Everything you need</Text>
+                        <Text style={styles.description}>Your all-in-one learning companion</Text>
+                        <View style={styles.featuresGrid}>
+                            {FEATURES.map((feature, index) => (
+                                <View key={index} style={styles.featureCard}>
+                                    <View style={styles.featureIconContainer}>
+                                        <Ionicons name={feature.icon} size={32} color={Colors.tint} />
+                                    </View>
+                                    <Text style={styles.featureTitle}>{feature.title}</Text>
+                                    <Text style={styles.featureDescription}>{feature.description}</Text>
+                                </View>
+                            ))}
+                        </View>
+                    </View>
                 </View>
-            </View>
-        );
+            );
+        }
+
+        return null; // Should not happen with defined types
     };
 
     return (
@@ -198,7 +258,7 @@ export default function Onboarding() {
                     <View style={{ flex: 1 }}>
                         <View style={styles.header}>
                             {/* Only show Skip on feature slides */}
-                            {currentIndex >= 2 && (
+                            {currentIndex >= 3 && (
                                 <TouchableOpacity onPress={completeOnboarding} style={styles.skipButton}>
                                     <Text style={styles.skipText}>Skip</Text>
                                 </TouchableOpacity>
@@ -398,5 +458,59 @@ const styles = StyleSheet.create({
     },
     buttonTextDisabled: {
         color: Colors.tabIconDefault,
+    },
+    snippetTypeInfo: {
+        flex: 1,
+    },
+    snippetTypeDescription: {
+        fontSize: 13,
+        color: Colors.tabIconDefault,
+        marginTop: 2,
+    },
+    snippetTypeDescriptionActive: {
+        color: `${Colors.background}CC`,
+    },
+    featuresContent: {
+        flex: 1,
+        width: '100%',
+        justifyContent: 'center',
+        paddingVertical: 20,
+    },
+    featuresGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 16,
+        marginTop: 30,
+    },
+    featureCard: {
+        width: '47%',
+        backgroundColor: Colors.backgroundSecondary,
+        padding: 20,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: Colors.backgroundLighter,
+        alignItems: 'center',
+    },
+    featureIconContainer: {
+        width: 64,
+        height: 64,
+        borderRadius: 32,
+        backgroundColor: `${Colors.tint}15`,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 12,
+    },
+    featureTitle: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: Colors.text,
+        marginBottom: 6,
+        textAlign: 'center',
+    },
+    featureDescription: {
+        fontSize: 12,
+        color: Colors.tabIconDefault,
+        textAlign: 'center',
+        lineHeight: 16,
     },
 });
