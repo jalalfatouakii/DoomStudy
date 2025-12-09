@@ -105,6 +105,11 @@ export default function AddCourse() {
             return;
         } // Basic validation
 
+        if (!geminiKey) {
+            Alert.alert("Please add a Gemini API key before creating a course.");
+            return;
+        }
+
         // Require at least one file with parsed text
         const hasValidFile = files.some(f => f.parsedText && f.parsedText.trim().length > 0);
         if (!hasValidFile) {
