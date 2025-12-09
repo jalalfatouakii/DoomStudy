@@ -218,6 +218,8 @@ export default function Onboarding() {
                                 </TouchableOpacity>
                             ))}
                         </View>
+                        <Text style={styles.subDescription}>You can always change your preferences later.</Text>
+
                     </View>
                 </View>
             );
@@ -273,6 +275,7 @@ export default function Onboarding() {
                             pagingEnabled
                             showsHorizontalScrollIndicator={false}
                             bounces={false}
+                            scrollEnabled={false}
                             keyExtractor={(item) => item.id}
                             onViewableItemsChanged={onViewableItemsChanged}
                             viewabilityConfig={viewabilityConfig}
@@ -512,5 +515,11 @@ const styles = StyleSheet.create({
         color: Colors.tabIconDefault,
         textAlign: 'center',
         lineHeight: 16,
+    },
+    subDescription: {
+        fontSize: 12,
+        color: Colors.tabIconDefault,
+        textAlign: 'center',
+        marginTop: 8,
     },
 });

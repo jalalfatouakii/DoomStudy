@@ -368,8 +368,13 @@ export default function Settings() {
         const loadSettings = async () => {
             const key = await AsyncStorage.getItem("geminiKey");
             const model = await AsyncStorage.getItem("geminiModel");
+            const snippetTypes = await AsyncStorage.getItem("snippetTypePreferences");
+
             if (key) setGeminiKey(key);
             if (model) setSelectedModel(model);
+            if (snippetTypes) {
+                setSelectedSnippetTypes(JSON.parse(snippetTypes));
+            }
         };
         loadSettings();
     }, []);
