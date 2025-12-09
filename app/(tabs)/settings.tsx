@@ -181,10 +181,128 @@ const ModelSelectionModal = ({ visible, onClose, onSelect, currentModel }: { vis
 };
 
 
+const SNIPPET_TYPES = [
+    { id: 'fact', name: 'Fact', label: 'Interesting Facts', description: 'Did you know...?' },
+    { id: 'concept', name: 'Concept', label: 'Key Concepts', description: 'Defined simply' },
+    { id: 'qna', name: 'Q&A', label: 'Q&A Format', description: 'Question and Answer' },
+    { id: 'true_false', name: 'True/False', label: 'True or False', description: 'With explanation' },
+];
+
+const SnippetTypesModal = ({ visible, onClose, onSave, selectedTypes }: {
+    visible: boolean,
+    onClose: () => void,
+    onSave: (types: string[]) => void,
+    selectedTypes: string[]
+}) => {
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+    const [tempSelectedTypes, setTempSelectedTypes] = useState<string[]>(selectedTypes);
+
+    useEffect(() => {
+        if (visible) {
+            setTempSelectedTypes(selectedTypes);
+            fadeAnim.setValue(0);
+            Animated.timing(fadeAnim, {
+                toValue: 1,
+                duration: 200,
+                useNativeDriver: true,
+            }).start();
+        }
+    }, [visible, selectedTypes]);
+
+    const animateClose = () => {
+        Animated.timing(fadeAnim, {
+            toValue: 0,
+            duration: 150,
+            useNativeDriver: true,
+        }).start(() => {
+            onClose();
+        });
+    };
+
+    const toggleType = (typeId: string) => {
+        setTempSelectedTypes(prev => {
+            if (prev.includes(typeId)) {
+                // Don't allow deselecting if it's the last one
+                if (prev.length === 1) {
+                    return prev;
+                }
+                return prev.filter(t => t !== typeId);
+            } else {
+                return [...prev, typeId];
+            }
+        });
+    };
+
+    const handleSave = () => {
+        onSave(tempSelectedTypes);
+        animateClose();
+    };
+
+    if (!visible) return null;
+
+    return (
+        <Modal
+            transparent
+            visible={visible}
+            onRequestClose={animateClose}
+            animationType="none"
+        >
+            <TouchableWithoutFeedback onPress={animateClose}>
+                <View style={styles.modalOverlay}>
+                    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                        <Animated.View style={[styles.modalContent, { opacity: fadeAnim, transform: [{ scale: fadeAnim.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] }) }] }]}>
+                            <Text style={styles.modalTitle}>Snippet Types</Text>
+                            <Text style={styles.modalSubtitle}>Select which types to generate</Text>
+
+                            <View style={styles.checkboxList}>
+                                {SNIPPET_TYPES.map((type) => {
+                                    const isSelected = tempSelectedTypes.includes(type.id);
+                                    return (
+                                        <TouchableOpacity
+                                            key={type.id}
+                                            style={styles.checkboxItem}
+                                            onPress={() => toggleType(type.id)}
+                                        >
+                                            <View style={styles.checkboxLeft}>
+                                                <View style={[styles.checkbox, isSelected && styles.checkboxChecked]}>
+                                                    {isSelected && (
+                                                        <Ionicons name="checkmark" size={18} color={Colors.background} />
+                                                    )}
+                                                </View>
+                                                <View style={styles.checkboxTextContainer}>
+                                                    <Text style={styles.checkboxLabel}>{type.label}</Text>
+                                                    <Text style={styles.checkboxDescription}>{type.description}</Text>
+                                                </View>
+                                            </View>
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </View>
+
+                            <View style={styles.modalButtons}>
+                                <Pressable style={[styles.modalButton, styles.cancelButton]} onPress={animateClose}>
+                                    <Text style={styles.cancelButtonText}>Cancel</Text>
+                                </Pressable>
+                                <Pressable style={[styles.modalButton, styles.saveButton]} onPress={handleSave}>
+                                    <Text style={styles.saveButtonText}>Save</Text>
+                                </Pressable>
+                            </View>
+                        </Animated.View>
+                    </TouchableWithoutFeedback>
+                </View>
+            </TouchableWithoutFeedback>
+        </Modal>
+    );
+};
+
+
 export default function Settings() {
     const router = useRouter();
     const { courses } = useCourses();
     const { streak, timeSaved, weeklyData, weeklyLabels, resetStats } = useStats();
+
+
+
 
     // Format time saved
     const hours = Math.floor(timeSaved / 3600);
@@ -210,6 +328,8 @@ export default function Settings() {
         weeklyActivity: weeklyData // Use real data
     };
     const [editModalVisible, setEditModalVisible] = useState(false);
+
+    const [editTypesModalVisible, setEditTypesModalVisible] = useState(false);
 
     useEffect(() => {
         const loadUsername = async () => {
@@ -242,6 +362,7 @@ export default function Settings() {
     const [geminiKey, setGeminiKey] = useState<string>("");
     const [selectedModel, setSelectedModel] = useState<string>("");
     const [modelModalVisible, setModelModalVisible] = useState(false);
+    const [selectedSnippetTypes, setSelectedSnippetTypes] = useState<string[]>(['fact', 'concept', 'qna', 'true_false']);
 
     useEffect(() => {
         const loadSettings = async () => {
@@ -263,6 +384,11 @@ export default function Settings() {
     const handleModelSelect = async (modelId: string) => {
         setSelectedModel(modelId);
         await AsyncStorage.setItem("geminiModel", modelId);
+    };
+
+    const handleSnippetTypesSave = async (types: string[]) => {
+        setSelectedSnippetTypes(types);
+        await AsyncStorage.setItem("snippetTypePreferences", JSON.stringify(types));
     };
 
     const ActionItem = ({ icon, title, onPress }: any) => (
@@ -395,6 +521,13 @@ export default function Settings() {
                     <View style={styles.sectionContent}>
 
                         <ActionItem
+                            icon="book"
+                            title="Select Types of Snippets"
+                            onPress={() => setEditTypesModalVisible(true)}
+                        />
+                        <View style={styles.separator} />
+
+                        <ActionItem
                             icon="key"
                             title="Update Gemini Key"
                             onPress={() => updateGeminiKey()}
@@ -511,6 +644,13 @@ export default function Settings() {
                 onClose={() => setModelModalVisible(false)}
                 onSelect={handleModelSelect}
                 currentModel={selectedModel}
+            />
+
+            <SnippetTypesModal
+                visible={editTypesModalVisible}
+                onClose={() => setEditTypesModalVisible(false)}
+                onSave={handleSnippetTypesSave}
+                selectedTypes={selectedSnippetTypes}
             />
         </SafeAreaView>
     );
@@ -840,6 +980,47 @@ const styles = StyleSheet.create({
     selectedModelOptionText: {
         color: Colors.tint,
         fontWeight: 'bold',
+    },
+    checkboxList: {
+        width: '100%',
+        gap: 12,
+        marginBottom: 20,
+    },
+    checkboxItem: {
+        padding: 16,
+        backgroundColor: Colors.backgroundLighter,
+        borderRadius: 12,
+    },
+    checkboxLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    checkbox: {
+        width: 24,
+        height: 24,
+        borderRadius: 6,
+        borderWidth: 2,
+        borderColor: Colors.tabIconDefault,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    checkboxChecked: {
+        backgroundColor: Colors.tint,
+        borderColor: Colors.tint,
+    },
+    checkboxTextContainer: {
+        flex: 1,
+    },
+    checkboxLabel: {
+        fontSize: 16,
+        color: Colors.text,
+        fontWeight: '600',
+        marginBottom: 2,
+    },
+    checkboxDescription: {
+        fontSize: 13,
+        color: Colors.tabIconDefault,
     },
 });
 

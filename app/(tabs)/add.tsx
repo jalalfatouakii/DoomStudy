@@ -188,36 +188,41 @@ export default function AddCourse() {
 
     const filepicker = async () => {
         try {
-            const result = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true, type: "application/pdf" });
+            const result = await DocumentPicker.getDocumentAsync({
+                copyToCacheDirectory: true,
+                type: "application/pdf",
+                multiple: true  // Enable multiple file selection
+            });
 
             if (result.canceled) return;
 
-            const asset = result.assets[0];
-            const uri = asset.uri;
-            const id = Date.now().toString(); // Simple ID generation
-
-            setProcessingVisible(true);
-            setProcessingTitle("Reading File");
-            setProcessingStep("Processing PDF");
-            setProcessingStatus(`Parsing ${asset.name}...`);
-            setProcessingProgress(undefined); // Indeterminate
-
-            // Add file to state immediately
-            const newFile = {
-                id,
+            // Add all selected files to the queue and process the first one
+            const newFiles = result.assets.map(asset => ({
+                id: Date.now().toString() + Math.random().toString(),
                 name: asset.name,
                 size: `${(asset.size ? asset.size / 1024 / 1024 : 0).toFixed(2)} MB`,
-                uri
-            };
-            setFiles(prev => [...prev, newFile]);
+                uri: asset.uri
+            }));
 
-            // Start parsing
-            setIsParsing(true);
-            setCurrentParsingFileId(id);
+            setFiles(prev => [...prev, ...newFiles]);
 
-            const file = new FileSystem.File(uri);
-            const base64 = await file.base64();
-            setPdfBase64(base64);
+            // Process the first file immediately
+            if (newFiles.length > 0) {
+                const firstFile = newFiles[0];
+
+                setProcessingVisible(true);
+                setProcessingTitle("Reading Files");
+                setProcessingStep("Processing PDF");
+                setProcessingStatus(`Parsing ${firstFile.name}...`);
+                setProcessingProgress(undefined);
+
+                setIsParsing(true);
+                setCurrentParsingFileId(firstFile.id);
+
+                const file = new FileSystem.File(firstFile.uri);
+                const base64 = await file.base64();
+                setPdfBase64(base64);
+            }
 
         } catch (error) {
             console.error("Error picking file:", error);
@@ -229,7 +234,6 @@ export default function AddCourse() {
 
     const handlePdfExtracted = (text: string) => {
         console.log("Extracted Text Length:", text.length);
-
         if (currentParsingFileId) {
             setFiles(prev => prev.map(f =>
                 f.id === currentParsingFileId ? { ...f, parsedText: text } : f
@@ -243,6 +247,39 @@ export default function AddCourse() {
         setProcessingVisible(false);
         setCurrentParsingFileId(null);
         setPdfBase64(null); // Reset after extraction
+
+        // Check if there are more files to process
+        setTimeout(async () => {
+            setFiles(currentFiles => {
+                // Find the next file that doesn't have parsedText yet
+                const nextFile = currentFiles.find(f => !f.parsedText);
+
+                if (nextFile) {
+                    // Process the next file
+                    setProcessingVisible(true);
+                    setProcessingTitle("Reading Files");
+                    setProcessingStep("Processing PDF");
+                    setProcessingStatus(`Parsing ${nextFile.name}...`);
+                    setProcessingProgress(undefined);
+
+                    setIsParsing(true);
+                    setCurrentParsingFileId(nextFile.id);
+
+                    // Read the next file
+                    const file = new FileSystem.File(nextFile.uri);
+                    file.base64().then(base64 => {
+                        setPdfBase64(base64);
+                    }).catch(error => {
+                        console.error(`Error processing ${nextFile.name}:`, error);
+                        setIsParsing(false);
+                        setProcessingVisible(false);
+                        setCurrentParsingFileId(null);
+                    });
+                }
+
+                return currentFiles;
+            });
+        }, 100); // Small delay to ensure state updates properly
     };
 
     const handlePdfError = (error: string) => {
