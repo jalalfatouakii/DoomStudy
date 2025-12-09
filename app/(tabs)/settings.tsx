@@ -99,6 +99,88 @@ const EditNameModal = ({ visible, onClose, onSave, initialName }: { visible: boo
 };
 
 
+const MODELS = [
+    { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite' },
+    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
+];
+
+const ModelSelectionModal = ({ visible, onClose, onSelect, currentModel }: { visible: boolean, onClose: () => void, onSelect: (modelId: string) => void, currentModel: string }) => {
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+        if (visible) {
+            fadeAnim.setValue(0);
+            Animated.timing(fadeAnim, {
+                toValue: 1,
+                duration: 200,
+                useNativeDriver: true,
+            }).start();
+        }
+    }, [visible]);
+
+    const animateClose = () => {
+        Animated.timing(fadeAnim, {
+            toValue: 0,
+            duration: 150,
+            useNativeDriver: true,
+        }).start(() => {
+            onClose();
+        });
+    };
+
+    const handleSelect = (modelId: string) => {
+        onSelect(modelId);
+        animateClose();
+    };
+
+    if (!visible) return null;
+
+    return (
+        <Modal
+            transparent
+            visible={visible}
+            onRequestClose={animateClose}
+            animationType="none"
+        >
+            <TouchableWithoutFeedback onPress={animateClose}>
+                <View style={styles.modalOverlay}>
+                    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                        <Animated.View style={[styles.modalContent, { opacity: fadeAnim, transform: [{ scale: fadeAnim.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] }) }] }]}>
+                            <Text style={styles.modalTitle}>Select Model</Text>
+                            <Text style={styles.modalSubtitle}>Choose your preferred Gemini model</Text>
+
+                            <View style={styles.modelList}>
+                                {MODELS.map((model) => (
+                                    <TouchableOpacity
+                                        key={model.id}
+                                        style={[
+                                            styles.modelOption,
+                                            currentModel === model.id && styles.selectedModelOption
+                                        ]}
+                                        onPress={() => handleSelect(model.id)}
+                                    >
+                                        <Text style={[
+                                            styles.modelOptionText,
+                                            currentModel === model.id && styles.selectedModelOptionText
+                                        ]}>
+                                            {model.name}
+                                        </Text>
+                                        {currentModel === model.id && (
+                                            <Ionicons name="checkmark-circle" size={24} color={Colors.tint} />
+                                        )}
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+
+                        </Animated.View>
+                    </TouchableWithoutFeedback>
+                </View>
+            </TouchableWithoutFeedback>
+        </Modal>
+    );
+};
+
+
 export default function Settings() {
     const router = useRouter();
     const { courses } = useCourses();
@@ -137,6 +219,12 @@ export default function Settings() {
             }
         };
         loadUsername();
+
+        const loadSettings = async () => {
+            const model = await AsyncStorage.getItem("geminiModel");
+            if (model) setSelectedModel(model);
+        };
+        loadSettings();
     }, []);
 
     useEffect(() => {
@@ -152,15 +240,17 @@ export default function Settings() {
 
 
     const [geminiKey, setGeminiKey] = useState<string>("");
+    const [selectedModel, setSelectedModel] = useState<string>("");
+    const [modelModalVisible, setModelModalVisible] = useState(false);
 
     useEffect(() => {
-        const loadGeminiKey = async () => {
+        const loadSettings = async () => {
             const key = await AsyncStorage.getItem("geminiKey");
-            if (key) {
-                setGeminiKey(key);
-            }
+            const model = await AsyncStorage.getItem("geminiModel");
+            if (key) setGeminiKey(key);
+            if (model) setSelectedModel(model);
         };
-        loadGeminiKey();
+        loadSettings();
     }, []);
 
     useEffect(() => {
@@ -169,6 +259,11 @@ export default function Settings() {
         };
         saveGeminiKey();
     }, [geminiKey]);
+
+    const handleModelSelect = async (modelId: string) => {
+        setSelectedModel(modelId);
+        await AsyncStorage.setItem("geminiModel", modelId);
+    };
 
     const ActionItem = ({ icon, title, onPress }: any) => (
         <TouchableOpacity style={styles.settingItem} onPress={onPress}>
@@ -232,7 +327,7 @@ export default function Settings() {
                 { text: "Cancel", style: "cancel" },
                 {
                     text: "Save",
-                    onPress: (text: string) => {
+                    onPress: (text?: string) => {
                         if (text) {
                             setGeminiKey(text.trim());
                         }
@@ -296,7 +391,28 @@ export default function Settings() {
 
                 {/* About Section */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionHeader}>More</Text>
+                    <Text style={styles.sectionHeader}>Preferences</Text>
+                    <View style={styles.sectionContent}>
+
+                        <ActionItem
+                            icon="key"
+                            title="Update Gemini Key"
+                            onPress={() => updateGeminiKey()}
+                        />
+                        <View style={styles.separator} />
+
+                        <ActionItem
+                            icon="options"
+                            title={`Model: ${MODELS.find(m => m.id === selectedModel)?.name || selectedModel}`}
+                            onPress={() => setModelModalVisible(true)}
+                        />
+
+                    </View>
+                </View>
+
+                {/* About Section */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionHeader}>Informations</Text>
                     <View style={styles.sectionContent}>
                         <ActionItem
                             icon="information-circle"
@@ -310,17 +426,10 @@ export default function Settings() {
                             onPress={() => { }}
                         />
                         <View style={styles.separator} />
-                        <View style={styles.separator} />
                         <ActionItem
                             icon="document-text"
                             title="Terms of Service"
                             onPress={() => { }}
-                        />
-                        <View style={styles.separator} />
-                        <ActionItem
-                            icon="key"
-                            title="Update Gemini Key"
-                            onPress={() => updateGeminiKey()}
                         />
                         <View style={styles.separator} />
                         <View style={styles.versionContainer}>
@@ -395,6 +504,13 @@ export default function Settings() {
                     setEditModalVisible(false);
                 }}
                 initialName={username}
+            />
+
+            <ModelSelectionModal
+                visible={modelModalVisible}
+                onClose={() => setModelModalVisible(false)}
+                onSelect={handleModelSelect}
+                currentModel={selectedModel}
             />
         </SafeAreaView>
     );
@@ -696,6 +812,33 @@ const styles = StyleSheet.create({
     saveButtonText: {
         color: Colors.background,
         fontSize: 16,
+        fontWeight: 'bold',
+    },
+    modelList: {
+        width: '100%',
+        gap: 12,
+    },
+    modelOption: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: 16,
+        backgroundColor: Colors.backgroundLighter,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: 'transparent',
+    },
+    selectedModelOption: {
+        borderColor: Colors.tint,
+        backgroundColor: Colors.backgroundSecondary,
+    },
+    modelOptionText: {
+        fontSize: 16,
+        color: Colors.text,
+        fontWeight: '500',
+    },
+    selectedModelOptionText: {
+        color: Colors.tint,
         fontWeight: 'bold',
     },
 });

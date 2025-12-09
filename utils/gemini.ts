@@ -1,9 +1,19 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export async function generateSnippetsWithGemini(text: string, apiKey: string, numberOfSnippets: number = 20): Promise<string[]> {
+
+
     try {
         const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+
+        const selectedUserModel = await AsyncStorage.getItem("geminiModel");
+
+
+        const modelName = selectedUserModel || "gemini-2.5-flash-lite";
+        const model = genAI.getGenerativeModel({ model: modelName });
+
+        console.log("Selected model:", selectedUserModel);
 
         const prompt = `
         You are an expert tutor. Your goal is to help a student learn the following material by creating engaging, bite-sized learning snippets in the original language of the material (this is important).
