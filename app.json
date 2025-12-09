@@ -19,12 +19,20 @@
           "group.com.doomstudy.jxlxl"
         ]
       },
-      "appleTeamId": "KH4448LD3D"
+      "appleTeamId": "KH4448LD3D",
+      "icon": {
+        "light": "./assets/images/image.png",
+        "dark": "./assets/images/dstudyblack.png"
+      }
     },
     "android": {
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.doomstudy.jxlxl"
+      "package": "com.doomstudy.jxlxl",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/image.png",
+        "backgroundColor": "#151718"
+      }
     },
     "web": {
       "output": "static",
@@ -35,8 +43,8 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/books.png",
-          "imageWidth": 200,
+          "image": "./assets/images/bg.png",
+          "imageWidth": 300,
           "resizeMode": "contain",
           "backgroundColor": "#151718",
           "dark": {
