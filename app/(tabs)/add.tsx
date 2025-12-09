@@ -106,7 +106,7 @@ export default function AddCourse() {
         } // Basic validation
 
         if (!geminiKey) {
-            Alert.alert("Please add a Gemini API key before creating a course.");
+            Alert.alert("Please add a Gemini API key in the settings before creating a course.");
             return;
         }
 
