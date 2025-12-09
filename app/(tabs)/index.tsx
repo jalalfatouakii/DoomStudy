@@ -73,6 +73,7 @@ export default function Index() {
 
   // AI Generation State
   const [isGeneratingMore, setIsGeneratingMore] = useState<Record<string, boolean>>({});
+  const isGeneratingMoreRef = useRef<Record<string, boolean>>({}); // Ref for immediate lock
 
   const categories = useMemo(() => {
     const base = [
@@ -162,11 +163,12 @@ export default function Index() {
   };
 
   const generateMoreAiContent = async (categoryId: string) => {
-    if (isGeneratingMore[categoryId]) return;
+    if (isGeneratingMoreRef.current[categoryId]) return;
 
     const key = await AsyncStorage.getItem("geminiKey");
     if (!key) return; // No key, no AI generation
 
+    isGeneratingMoreRef.current[categoryId] = true;
     setIsGeneratingMore(prev => ({ ...prev, [categoryId]: true }));
     console.log(`Generating more AI content for ${categoryId}...`);
 
@@ -269,6 +271,7 @@ export default function Index() {
     } catch (error) {
       console.error("Error generating infinite AI content:", error);
     } finally {
+      isGeneratingMoreRef.current[categoryId] = false;
       setIsGeneratingMore(prev => ({ ...prev, [categoryId]: false }));
     }
   };
@@ -285,10 +288,19 @@ export default function Index() {
       moreSnippets = getRandomSnippets(LOAD_MORE_COUNT, [tag]);
     }
 
-    setCategorySnippets(prev => ({
-      ...prev,
-      [categoryId]: enrichWithAds([...(prev[categoryId] || []), ...moreSnippets]),
-    }));
+    setCategorySnippets(prev => {
+      const currentSnippets = prev[categoryId] || [];
+      const currentIds = new Set(currentSnippets.map(s => s.id));
+
+      const uniqueMoreSnippets = moreSnippets.filter(s => !currentIds.has(s.id));
+
+      if (uniqueMoreSnippets.length === 0) return prev;
+
+      return {
+        ...prev,
+        [categoryId]: enrichWithAds([...currentSnippets, ...uniqueMoreSnippets]),
+      };
+    });
   };
 
   const onViewableItemsChanged = useCallback(({ viewableItems, changed }: { viewableItems: ViewToken[], changed: ViewToken[] }) => {
@@ -441,22 +453,11 @@ export default function Index() {
             isGeneratingMore[category.id] ? (
               <View style={{ padding: 20, alignItems: 'center' }}>
                 <ActivityIndicator size="small" color={Colors.tint} />
-                <Text style={{ color: Colors.tabIconDefault, marginTop: 8, fontSize: 12 }}>Generating fresh insights...</Text>
+                <Text style={{ color: Colors.tabIconDefault, marginTop: 8, fontSize: 12 }}>Generating new snippets...</Text>
               </View>
             ) : null
           }
-          onViewableItemsChanged={({ viewableItems }) => {
-            // Optional: Trigger generation at specific index if needed, 
-            // but onEndReached is usually more robust for infinite scroll.
-            // The user asked for "if the user is at the index 10".
-            // We can check this here.
-            if (viewableItems.length > 0) {
-              const lastIndex = viewableItems[0].index;
-              if (lastIndex !== null && lastIndex > 0 && lastIndex % 10 === 0) {
-                generateMoreAiContent(category.id);
-              }
-            }
-          }}
+        // onViewableItemsChanged removed to optimize AI generation triggers
         />
       </View>
     );

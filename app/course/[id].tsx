@@ -154,7 +154,14 @@ export default function CourseDetail() {
     const loadMoreSnippets = () => {
         if (!id) return;
         const moreSnippets = getRandomSnippets(LOAD_MORE_COUNT, undefined, id);
-        setSnippets(prev => [...prev, ...moreSnippets]);
+
+        setSnippets(prev => {
+            const currentIds = new Set(prev.map(s => s.id));
+            const uniqueMoreSnippets = moreSnippets.filter(s => !currentIds.has(s.id));
+
+            if (uniqueMoreSnippets.length === 0) return prev;
+            return [...prev, ...uniqueMoreSnippets];
+        });
     };
 
     const handleRefresh = async () => {
@@ -243,18 +250,12 @@ export default function CourseDetail() {
                     isGeneratingMore ? (
                         <View style={{ padding: 20, alignItems: 'center' }}>
                             <ActivityIndicator size="small" color={Colors.tint} />
-                            <Text style={{ color: Colors.tabIconDefault, marginTop: 8, fontSize: 12 }}>Generating fresh insights...</Text>
+                            <Text style={{ color: Colors.tabIconDefault, marginTop: 8, fontSize: 12 }}>Generating new snippets...</Text>
                         </View>
                     ) : null
                 }
-                onViewableItemsChanged={({ viewableItems }) => {
-                    if (viewableItems.length > 0) {
-                        const lastIndex = viewableItems[0].index;
-                        if (lastIndex !== null && lastIndex > 0 && lastIndex % 10 === 0) {
-                            generateMoreAiContent();
-                        }
-                    }
-                }}
+            // onViewableItemsChanged removed to prevent aggressive AI generation
+
             />
         </SafeAreaView>
     );
