@@ -547,12 +547,7 @@ export default function Settings() {
                 <View style={styles.section}>
                     <Text style={styles.sectionHeader}>Informations</Text>
                     <View style={styles.sectionContent}>
-                        <ActionItem
-                            icon="information-circle"
-                            title="About DoomStudy"
-                            onPress={() => { }}
-                        />
-                        <View style={styles.separator} />
+
                         <ActionItem
                             icon="document-text"
                             title="Privacy Policy"
@@ -562,6 +557,11 @@ export default function Settings() {
                         <ActionItem
                             icon="document-text"
                             title="Terms of Service"
+                            onPress={() => { }}
+                        />
+                        <ActionItem
+                            icon="information-circle"
+                            title="About DoomStudy"
                             onPress={() => { }}
                         />
                         <View style={styles.separator} />
