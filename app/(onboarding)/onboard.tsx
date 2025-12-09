@@ -44,6 +44,20 @@ const FEATURES = [
         description: "We convert your boring study material into a fun, endless feed of bite-sized text snippets.",
         icon: "phone-portrait-outline" as const,
     },
+    {
+        id: "feature-3",
+        type: "feature",
+        title: "Track Your Progress",
+        description: "Keep track of your progress and stay motivated with our progress tracker.",
+        icon: "bar-chart-outline" as const,
+    },
+    {
+        id: "feature-4",
+        type: "feature",
+        title: "100% Free",
+        description: "No hidden fees. No commitments. The best way to learn.",
+        icon: "cash-outline" as const,
+    }
 ];
 
 export default function Onboarding() {
