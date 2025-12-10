@@ -216,14 +216,16 @@ export default function Index() {
 
       const snippetsPerFile = Math.max(1, Math.floor(TOTAL_SNIPPETS_TARGET / targetFiles.length));
 
-      const newContentSnippets: ContentSnippet[] = [];
+      // Generate content for each selected file SEQUENTIALLY with delays
+      // This prevents rate limiting and shows snippets as they're generated
+      for (let i = 0; i < targetFiles.length; i++) {
+        const file = targetFiles[i];
 
-      // Generate content for each selected file
-      // We can run these in parallel
-      const promises = targetFiles.map(async (file) => {
         try {
           const fileId = `${file.courseId}-${file.fileName}`;
           const fileSnippets = await generateSnippetsWithGemini(file.parsedText, key, snippetsPerFile, fileId);
+
+          const newContentSnippets: ContentSnippet[] = [];
 
           fileSnippets.forEach((snippetStr, idx) => {
             let type: SnippetType = 'text';
@@ -244,29 +246,34 @@ export default function Index() {
             }
 
             newContentSnippets.push({
-              id: `${file.courseId}-${file.fileName}-ai-gen-${Date.now()}-${Math.random()}`,
+              id: `${file.courseId}-${file.fileName}-ai-gen-${Date.now()}-${idx}-${Math.random()}`,
               type,
               content,
               answer,
               label,
               courseId: file.courseId,
               courseName: file.courseName,
-              fileName: file.fileName, // Use real filename
+              fileName: file.fileName,
               tags: file.tags
             });
           });
+
+          // Update UI immediately with new snippets from this file
+          if (newContentSnippets.length > 0) {
+            setCategorySnippets(prev => ({
+              ...prev,
+              [categoryId]: enrichWithAds([...(prev[categoryId] || []), ...newContentSnippets])
+            }));
+          }
+
+          // Add delay between files to avoid rate limiting (except after last file)
+          if (i < targetFiles.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 3000)); // 1 second delay
+          }
         } catch (err) {
           console.error(`Failed to generate for file ${file.fileName}`, err);
+          // Continue to next file even if this one fails
         }
-      });
-
-      await Promise.all(promises);
-
-      if (newContentSnippets.length > 0) {
-        setCategorySnippets(prev => ({
-          ...prev,
-          [categoryId]: enrichWithAds([...(prev[categoryId] || []), ...newContentSnippets])
-        }));
       }
 
     } catch (error) {
