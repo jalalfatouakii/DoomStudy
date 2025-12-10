@@ -222,7 +222,8 @@ export default function Index() {
       // We can run these in parallel
       const promises = targetFiles.map(async (file) => {
         try {
-          const fileSnippets = await generateSnippetsWithGemini(file.parsedText, key, snippetsPerFile);
+          const fileId = `${file.courseId}-${file.fileName}`;
+          const fileSnippets = await generateSnippetsWithGemini(file.parsedText, key, snippetsPerFile, fileId);
 
           fileSnippets.forEach((snippetStr, idx) => {
             let type: SnippetType = 'text';

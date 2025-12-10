@@ -138,7 +138,8 @@ export default function AddCourse() {
                     setProcessingProgress(i / totalFiles);
 
                     try {
-                        const fileSnippets = await generateSnippetsWithGemini(file.parsedText, geminiKey);
+                        const fileId = `new-course-${file.name}-${Date.now()}`;
+                        const fileSnippets = await generateSnippetsWithGemini(file.parsedText, geminiKey, 20, fileId);
 
                         // Tag snippets with the source filename so we can delete them later if the file is removed
                         const taggedSnippets = fileSnippets.map(s => {

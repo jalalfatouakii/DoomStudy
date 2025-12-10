@@ -107,7 +107,8 @@ export default function CourseDetail() {
 
             console.log(`Selected file for generation: ${randomFile.name}`);
 
-            const newAiSnippets = await generateSnippetsWithGemini(randomFile.parsedText!, key, 10);
+            const fileId = `${course.id}-${randomFile.name}`;
+            const newAiSnippets = await generateSnippetsWithGemini(randomFile.parsedText!, key, 10, fileId);
 
             if (newAiSnippets.length > 0) {
                 const newContentSnippets: ContentSnippet[] = newAiSnippets.map((snippetStr, idx) => {

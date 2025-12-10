@@ -266,7 +266,8 @@ export default function EditCourse() {
 
                     try {
                         // Force non-null assertion because we filtered for parsedText above
-                        const snippets = await generateSnippetsWithGemini(file.parsedText!, geminiKey);
+                        const fileId = `${id}-${file.name}`;
+                        const snippets = await generateSnippetsWithGemini(file.parsedText!, geminiKey, 20, fileId);
 
                         // Tag newly generated snippets
                         const taggedSnippets = snippets.map(s => {
