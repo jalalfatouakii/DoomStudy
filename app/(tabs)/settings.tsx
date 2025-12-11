@@ -100,6 +100,83 @@ const EditNameModal = ({ visible, onClose, onSave, initialName }: { visible: boo
 };
 
 
+const EditGeminiKeyModal = ({ visible, onClose, onSave, initialKey }: { visible: boolean, onClose: () => void, onSave: (key: string) => void, initialKey: string }) => {
+    const [key, setKey] = useState(initialKey);
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+        if (visible) {
+            setKey(initialKey);
+            fadeAnim.setValue(0);
+            Animated.timing(fadeAnim, {
+                toValue: 1,
+                duration: 200,
+                useNativeDriver: true,
+            }).start();
+        }
+    }, [visible, initialKey]);
+
+    const animateClose = () => {
+        Animated.timing(fadeAnim, {
+            toValue: 0,
+            duration: 150,
+            useNativeDriver: true,
+        }).start(() => {
+            onClose();
+        });
+    };
+
+    const handleSave = () => {
+        onSave(key);
+        animateClose();
+    };
+
+    if (!visible) return null;
+
+    return (
+        <Modal
+            transparent
+            visible={visible}
+            onRequestClose={animateClose}
+            animationType="none"
+        >
+            <TouchableWithoutFeedback onPress={animateClose}>
+                <View style={styles.modalOverlay}>
+                    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                        <Animated.View style={[styles.modalContent, { opacity: fadeAnim, transform: [{ scale: fadeAnim.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] }) }] }]}>
+                            <Text style={styles.modalTitle}>Edit Gemini Key</Text>
+                            <Text style={styles.modalSubtitle}>Enter your Gemini API Key</Text>
+
+                            <TextInput
+                                style={styles.input}
+                                value={key}
+                                onChangeText={setKey}
+                                placeholder="API Key"
+                                placeholderTextColor={Colors.tabIconDefault}
+                                autoFocus
+                                selectionColor={Colors.tint}
+                                autoCapitalize="none"
+                                autoCorrect={false}
+                            />
+
+                            <View style={styles.modalButtons}>
+                                <Pressable style={[styles.modalButton, styles.cancelButton]} onPress={animateClose}>
+                                    <Text style={styles.cancelButtonText}>Cancel</Text>
+                                </Pressable>
+                                <Pressable style={[styles.modalButton, styles.saveButton]} onPress={handleSave}>
+                                    <Text style={styles.saveButtonText}>Save</Text>
+                                </Pressable>
+                            </View>
+                        </Animated.View>
+                    </TouchableWithoutFeedback>
+                </View>
+            </TouchableWithoutFeedback>
+        </Modal>
+    );
+};
+
+
+
 const MODELS = [
     { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite' },
     { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
@@ -363,6 +440,7 @@ export default function Settings() {
     const [geminiKey, setGeminiKey] = useState<string>("");
     const [selectedModel, setSelectedModel] = useState<string>("");
     const [modelModalVisible, setModelModalVisible] = useState(false);
+    const [geminiKeyModalVisible, setGeminiKeyModalVisible] = useState(false);
     const [selectedSnippetTypes, setSelectedSnippetTypes] = useState<string[]>(['fact', 'concept', 'qna', 'true_false']);
 
     useEffect(() => {
@@ -395,6 +473,11 @@ export default function Settings() {
     const handleSnippetTypesSave = async (types: string[]) => {
         setSelectedSnippetTypes(types);
         await AsyncStorage.setItem("snippetTypePreferences", JSON.stringify(types));
+    };
+
+    const handleGeminiKeySave = async (key: string) => {
+        setGeminiKey(key);
+        await AsyncStorage.setItem("geminiKey", key);
     };
 
     const ActionItem = ({ icon, title, onPress }: any) => (
@@ -452,23 +535,7 @@ export default function Settings() {
     };
 
     const updateGeminiKey = () => {
-        Alert.prompt(
-            "Update Gemini Key",
-            "Enter your new Gemini API key",
-            [
-                { text: "Cancel", style: "cancel" },
-                {
-                    text: "Save",
-                    onPress: (text?: string) => {
-                        if (text) {
-                            setGeminiKey(text.trim());
-                        }
-                    }
-                }
-            ],
-            "plain-text",
-            geminiKey
-        );
+        setGeminiKeyModalVisible(true);
     };
 
     return (
@@ -657,6 +724,13 @@ export default function Settings() {
                 onClose={() => setEditTypesModalVisible(false)}
                 onSave={handleSnippetTypesSave}
                 selectedTypes={selectedSnippetTypes}
+            />
+
+            <EditGeminiKeyModal
+                visible={geminiKeyModalVisible}
+                onClose={() => setGeminiKeyModalVisible(false)}
+                onSave={handleGeminiKeySave}
+                initialKey={geminiKey}
             />
         </SafeAreaView>
     );
