@@ -2,6 +2,7 @@
 import { Colors } from "@/constants/colors";
 import { Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
+import * as WebBrowser from 'expo-web-browser';
 import {
     Alert,
     Animated,
@@ -341,7 +342,7 @@ export default function Settings() {
         loadUsername();
 
         const loadSettings = async () => {
-            const model = await AsyncStorage.getItem("geminiModel");
+            const model = await AsyncStorage.getItem("geminiModel") || "gemini-2.5-flash-lite";
             if (model) setSelectedModel(model);
         };
         loadSettings();
@@ -556,18 +557,18 @@ export default function Settings() {
                         <ActionItem
                             icon="document-text"
                             title="Privacy Policy"
-                            onPress={() => { }}
+                            onPress={() => { WebBrowser.openBrowserAsync('https://doomstudyapp.com/#/privacy', { presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET }) }}
                         />
                         <View style={styles.separator} />
                         <ActionItem
                             icon="document-text"
                             title="Terms of Service"
-                            onPress={() => { }}
+                            onPress={() => { WebBrowser.openBrowserAsync('https://doomstudyapp.com/#/tos', { presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET }) }}
                         />
                         <ActionItem
                             icon="information-circle"
                             title="About DoomStudy"
-                            onPress={() => { }}
+                            onPress={() => { router.push('/(modal)/about') }}
                         />
                         <View style={styles.separator} />
                         <View style={styles.versionContainer}>
