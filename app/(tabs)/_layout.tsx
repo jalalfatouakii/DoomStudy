@@ -5,6 +5,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Tabs, usePathname, useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import { Animated, Platform } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 function AnimatedAddButton() {
     const pathname = usePathname();
@@ -29,6 +30,18 @@ function AnimatedAddButton() {
     useEffect(() => {
         checkOnboarding();
     }, []);
+
+
+
+    /*
+    tabBarStyle: {
+          ...Platform.select({
+            ios: { padding: 6, height: "10%" },
+            android: { padding: 8, height: getTabBarHeight(), paddingBottom: insets.bottom > 0 ? insets.bottom : 8 }
+          })
+        },
+      }}
+    */
 
     useEffect(() => {
 
@@ -132,6 +145,18 @@ export default function TabLayout() {
     const pathname = usePathname();
     const [spinTrigger, setSpinTrigger] = useState(0);
 
+    const insets = useSafeAreaInsets();
+
+    const getTabBarHeight = () => {
+        if (Platform.OS === 'android') {
+            // If bottom inset is 0, device uses button navigation
+            // If bottom inset > 0, device uses gesture navigation
+            const hasButtonNavigation = insets.bottom === 0;
+            return hasButtonNavigation ? 60 : 55 + insets.bottom;
+        }
+        return undefined; // Let iOS handle it automatically
+    };
+
     return (
         <Tabs
             detachInactiveScreens={false}
@@ -140,9 +165,10 @@ export default function TabLayout() {
                 tabBarStyle: {
                     backgroundColor: Colors.background,
                     borderTopColor: Colors.backgroundSecondary,
-                    height: Platform.OS === 'ios' ? 88 : 60,
+                    height: Platform.OS === 'ios' ? 88 : getTabBarHeight(),
                     paddingBottom: Platform.OS === 'ios' ? 28 : 8,
                     paddingTop: 8,
+
                 },
                 tabBarActiveTintColor: Colors.tint,
                 tabBarInactiveTintColor: Colors.tabIconDefault,

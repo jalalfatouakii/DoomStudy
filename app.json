@@ -30,7 +30,7 @@
       "predictiveBackGestureEnabled": false,
       "package": "com.doomstudy.jxlxl",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/image.png",
+        "foregroundImage": "./assets/images/android.png",
         "backgroundColor": "#151718"
       }
     },
