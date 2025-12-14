@@ -1389,7 +1389,8 @@ export default function Settings() {
     const { streak, timeSaved, weeklyData, weeklyLabels, resetStats } = useStats();
 
 
-
+    console.log("Available MLC Models:", mlc.languageModel());
+    console.log("is Apple AI Available:", apple.isAvailable());
 
     // Format time saved
     const hours = Math.floor(timeSaved / 3600);
@@ -2472,6 +2473,7 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         borderWidth: 1,
         borderColor: 'transparent',
+        marginBottom: 12,
     },
     selectedOfflineModelItem: {
         borderColor: Colors.tint,
