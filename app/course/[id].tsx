@@ -2,7 +2,7 @@ import SnippetCard from "@/components/SnippetCard";
 import { Colors } from "@/constants/colors";
 import { ContentSnippet, useCourses } from "@/context/CourseContext";
 import { SnippetType } from "@/utils/contentExtractor";
-import { generateSnippetsWithGemini } from "@/utils/gemini";
+import { generateSnippets } from "@/utils/gemini";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -91,8 +91,21 @@ export default function CourseDetail() {
     const generateMoreAiContent = async () => {
         if (isGeneratingMore || !course) return;
 
-        const key = await AsyncStorage.getItem("geminiKey");
-        if (!key) return;
+        // Check mode preference and required model availability
+        const modePreference = await AsyncStorage.getItem("modelModePreference");
+        const currentMode = modePreference === 'offline' ? 'offline' : 'online';
+
+        if (currentMode === 'offline') {
+            const offlineModel = await AsyncStorage.getItem("selectedOfflineModel");
+            const downloadedModelsStr = await AsyncStorage.getItem("downloadedOfflineModels");
+            const downloadedModels = downloadedModelsStr ? JSON.parse(downloadedModelsStr) : [];
+            if (!offlineModel || !downloadedModels.includes(offlineModel)) {
+                return; // No offline model available
+            }
+        } else {
+            const key = await AsyncStorage.getItem("geminiKey");
+            if (!key) return;
+        }
 
         setIsGeneratingMore(true);
         console.log(`Generating more AI content for course ${course.title}...`);
@@ -108,7 +121,8 @@ export default function CourseDetail() {
             console.log(`Selected file for generation: ${randomFile.name}`);
 
             const fileId = `${course.id}-${randomFile.name}`;
-            const newAiSnippets = await generateSnippetsWithGemini(randomFile.parsedText!, key, 10, fileId);
+            const geminiKey = await AsyncStorage.getItem("geminiKey") || '';
+            const newAiSnippets = await generateSnippets(randomFile.parsedText!, geminiKey, 10, fileId);
 
             if (newAiSnippets.length > 0) {
                 const newContentSnippets: ContentSnippet[] = newAiSnippets.map((snippetStr, idx) => {

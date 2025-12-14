@@ -649,6 +649,8 @@ const ModelPreferencesModal = ({ visible, onClose, geminiKey, selectedModel, sel
     const [mode, setMode] = useState<'online' | 'offline'>('online');
     const [tempGeminiKey, setTempGeminiKey] = useState(geminiKey);
     const [showModelList, setShowModelList] = useState(false);
+    const [snippetCount, setSnippetCount] = useState(3);
+    const [chunkSize, setChunkSize] = useState(mode === 'offline' ? 2000 : 30000);
 
     useEffect(() => {
         if (visible) {
@@ -661,6 +663,15 @@ const ModelPreferencesModal = ({ visible, onClose, geminiKey, selectedModel, sel
             setTempGeminiKey(geminiKey);
             // Use saved mode preference, or default based on selected offline model
             setMode(savedModelMode || (selectedOfflineModel ? 'offline' : 'online'));
+
+            // Load snippet count and chunk size
+            AsyncStorage.getItem("snippetCount").then(val => {
+                if (val) setSnippetCount(parseInt(val, 10));
+            });
+            AsyncStorage.getItem("snippetChunkSize").then(val => {
+                if (val) setChunkSize(parseInt(val, 10));
+                else setChunkSize(savedModelMode === 'offline' ? 2000 : 30000);
+            });
         }
     }, [visible, geminiKey, selectedOfflineModel, savedModelMode]);
 
@@ -674,10 +685,13 @@ const ModelPreferencesModal = ({ visible, onClose, geminiKey, selectedModel, sel
         });
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (mode === 'online') {
             onGeminiKeySave(tempGeminiKey);
         }
+        // Save snippet count and chunk size
+        await AsyncStorage.setItem("snippetCount", snippetCount.toString());
+        await AsyncStorage.setItem("snippetChunkSize", chunkSize.toString());
         animateClose();
     };
 
@@ -707,6 +721,10 @@ const ModelPreferencesModal = ({ visible, onClose, geminiKey, selectedModel, sel
                                 onPress={() => {
                                     setMode('online');
                                     onModelModeSave('online');
+                                    // Update chunk size default for online mode
+                                    AsyncStorage.getItem("snippetChunkSize").then(val => {
+                                        if (!val) setChunkSize(30000);
+                                    });
                                 }}
                             >
                                 <Ionicons name="cloud" size={20} color={mode === 'online' ? Colors.background : Colors.tabIconDefault} />
@@ -717,6 +735,10 @@ const ModelPreferencesModal = ({ visible, onClose, geminiKey, selectedModel, sel
                                 onPress={() => {
                                     setMode('offline');
                                     onModelModeSave('offline');
+                                    // Update chunk size default for offline mode
+                                    AsyncStorage.getItem("snippetChunkSize").then(val => {
+                                        if (!val) setChunkSize(2000);
+                                    });
                                 }}
                             >
                                 <Ionicons name="phone-portrait" size={20} color={mode === 'offline' ? Colors.background : Colors.tabIconDefault} />
@@ -753,6 +775,93 @@ const ModelPreferencesModal = ({ visible, onClose, geminiKey, selectedModel, sel
                             </View>
                             <Ionicons name="chevron-forward" size={24} color={Colors.tabIconDefault} />
                         </TouchableOpacity>
+
+                        {/* Snippet Settings */}
+                        <Text style={[styles.sectionLabel, { marginTop: 20 }]}>Snippet Settings</Text>
+
+                        {/* Snippet Count */}
+                        <View style={styles.sliderContainer}>
+                            <Text style={styles.sliderLabel}>Snippets per generation: {snippetCount}</Text>
+                            <View style={styles.sliderRow}>
+                                <Text style={styles.sliderMinMax}>1</Text>
+                                <View style={styles.sliderWrapper}>
+                                    <View style={styles.sliderTrack}>
+                                        <View style={[styles.sliderFill, { width: `${((snippetCount - 1) / 9) * 100}%` }]} />
+                                    </View>
+                                </View>
+                                <Text style={styles.sliderMinMax}>10</Text>
+                            </View>
+                            <View style={styles.sliderButtons}>
+                                <TouchableOpacity
+                                    style={[styles.sliderButton, snippetCount <= 1 && styles.sliderButtonDisabled]}
+                                    onPress={() => setSnippetCount(Math.max(1, snippetCount - 1))}
+                                    disabled={snippetCount <= 1}
+                                >
+                                    <Ionicons name="remove" size={20} color={snippetCount <= 1 ? Colors.tabIconDefault : Colors.tint} />
+                                </TouchableOpacity>
+                                <TextInput
+                                    style={styles.sliderInput}
+                                    value={snippetCount.toString()}
+                                    onChangeText={(text) => {
+                                        const num = parseInt(text, 10);
+                                        if (!isNaN(num) && num >= 1 && num <= 10) {
+                                            setSnippetCount(num);
+                                        }
+                                    }}
+                                    keyboardType="numeric"
+                                    maxLength={2}
+                                />
+                                <TouchableOpacity
+                                    style={[styles.sliderButton, snippetCount >= 10 && styles.sliderButtonDisabled]}
+                                    onPress={() => setSnippetCount(Math.min(10, snippetCount + 1))}
+                                    disabled={snippetCount >= 10}
+                                >
+                                    <Ionicons name="add" size={20} color={snippetCount >= 10 ? Colors.tabIconDefault : Colors.tint} />
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+
+                        {/* Chunk Size */}
+                        <View style={styles.sliderContainer}>
+                            <Text style={styles.sliderLabel}>Chunk Size: {chunkSize.toLocaleString()} chars</Text>
+                            <View style={styles.sliderRow}>
+                                <Text style={styles.sliderMinMax}>500</Text>
+                                <View style={styles.sliderWrapper}>
+                                    <View style={styles.sliderTrack}>
+                                        <View style={[styles.sliderFill, { width: `${((chunkSize - 500) / 29500) * 100}%` }]} />
+                                    </View>
+                                </View>
+                                <Text style={styles.sliderMinMax}>30K</Text>
+                            </View>
+                            <View style={styles.sliderButtons}>
+                                <TouchableOpacity
+                                    style={[styles.sliderButton, chunkSize <= 500 && styles.sliderButtonDisabled]}
+                                    onPress={() => setChunkSize(Math.max(500, chunkSize - 500))}
+                                    disabled={chunkSize <= 500}
+                                >
+                                    <Ionicons name="remove" size={20} color={chunkSize <= 500 ? Colors.tabIconDefault : Colors.tint} />
+                                </TouchableOpacity>
+                                <TextInput
+                                    style={styles.sliderInput}
+                                    value={chunkSize.toString()}
+                                    onChangeText={(text) => {
+                                        const num = parseInt(text, 10);
+                                        if (!isNaN(num) && num >= 500 && num <= 30000) {
+                                            setChunkSize(num);
+                                        }
+                                    }}
+                                    keyboardType="numeric"
+                                    maxLength={5}
+                                />
+                                <TouchableOpacity
+                                    style={[styles.sliderButton, chunkSize >= 30000 && styles.sliderButtonDisabled]}
+                                    onPress={() => setChunkSize(Math.min(30000, chunkSize + 500))}
+                                    disabled={chunkSize >= 30000}
+                                >
+                                    <Ionicons name="add" size={20} color={chunkSize >= 30000 ? Colors.tabIconDefault : Colors.tint} />
+                                </TouchableOpacity>
+                            </View>
+                        </View>
 
                         <View style={styles.modalButtons}>
                             <Pressable style={[styles.modalButton, styles.cancelButton]} onPress={animateClose}>
@@ -2181,6 +2290,70 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: Colors.tabIconDefault,
         marginTop: 2,
+    },
+    sliderContainer: {
+        marginBottom: 20,
+    },
+    sliderLabel: {
+        fontSize: 14,
+        fontWeight: '500',
+        color: Colors.text,
+        marginBottom: 8,
+    },
+    sliderRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 12,
+    },
+    sliderMinMax: {
+        fontSize: 12,
+        color: Colors.tabIconDefault,
+        width: 40,
+        textAlign: 'center',
+    },
+    sliderWrapper: {
+        flex: 1,
+        marginHorizontal: 8,
+    },
+    sliderTrack: {
+        height: 4,
+        backgroundColor: Colors.backgroundLighter,
+        borderRadius: 2,
+        position: 'relative',
+    },
+    sliderFill: {
+        height: '100%',
+        backgroundColor: Colors.tint,
+        borderRadius: 2,
+    },
+    sliderButtons: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 12,
+    },
+    sliderButton: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: Colors.backgroundLighter,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    sliderButtonDisabled: {
+        opacity: 0.5,
+    },
+    sliderInput: {
+        width: 60,
+        height: 36,
+        backgroundColor: Colors.backgroundLighter,
+        borderRadius: 8,
+        textAlign: 'center',
+        fontSize: 16,
+        fontWeight: '600',
+        color: Colors.text,
+        borderWidth: 1,
+        borderColor: Colors.tint,
     },
     offlineModelHeader: {
         flexDirection: 'row',

@@ -39,7 +39,13 @@ async function generateSnippetsWithOfflineModel(
     numberOfSnippets: number = 20,
     fileId?: string
 ): Promise<string[]> {
-    const CHUNK_SIZE = 2000; // Very small for fast processing
+    // Load chunk size from AsyncStorage (default: 2000 for offline)
+    const savedChunkSize = await AsyncStorage.getItem("snippetChunkSize");
+    const CHUNK_SIZE = savedChunkSize ? parseInt(savedChunkSize, 10) : 2000;
+
+    // Load snippet count from AsyncStorage if not provided
+    const savedSnippetCount = await AsyncStorage.getItem("snippetCount");
+    const actualSnippetCount = savedSnippetCount ? parseInt(savedSnippetCount, 10) : numberOfSnippets;
 
     try {
         const languageModel = mlc.languageModel(modelId);
@@ -102,12 +108,12 @@ async function generateSnippetsWithOfflineModel(
         }
 
         // Super simple prompt - minimal text
-        const textSnippet = chunkText; // Only 200 chars
+        const textSnippet = chunkText;
         const prompt = `You are an expert tutor. Your goal is to help a student learn the following material by creating engaging, bite-sized learning snippets in the original language of the material (this is important).
 
 Material: "${textSnippet}"
 
-Create 3 learning snippets. Output ONLY a JSON array, no other text, no markdown, no explanations. Format: [{"type":"fact","content":"..."},{"type":"fact","content":"..."},{"type":"fact","content":"..."}]`;
+Create ${actualSnippetCount} learning snippets with content that's maximum 300 characters. Output ONLY a JSON array, no other text, no markdown, no explanations. Format: [{"type":"fact","content":"..."},{"type":"fact","content":"..."},{"type":"fact","content":"..."}]`;
 
         console.log("Starting offline model generation");
 
@@ -172,14 +178,19 @@ Create 3 learning snippets. Output ONLY a JSON array, no other text, no markdown
 
         // If we found snippets, validate and return them
         if (allSnippets.length > 0) {
-            return allSnippets.slice(0, 3).map(s => {
+            return allSnippets.slice(0, actualSnippetCount).map(s => {
                 // Ensure it's a valid object structure (like Gemini does)
                 if (typeof s === 'object' && s !== null && 'content' in s) {
-                    return JSON.stringify({
+                    const snippet: any = {
                         type: s.type || 'fact',
                         content: s.content || String(s),
                         label: s.label || 'Learning Point'
-                    });
+                    };
+                    // Preserve answer field if present
+                    if (s.answer) {
+                        snippet.answer = s.answer;
+                    }
+                    return JSON.stringify(snippet);
                 }
                 // Fallback for simple strings or malformed objects
                 if (typeof s === 'string') {
@@ -193,13 +204,18 @@ Create 3 learning snippets. Output ONLY a JSON array, no other text, no markdown
         try {
             const parsed = JSON.parse(cleanedText);
             if (Array.isArray(parsed)) {
-                return parsed.slice(0, 3).map(s => {
+                return parsed.slice(0, actualSnippetCount).map(s => {
                     if (typeof s === 'object' && s !== null && 'content' in s) {
-                        return JSON.stringify({
+                        const snippet: any = {
                             type: s.type || 'fact',
                             content: s.content || String(s),
                             label: s.label || 'Learning Point'
-                        });
+                        };
+                        // Preserve answer field if present
+                        if (s.answer) {
+                            snippet.answer = s.answer;
+                        }
+                        return JSON.stringify(snippet);
                     }
                     return JSON.stringify({ type: 'fact', content: String(s), label: 'Learning Point' });
                 });
@@ -207,7 +223,7 @@ Create 3 learning snippets. Output ONLY a JSON array, no other text, no markdown
         } catch (e) {
             // Last resort: create simple snippets from text
             const fallbackLines = textResponse.split(/[.!?]/).filter(l => l.trim().length > 20);
-            return fallbackLines.slice(0, 3).map((line, idx) => JSON.stringify({
+            return fallbackLines.slice(0, actualSnippetCount).map((line, idx) => JSON.stringify({
                 type: 'fact',
                 content: line.trim(),
                 label: 'Learning Point'
@@ -229,7 +245,13 @@ export async function generateSnippetsWithGemini(
     numberOfSnippets: number = 20,
     fileId?: string // Optional: unique identifier for the file to track chunk usage
 ): Promise<string[]> {
-    const CHUNK_SIZE = 30000;
+    // Load chunk size from AsyncStorage (default: 30000 for online)
+    const savedChunkSize = await AsyncStorage.getItem("snippetChunkSize");
+    const CHUNK_SIZE = savedChunkSize ? parseInt(savedChunkSize, 10) : 30000;
+
+    // Load snippet count from AsyncStorage if not provided
+    const savedSnippetCount = await AsyncStorage.getItem("snippetCount");
+    const actualSnippetCount = savedSnippetCount ? parseInt(savedSnippetCount, 10) : numberOfSnippets;
 
     try {
         const genAI = new GoogleGenerativeAI(apiKey);
@@ -320,7 +342,7 @@ export async function generateSnippetsWithGemini(
         
         ${totalChunks > 1 ? `(Note: This is section ${selectedChunk + 1} of ${totalChunks} from a larger document)` : ''}
 
-        Please generate ${numberOfSnippets} distinct, short, and engaging snippets in the original language of the material and based on this text.
+        Please generate ${actualSnippetCount} distinct, short, and engaging snippets in the original language of the material and based on this text.
         Mix the following types:
         ${typeDescriptions.join('\n        ')}
 
