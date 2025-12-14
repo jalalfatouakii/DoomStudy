@@ -82,7 +82,7 @@ export default function GeminiKeyModal({ visible, onClose, onSave }: GeminiKeyMo
 
                             <Text style={styles.title}>Integrate AI into your feed</Text>
                             <Text style={styles.description}>
-                                We strongly recommend adding a Gemini API key (free of charge) to get better content in your feed without any limits.
+                                You can use either a Gemini API key (free, online) or download an offline model (Settings > Manage Model Preferences) to generate AI-powered content for your courses.
                             </Text>
 
                             <TouchableOpacity style={styles.guideLink} onPress={openGetKeyUrl}>

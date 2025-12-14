@@ -3,7 +3,7 @@ import PdfTextExtractor from "@/components/PdfTextExtractor";
 import ProcessingModal from "@/components/ProcessingModal";
 import { Colors } from "@/constants/colors";
 import { useCourses } from "@/context/CourseContext";
-import { generateSnippetsWithGemini } from "@/utils/gemini";
+import { generateSnippets } from "@/utils/gemini";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as DocumentPicker from 'expo-document-picker';
@@ -249,12 +249,26 @@ export default function EditCourse() {
         // Identify new files that have content
         const newFilesWithContent = files.filter(f => f.isNew && f.parsedText && f.parsedText.trim().length > 0);
 
-        if (newFilesWithContent.length > 0 && geminiKey) {
+        // Check if we can generate AI content (either online or offline mode)
+        const modePreference = await AsyncStorage.getItem("modelModePreference");
+        const currentMode = modePreference === 'offline' ? 'offline' : 'online';
+        let canGenerateAI = false;
+
+        if (currentMode === 'offline') {
+            const offlineModel = await AsyncStorage.getItem("selectedOfflineModel");
+            const downloadedModelsStr = await AsyncStorage.getItem("downloadedOfflineModels");
+            const downloadedModels = downloadedModelsStr ? JSON.parse(downloadedModelsStr) : [];
+            canGenerateAI = !!offlineModel && downloadedModels.includes(offlineModel);
+        } else {
+            canGenerateAI = !!geminiKey;
+        }
+
+        if (newFilesWithContent.length > 0 && canGenerateAI) {
             setIsGeneratingAI(true);
             setProcessingVisible(true);
             setProcessingTitle("Updating Course");
             setProcessingStep("Generating AI Content");
-            setProcessingStatus("Preparing content...");
+            setProcessingStatus(`Using ${currentMode === 'offline' ? 'offline model' : 'Gemini'}...`);
             setProcessingProgress(0);
 
             try {
@@ -267,7 +281,8 @@ export default function EditCourse() {
                     try {
                         // Force non-null assertion because we filtered for parsedText above
                         const fileId = `${id}-${file.name}`;
-                        const snippets = await generateSnippetsWithGemini(file.parsedText!, geminiKey, 20, fileId);
+                        // Use unified generateSnippets function which handles both online and offline modes
+                        const snippets = await generateSnippets(file.parsedText!, geminiKey || '', 20, fileId);
 
                         // Tag newly generated snippets
                         const taggedSnippets = snippets.map(s => {

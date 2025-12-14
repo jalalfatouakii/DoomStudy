@@ -1,5 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { mlc } from "@react-native-ai/mlc";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { generateText } from "ai";
 
 /**
  * Selects a chunk using weighted random sampling.
@@ -29,6 +31,196 @@ function selectWeightedRandomChunk(totalChunks: number, usedChunks: Set<number>)
 
     // Fallback (should never reach here)
     return totalChunks - 1;
+}
+
+async function generateSnippetsWithOfflineModel(
+    text: string,
+    modelId: string,
+    numberOfSnippets: number = 20,
+    fileId?: string
+): Promise<string[]> {
+    const CHUNK_SIZE = 2000; // Very small for fast processing
+
+    try {
+        const languageModel = mlc.languageModel(modelId);
+
+        // Add timeout for prepare (15 seconds max - models can take time to load)
+        const prepareTimeout = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error("Prepare timeout")), 120000);
+        });
+
+        try {
+            await Promise.race([languageModel.prepare(), prepareTimeout]);
+            console.log("Model prepared successfully");
+        } catch (prepareError) {
+            console.warn("Model prepare timed out or failed:", prepareError);
+            // Try to continue anyway - model might already be prepared
+            console.log("Attempting to generate anyway...");
+        }
+
+        // Calculate number of chunks
+        const totalChunks = Math.ceil(text.length / CHUNK_SIZE);
+
+        // Load used chunks for this file from AsyncStorage
+        let usedChunks = new Set<number>();
+        if (fileId) {
+            const storageKey = `offline_chunks_${fileId}`;
+            const storedData = await AsyncStorage.getItem(storageKey);
+            if (storedData) {
+                const parsed = JSON.parse(storedData);
+                usedChunks = new Set(parsed.usedChunks || []);
+            }
+
+            // If all chunks have been used, reset to empty (start over)
+            if (usedChunks.size >= totalChunks) {
+                console.log(`All ${totalChunks} chunks used for ${fileId}, resetting...`);
+                usedChunks.clear();
+            }
+        }
+
+        // Select a chunk using weighted random sampling
+        const selectedChunk = totalChunks > 1
+            ? selectWeightedRandomChunk(totalChunks, usedChunks)
+            : 0;
+
+        // Extract the selected chunk
+        const startIndex = selectedChunk * CHUNK_SIZE;
+        const endIndex = Math.min(startIndex + CHUNK_SIZE, text.length);
+        const chunkText = text.substring(startIndex, endIndex);
+
+        console.log(`Using chunk ${selectedChunk + 1}/${totalChunks} (chars ${startIndex}-${endIndex}) for fileId: ${fileId || 'unknown'}`);
+
+        // Mark this chunk as used
+        if (fileId) {
+            usedChunks.add(selectedChunk);
+            const storageKey = `offline_chunks_${fileId}`;
+            await AsyncStorage.setItem(storageKey, JSON.stringify({
+                usedChunks: Array.from(usedChunks),
+                totalChunks,
+                lastUpdated: Date.now()
+            }));
+        }
+
+        // Super simple prompt - minimal text
+        const textSnippet = chunkText; // Only 200 chars
+        const prompt = `You are an expert tutor. Your goal is to help a student learn the following material by creating engaging, bite-sized learning snippets in the original language of the material (this is important).
+
+Material: "${textSnippet}"
+
+Create 3 learning snippets. Output ONLY a JSON array, no other text, no markdown, no explanations. Format: [{"type":"fact","content":"..."},{"type":"fact","content":"..."},{"type":"fact","content":"..."}]`;
+
+        console.log("Starting offline model generation");
+
+        // Add timeout wrapper (8 seconds max for generation)
+        const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error("Timeout")), 60000);
+        });
+
+        let result;
+        try {
+            result = await Promise.race([
+                generateText({
+                    model: languageModel,
+                    prompt: prompt,
+                }),
+                timeoutPromise
+            ]) as any;
+        } catch (timeoutError) {
+            console.warn("Offline model generation timed out, returning empty");
+            return [];
+        }
+
+        const textResponse = result?.text;
+        console.log("Offline model response:", textResponse);
+
+        // Check if response is empty
+        if (!textResponse || textResponse.trim().length === 0) {
+            return [];
+        }
+
+        // Clean up potential markdown code blocks (like Gemini does)
+        let cleanedText = textResponse.replace(/```json/g, "").replace(/```/g, "").trim();
+
+        // Try to extract all JSON arrays from the response
+        const allSnippets: any[] = [];
+
+        // Find all JSON arrays using regex
+        const arrayMatches = cleanedText.matchAll(/\[[\s\S]*?\]/g);
+        for (const match of arrayMatches) {
+            try {
+                const parsed = JSON.parse(match[0]);
+                if (Array.isArray(parsed)) {
+                    allSnippets.push(...parsed);
+                }
+            } catch (e) {
+                // Skip invalid arrays
+            }
+        }
+
+        // Also try to find single JSON objects
+        const objectMatches = cleanedText.matchAll(/\{[\s\S]*?\}/g);
+        for (const match of objectMatches) {
+            try {
+                const parsed = JSON.parse(match[0]);
+                if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                    allSnippets.push(parsed);
+                }
+            } catch (e) {
+                // Skip invalid objects
+            }
+        }
+
+        // If we found snippets, validate and return them
+        if (allSnippets.length > 0) {
+            return allSnippets.slice(0, 3).map(s => {
+                // Ensure it's a valid object structure (like Gemini does)
+                if (typeof s === 'object' && s !== null && 'content' in s) {
+                    return JSON.stringify({
+                        type: s.type || 'fact',
+                        content: s.content || String(s),
+                        label: s.label || 'Learning Point'
+                    });
+                }
+                // Fallback for simple strings or malformed objects
+                if (typeof s === 'string') {
+                    return JSON.stringify({ type: 'fact', content: s, label: 'Learning Point' });
+                }
+                return JSON.stringify({ type: 'fact', content: String(s), label: 'Learning Point' });
+            });
+        }
+
+        // Final fallback: try parsing the whole cleaned text as JSON
+        try {
+            const parsed = JSON.parse(cleanedText);
+            if (Array.isArray(parsed)) {
+                return parsed.slice(0, 3).map(s => {
+                    if (typeof s === 'object' && s !== null && 'content' in s) {
+                        return JSON.stringify({
+                            type: s.type || 'fact',
+                            content: s.content || String(s),
+                            label: s.label || 'Learning Point'
+                        });
+                    }
+                    return JSON.stringify({ type: 'fact', content: String(s), label: 'Learning Point' });
+                });
+            }
+        } catch (e) {
+            // Last resort: create simple snippets from text
+            const fallbackLines = textResponse.split(/[.!?]/).filter(l => l.trim().length > 20);
+            return fallbackLines.slice(0, 3).map((line, idx) => JSON.stringify({
+                type: 'fact',
+                content: line.trim(),
+                label: 'Learning Point'
+            }));
+        }
+
+        return [];
+
+
+    } catch (error) {
+        console.error("Error generating snippets with offline model:", error);
+        return [];
+    }
 }
 
 export async function generateSnippetsWithGemini(
@@ -174,5 +366,45 @@ export async function generateSnippetsWithGemini(
     } catch (error) {
         console.error("Error generating snippets with Gemini:", error);
         return [];
+    }
+}
+
+/**
+ * Unified function that generates snippets based on the selected mode (online/offline)
+ */
+export async function generateSnippets(
+    text: string,
+    apiKey: string,
+    numberOfSnippets: number = 20,
+    fileId?: string
+): Promise<string[]> {
+    try {
+        // Check the mode preference
+        const modePreference = await AsyncStorage.getItem("modelModePreference");
+        const mode = modePreference === 'offline' ? 'offline' : 'online';
+
+        if (mode === 'offline') {
+            // Check if an offline model is selected and downloaded
+            const selectedOfflineModel = await AsyncStorage.getItem("selectedOfflineModel");
+            const downloadedModelsStr = await AsyncStorage.getItem("downloadedOfflineModels");
+            const downloadedModels = downloadedModelsStr ? JSON.parse(downloadedModelsStr) : [];
+
+            if (selectedOfflineModel && downloadedModels.includes(selectedOfflineModel)) {
+                console.log(`Using offline model: ${selectedOfflineModel}`);
+                return await generateSnippetsWithOfflineModel(text, selectedOfflineModel, numberOfSnippets, fileId);
+            } else {
+                console.log("Offline mode selected but no model downloaded, falling back to Gemini");
+                // Fallback to Gemini if offline model not available
+                return await generateSnippetsWithGemini(text, apiKey, numberOfSnippets, fileId);
+            }
+        } else {
+            // Online mode - use Gemini
+            console.log("Using Gemini (online mode)");
+            return await generateSnippetsWithGemini(text, apiKey, numberOfSnippets, fileId);
+        }
+    } catch (error) {
+        console.error("Error in generateSnippets:", error);
+        // Fallback to Gemini on any error
+        return await generateSnippetsWithGemini(text, apiKey, numberOfSnippets, fileId);
     }
 }

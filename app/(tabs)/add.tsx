@@ -3,7 +3,7 @@ import PdfTextExtractor from "@/components/PdfTextExtractor";
 import ProcessingModal from "@/components/ProcessingModal";
 import { Colors } from "@/constants/colors";
 import { useCourses } from "@/context/CourseContext";
-import { generateSnippetsWithGemini } from "@/utils/gemini";
+import { generateSnippets } from "@/utils/gemini";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as DocumentPicker from 'expo-document-picker';
@@ -62,8 +62,13 @@ export default function AddCourse() {
     const [processingProgress, setProcessingProgress] = useState<number | undefined>(undefined);
 
 
+    const [modelMode, setModelMode] = useState<'online' | 'offline'>('online');
+    const [selectedOfflineModel, setSelectedOfflineModel] = useState<string | null>(null);
+    const [downloadedOfflineModels, setDownloadedOfflineModels] = useState<string[]>([]);
+
     useEffect(() => {
         checkGeminiKey();
+        checkModelMode();
     }, []);
 
     const checkGeminiKey = async () => {
@@ -76,6 +81,20 @@ export default function AddCourse() {
             // Or just show it. The user requested "if its the first time the user opens the add page"
             // We can check a separate flag for "hasSeenKeyPrompt" if needed, but checking key existence is simpler.
             setShowKeyModal(true);
+        }
+    };
+
+    const checkModelMode = async () => {
+        const modePreference = await AsyncStorage.getItem("modelModePreference");
+        const mode = modePreference === 'offline' ? 'offline' : 'online';
+        setModelMode(mode);
+
+        if (mode === 'offline') {
+            const offlineModel = await AsyncStorage.getItem("selectedOfflineModel");
+            const downloadedModelsStr = await AsyncStorage.getItem("downloadedOfflineModels");
+            const downloadedModels = downloadedModelsStr ? JSON.parse(downloadedModelsStr) : [];
+            setSelectedOfflineModel(offlineModel);
+            setDownloadedOfflineModels(downloadedModels);
         }
     };
 
@@ -105,9 +124,29 @@ export default function AddCourse() {
             return;
         } // Basic validation
 
-        if (!geminiKey) {
-            Alert.alert("Please add a Gemini API key in the settings before creating a course.");
-            return;
+        // Check mode and validate accordingly
+        const modePreference = await AsyncStorage.getItem("modelModePreference");
+        const currentMode = modePreference === 'offline' ? 'offline' : 'online';
+
+        if (currentMode === 'offline') {
+            // Check if offline model is selected and downloaded
+            const offlineModel = await AsyncStorage.getItem("selectedOfflineModel");
+            const downloadedModelsStr = await AsyncStorage.getItem("downloadedOfflineModels");
+            const downloadedModels = downloadedModelsStr ? JSON.parse(downloadedModelsStr) : [];
+
+            if (!offlineModel || !downloadedModels.includes(offlineModel)) {
+                Alert.alert(
+                    "Offline Model Required",
+                    "Please download and select an offline model in Settings > Manage Model Preferences before creating a course with offline mode."
+                );
+                return;
+            }
+        } else {
+            // Online mode - check for Gemini key
+            if (!geminiKey) {
+                Alert.alert("Please add a Gemini API key in the settings before creating a course.");
+                return;
+            }
         }
 
         // Require at least one file with parsed text
@@ -119,12 +158,15 @@ export default function AddCourse() {
 
         let aiSnippets: string[] = [];
 
-        if (geminiKey) {
+        // Generate AI content if we have either Gemini key (online) or offline model (offline)
+        const canGenerateAI = currentMode === 'online' ? geminiKey : (selectedOfflineModel && downloadedOfflineModels.includes(selectedOfflineModel));
+
+        if (canGenerateAI) {
             setIsGeneratingAI(true);
             setProcessingVisible(true);
             setProcessingTitle("Creating Course");
             setProcessingStep("Generating AI Content");
-            setProcessingStatus("Preparing content...");
+            setProcessingStatus(`Using ${currentMode === 'offline' ? 'offline model' : 'Gemini'}...`);
             setProcessingProgress(0);
 
             try {
@@ -139,7 +181,8 @@ export default function AddCourse() {
 
                     try {
                         const fileId = `new-course-${file.name}-${Date.now()}`;
-                        const fileSnippets = await generateSnippetsWithGemini(file.parsedText, geminiKey, 20, fileId);
+                        // Use unified generateSnippets function which handles both online and offline modes
+                        const fileSnippets = await generateSnippets(file.parsedText, geminiKey || '', 20, fileId);
 
                         // Tag snippets with the source filename so we can delete them later if the file is removed
                         const taggedSnippets = fileSnippets.map(s => {
@@ -429,7 +472,7 @@ export default function AddCourse() {
                 <View style={styles.footer}>
                     <TouchableOpacity style={styles.createButton} onPress={handleCreate}>
                         <Text style={styles.createButtonText}>
-                            {geminiKey ? "Create Course & Generate AI Content" : "Create Course"}
+                            Create Course
                         </Text>
                     </TouchableOpacity>
                 </View>

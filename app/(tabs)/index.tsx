@@ -3,7 +3,7 @@ import { Colors } from "@/constants/colors";
 import { ContentSnippet, Course, useCourses } from "@/context/CourseContext";
 import { useTabPress } from "@/hooks/useTabPress";
 import { SnippetType } from "@/utils/contentExtractor";
-import { generateSnippetsWithGemini } from "@/utils/gemini";
+import { generateSnippets } from "@/utils/gemini";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
@@ -223,7 +223,7 @@ export default function Index() {
 
         try {
           const fileId = `${file.courseId}-${file.fileName}`;
-          const fileSnippets = await generateSnippetsWithGemini(file.parsedText, key, snippetsPerFile, fileId);
+          const fileSnippets = await generateSnippets(file.parsedText, key, snippetsPerFile, fileId);
 
           const newContentSnippets: ContentSnippet[] = [];
 

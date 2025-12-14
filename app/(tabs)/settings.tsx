@@ -1440,6 +1440,44 @@ export default function Settings() {
         }
     };
 
+    const handleDeleteAllCourses = async () => {
+        Alert.alert(
+            "Delete All Courses",
+            "This will permanently delete all courses, snippets, and files. Your stats (streak, time saved) will be preserved. This cannot be undone.",
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Delete All",
+                    style: "destructive",
+                    onPress: async () => {
+                        try {
+                            // Delete courses
+                            await AsyncStorage.removeItem('courses');
+
+                            // Get all keys and delete chunk tracking keys
+                            const allKeys = await AsyncStorage.getAllKeys();
+                            const chunkKeys = allKeys.filter(key =>
+                                key.startsWith('gemini_chunks_') || key.startsWith('offline_chunks_')
+                            );
+
+                            if (chunkKeys.length > 0) {
+                                await AsyncStorage.multiRemove(chunkKeys);
+                            }
+
+                            Alert.alert(
+                                "Success",
+                                `All courses deleted successfully.\nRemoved ${chunkKeys.length} chunk tracking entries.\n\nPlease restart the app to see changes.`
+                            );
+                        } catch (error) {
+                            console.error("Error deleting courses:", error);
+                            Alert.alert("Error", "Failed to delete courses");
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
     const handleCleanupIncompleteDownloads = async () => {
         Alert.alert(
             "Clean Up Incomplete Downloads",
@@ -1671,6 +1709,12 @@ export default function Settings() {
                         )}
                         <View style={styles.separator} />
                         <ActionItem
+                            icon="trash-outline"
+                            title="Delete All Courses"
+                            onPress={handleDeleteAllCourses}
+                        />
+                        <View style={styles.separator} />
+                        <ActionItem
                             icon="trash"
                             title="Delete Async Storage"
                             onPress={async () => {
@@ -1679,6 +1723,7 @@ export default function Settings() {
                                 Alert.alert("Async Storage cleared, please restart the app");
                             }}
                         />
+
                     </View>
 
                     {/* AI Section 
