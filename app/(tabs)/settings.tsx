@@ -615,17 +615,19 @@ const ModelListModal = ({ visible, onClose, mode, selectedModel, selectedOffline
 };
 
 // Main Model Preferences Modal
-const ModelPreferencesModal = ({ visible, onClose, geminiKey, selectedModel, selectedOfflineModel, downloadedOfflineModels, onGeminiKeySave, onModelSelect, onOfflineModelSelect, onOfflineModelsUpdate }: {
+const ModelPreferencesModal = ({ visible, onClose, geminiKey, selectedModel, selectedOfflineModel, downloadedOfflineModels, savedModelMode, onGeminiKeySave, onModelSelect, onOfflineModelSelect, onOfflineModelsUpdate, onModelModeSave }: {
     visible: boolean,
     onClose: () => void,
     geminiKey: string,
     selectedModel: string,
     selectedOfflineModel: string | null,
     downloadedOfflineModels: string[],
+    savedModelMode: 'online' | 'offline',
     onGeminiKeySave: (key: string) => void,
     onModelSelect: (modelId: string) => void,
     onOfflineModelSelect: (modelId: string) => void,
-    onOfflineModelsUpdate: () => void
+    onOfflineModelsUpdate: () => void,
+    onModelModeSave: (mode: 'online' | 'offline') => void
 }) => {
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const [mode, setMode] = useState<'online' | 'offline'>('online');
@@ -641,9 +643,10 @@ const ModelPreferencesModal = ({ visible, onClose, geminiKey, selectedModel, sel
                 useNativeDriver: true,
             }).start();
             setTempGeminiKey(geminiKey);
-            setMode(selectedOfflineModel ? 'offline' : 'online');
+            // Use saved mode preference, or default based on selected offline model
+            setMode(savedModelMode || (selectedOfflineModel ? 'offline' : 'online'));
         }
-    }, [visible, geminiKey, selectedOfflineModel]);
+    }, [visible, geminiKey, selectedOfflineModel, savedModelMode]);
 
     const animateClose = () => {
         Animated.timing(fadeAnim, {
@@ -685,14 +688,20 @@ const ModelPreferencesModal = ({ visible, onClose, geminiKey, selectedModel, sel
                         <View style={styles.modeSelector}>
                             <TouchableOpacity
                                 style={[styles.modeButton, mode === 'online' && styles.modeButtonActive]}
-                                onPress={() => setMode('online')}
+                                onPress={() => {
+                                    setMode('online');
+                                    onModelModeSave('online');
+                                }}
                             >
                                 <Ionicons name="cloud" size={20} color={mode === 'online' ? Colors.background : Colors.tabIconDefault} />
                                 <Text style={[styles.modeButtonText, mode === 'online' && styles.modeButtonTextActive]}>Online</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                                 style={[styles.modeButton, mode === 'offline' && styles.modeButtonActive]}
-                                onPress={() => setMode('offline')}
+                                onPress={() => {
+                                    setMode('offline');
+                                    onModelModeSave('offline');
+                                }}
                             >
                                 <Ionicons name="phone-portrait" size={20} color={mode === 'offline' ? Colors.background : Colors.tabIconDefault} />
                                 <Text style={[styles.modeButtonText, mode === 'offline' && styles.modeButtonTextActive]}>Offline</Text>
@@ -1364,6 +1373,7 @@ export default function Settings() {
     const [selectedOfflineModel, setSelectedOfflineModel] = useState<string | null>(null);
     const [downloadedOfflineModels, setDownloadedOfflineModels] = useState<string[]>([]);
     const [selectedSnippetTypes, setSelectedSnippetTypes] = useState<string[]>(['fact', 'concept', 'qna', 'true_false']);
+    const [savedModelMode, setSavedModelMode] = useState<'online' | 'offline'>('online');
 
     useEffect(() => {
         const loadSettings = async () => {
@@ -1372,6 +1382,7 @@ export default function Settings() {
             const snippetTypes = await AsyncStorage.getItem("snippetTypePreferences");
             const offlineModel = await AsyncStorage.getItem("selectedOfflineModel");
             const downloadedModels = await AsyncStorage.getItem("downloadedOfflineModels");
+            const savedMode = await AsyncStorage.getItem("modelModePreference");
 
             if (key) setGeminiKey(key);
             if (model) setSelectedModel(model);
@@ -1380,6 +1391,12 @@ export default function Settings() {
             }
             if (offlineModel) setSelectedOfflineModel(offlineModel);
             if (downloadedModels) setDownloadedOfflineModels(JSON.parse(downloadedModels));
+            if (savedMode === 'online' || savedMode === 'offline') {
+                setSavedModelMode(savedMode);
+            } else {
+                // Default to online if no preference saved, or offline if an offline model is selected
+                setSavedModelMode(offlineModel ? 'offline' : 'online');
+            }
         };
         loadSettings();
     }, []);
@@ -1409,6 +1426,11 @@ export default function Settings() {
     const handleOfflineModelSelect = async (modelId: string) => {
         setSelectedOfflineModel(modelId);
         await AsyncStorage.setItem("selectedOfflineModel", modelId);
+    };
+
+    const handleModelModeSave = async (mode: 'online' | 'offline') => {
+        setSavedModelMode(mode);
+        await AsyncStorage.setItem("modelModePreference", mode);
     };
 
     const handleOfflineModelsUpdate = async () => {
@@ -1726,10 +1748,12 @@ export default function Settings() {
                 selectedModel={selectedModel}
                 selectedOfflineModel={selectedOfflineModel}
                 downloadedOfflineModels={downloadedOfflineModels}
+                savedModelMode={savedModelMode}
                 onGeminiKeySave={handleGeminiKeySave}
                 onModelSelect={handleModelSelect}
                 onOfflineModelSelect={handleOfflineModelSelect}
                 onOfflineModelsUpdate={handleOfflineModelsUpdate}
+                onModelModeSave={handleModelModeSave}
             />
 
             <OfflineModelTestModal
