@@ -129,12 +129,13 @@ export default function AddCourse() {
         const currentMode = modePreference === 'offline' ? 'offline' : 'online';
 
         if (currentMode === 'offline') {
-            // Check if offline model is selected and downloaded
+            // Check if offline model is selected and downloaded (or Apple AI)
             const offlineModel = await AsyncStorage.getItem("selectedOfflineModel");
             const downloadedModelsStr = await AsyncStorage.getItem("downloadedOfflineModels");
             const downloadedModels = downloadedModelsStr ? JSON.parse(downloadedModelsStr) : [];
+            const isAppleAI = offlineModel === 'apple-intelligence';
 
-            if (!offlineModel || !downloadedModels.includes(offlineModel)) {
+            if (!offlineModel || (!downloadedModels.includes(offlineModel) && !isAppleAI)) {
                 Alert.alert(
                     "Offline Model Required",
                     "Please download and select an offline model in Settings > Manage Model Preferences before creating a course with offline mode."

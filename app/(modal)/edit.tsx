@@ -258,7 +258,8 @@ export default function EditCourse() {
             const offlineModel = await AsyncStorage.getItem("selectedOfflineModel");
             const downloadedModelsStr = await AsyncStorage.getItem("downloadedOfflineModels");
             const downloadedModels = downloadedModelsStr ? JSON.parse(downloadedModelsStr) : [];
-            canGenerateAI = !!offlineModel && downloadedModels.includes(offlineModel);
+            const isAppleAI = offlineModel === 'apple-intelligence';
+            canGenerateAI = !!offlineModel && (downloadedModels.includes(offlineModel) || isAppleAI);
         } else {
             canGenerateAI = !!geminiKey;
         }

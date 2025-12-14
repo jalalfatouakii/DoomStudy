@@ -99,7 +99,8 @@ export default function CourseDetail() {
             const offlineModel = await AsyncStorage.getItem("selectedOfflineModel");
             const downloadedModelsStr = await AsyncStorage.getItem("downloadedOfflineModels");
             const downloadedModels = downloadedModelsStr ? JSON.parse(downloadedModelsStr) : [];
-            if (!offlineModel || !downloadedModels.includes(offlineModel)) {
+            const isAppleAI = offlineModel === 'apple-intelligence';
+            if (!offlineModel || (!downloadedModels.includes(offlineModel) && !isAppleAI)) {
                 return; // No offline model available
             }
         } else {
