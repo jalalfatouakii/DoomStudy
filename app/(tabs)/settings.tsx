@@ -277,103 +277,6 @@ const SNIPPET_TYPES = [
 
 type DownloadState = { status: 'idle' | 'downloading' | 'downloaded' | 'preparing', progress: number };
 
-const OfflineModelSelectorModal = ({ visible, onClose, onSelect, currentModel, downloadedModels }: {
-    visible: boolean,
-    onClose: () => void,
-    onSelect: (modelId: string) => void,
-    currentModel: string | null,
-    downloadedModels: string[]
-}) => {
-    const fadeAnim = useRef(new Animated.Value(0)).current;
-
-    useEffect(() => {
-        if (visible) {
-            fadeAnim.setValue(0);
-            Animated.timing(fadeAnim, {
-                toValue: 1,
-                duration: 200,
-                useNativeDriver: true,
-            }).start();
-        }
-    }, [visible]);
-
-    const animateClose = () => {
-        Animated.timing(fadeAnim, {
-            toValue: 0,
-            duration: 150,
-            useNativeDriver: true,
-        }).start(() => {
-            onClose();
-        });
-    };
-
-    const handleSelect = (modelId: string) => {
-        onSelect(modelId);
-        animateClose();
-    };
-
-    if (!visible) return null;
-
-    const availableModels = OFFLINE_MODELS.filter(m => downloadedModels.includes(m.id));
-
-    return (
-        <Modal
-            transparent
-            visible={visible}
-            onRequestClose={animateClose}
-            animationType="none"
-        >
-            <TouchableWithoutFeedback onPress={animateClose}>
-                <View style={styles.modalOverlay}>
-                    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-                        <Animated.View style={[styles.modalContent, { opacity: fadeAnim, transform: [{ scale: fadeAnim.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] }) }] }]}>
-                            <Text style={styles.modalTitle}>Select Offline Model</Text>
-                            <Text style={styles.modalSubtitle}>Choose a downloaded model to use</Text>
-
-                            {availableModels.length === 0 ? (
-                                <View style={styles.emptyModelsContainer}>
-                                    <Ionicons name="cloud-download-outline" size={48} color={Colors.tabIconDefault} />
-                                    <Text style={styles.emptyModelsText}>No models downloaded yet</Text>
-                                    <Text style={styles.emptyModelsSubtext}>Download a model first to use offline</Text>
-                                </View>
-                            ) : (
-                                <View style={styles.modelList}>
-                                    {availableModels.map((model) => (
-                                        <TouchableOpacity
-                                            key={model.id}
-                                            style={[
-                                                styles.modelOption,
-                                                currentModel === model.id && styles.selectedModelOption
-                                            ]}
-                                            onPress={() => handleSelect(model.id)}
-                                        >
-                                            <View style={styles.modelOptionLeft}>
-                                                <Text style={[
-                                                    styles.modelOptionText,
-                                                    currentModel === model.id && styles.selectedModelOptionText
-                                                ]}>
-                                                    {model.name}
-                                                </Text>
-                                                <Text style={styles.modelOptionSize}>{model.size}</Text>
-                                            </View>
-                                            {currentModel === model.id && (
-                                                <Ionicons name="checkmark-circle" size={24} color={Colors.tint} />
-                                            )}
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
-                            )}
-
-                            <TouchableOpacity style={[styles.cancelRedButton, { marginTop: 20 }]} onPress={animateClose}>
-                                <Text style={styles.cancelRedButtonText}>Close</Text>
-                            </TouchableOpacity>
-                        </Animated.View>
-                    </TouchableWithoutFeedback>
-                </View>
-            </TouchableWithoutFeedback>
-        </Modal>
-    );
-};
 
 const OfflineModelTestModal = ({ visible, onClose, modelId }: {
     visible: boolean,
@@ -500,7 +403,12 @@ const OfflineModelTestModal = ({ visible, onClose, modelId }: {
     );
 };
 
-const OfflineModelsModal = ({ visible, onClose }: { visible: boolean, onClose: () => void }) => {
+const OfflineModelsModal = ({ visible, onClose, onSelect, currentModel }: {
+    visible: boolean,
+    onClose: () => void,
+    onSelect?: (modelId: string) => void,
+    currentModel?: string | null
+}) => {
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const [downloadStates, setDownloadStates] = useState<Record<string, DownloadState>>({});
     const [downloadingModelId, setDownloadingModelId] = useState<string | null>(null);
@@ -646,8 +554,8 @@ const OfflineModelsModal = ({ visible, onClose }: { visible: boolean, onClose: (
                 <View style={styles.modalOverlay}>
                     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
                         <Animated.View style={[styles.modalContent, { opacity: fadeAnim, transform: [{ scale: fadeAnim.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] }) }] }]}>
-                            <Text style={styles.modalTitle}>Download Offline Models</Text>
-                            <Text style={styles.modalSubtitle}>Download models for offline use</Text>
+                            <Text style={styles.modalTitle}>Offline Models</Text>
+                            <Text style={styles.modalSubtitle}>Download and select models for offline use</Text>
 
                             <ScrollView style={styles.modelList} showsVerticalScrollIndicator={false}>
                                 {OFFLINE_MODELS.map((model) => {
@@ -685,7 +593,24 @@ const OfflineModelsModal = ({ visible, onClose }: { visible: boolean, onClose: (
                                             <View style={styles.offlineModelActions}>
                                                 {isDownloaded ? (
                                                     <>
-                                                        <Ionicons name="checkmark-circle" size={24} color={Colors.tint} />
+                                                        {onSelect && (
+                                                            <TouchableOpacity
+                                                                style={[
+                                                                    styles.selectButton,
+                                                                    currentModel === model.id && styles.selectButtonActive
+                                                                ]}
+                                                                onPress={() => onSelect(model.id)}
+                                                            >
+                                                                {currentModel === model.id ? (
+                                                                    <Ionicons name="checkmark-circle" size={24} color={Colors.tint} />
+                                                                ) : (
+                                                                    <Ionicons name="radio-button-off-outline" size={24} color={Colors.tabIconDefault} />
+                                                                )}
+                                                            </TouchableOpacity>
+                                                        )}
+                                                        {!onSelect && (
+                                                            <Ionicons name="checkmark-circle" size={24} color={Colors.tint} />
+                                                        )}
                                                         <TouchableOpacity
                                                             style={styles.deleteButton}
                                                             onPress={() => handleDelete(model.id)}
@@ -902,7 +827,6 @@ export default function Settings() {
     const [modelModalVisible, setModelModalVisible] = useState(false);
     const [geminiKeyModalVisible, setGeminiKeyModalVisible] = useState(false);
     const [offlineModelsModalVisible, setOfflineModelsModalVisible] = useState(false);
-    const [offlineModelSelectorVisible, setOfflineModelSelectorVisible] = useState(false);
     const [offlineModelTestVisible, setOfflineModelTestVisible] = useState(false);
     const [selectedOfflineModel, setSelectedOfflineModel] = useState<string | null>(null);
     const [downloadedOfflineModels, setDownloadedOfflineModels] = useState<string[]>([]);
@@ -1098,23 +1022,24 @@ export default function Settings() {
 
                         <ActionItem
                             icon="cloud-download"
-                            title="Download Local Models"
+                            title="Offline Models"
                             onPress={() => setOfflineModelsModalVisible(true)}
                         />
-                        <View style={styles.separator} />
-
-                        <ActionItem
-                            icon="phone-portrait"
-                            title={`Offline Model: ${selectedOfflineModel ? OFFLINE_MODELS.find(m => m.id === selectedOfflineModel)?.name || selectedOfflineModel : 'None'}`}
-                            onPress={() => {
-                                const downloaded = downloadedOfflineModels;
-                                if (downloaded.length === 0) {
-                                    Alert.alert("No Models", "Please download a model first");
-                                } else {
-                                    setOfflineModelSelectorVisible(true);
-                                }
-                            }}
-                        />
+                        {selectedOfflineModel && (
+                            <>
+                                <View style={styles.separator} />
+                                <View style={styles.settingItem}>
+                                    <View style={styles.settingLeft}>
+                                        <View style={styles.iconContainer}>
+                                            <Ionicons name="phone-portrait" size={20} color={Colors.text} />
+                                        </View>
+                                        <Text style={styles.settingTitle}>
+                                            Selected: {OFFLINE_MODELS.find(m => m.id === selectedOfflineModel)?.name || selectedOfflineModel}
+                                        </Text>
+                                    </View>
+                                </View>
+                            </>
+                        )}
                         <View style={styles.separator} />
 
                         {selectedOfflineModel && (
@@ -1250,14 +1175,8 @@ export default function Settings() {
             <OfflineModelsModal
                 visible={offlineModelsModalVisible}
                 onClose={handleOfflineModelsModalClose}
-            />
-
-            <OfflineModelSelectorModal
-                visible={offlineModelSelectorVisible}
-                onClose={() => setOfflineModelSelectorVisible(false)}
                 onSelect={handleOfflineModelSelect}
                 currentModel={selectedOfflineModel}
-                downloadedModels={downloadedOfflineModels}
             />
 
             <OfflineModelTestModal
@@ -1780,6 +1699,16 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 8,
+    },
+    selectButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    selectButtonActive: {
+        backgroundColor: Colors.backgroundLighter,
     },
     downloadButton: {
         width: 40,
