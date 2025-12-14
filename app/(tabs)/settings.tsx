@@ -1,6 +1,7 @@
 
 import { Colors } from "@/constants/colors";
 import { Ionicons } from "@expo/vector-icons";
+import { apple } from '@react-native-ai/apple';
 import Constants from "expo-constants";
 import * as WebBrowser from 'expo-web-browser';
 import {
@@ -184,12 +185,33 @@ const MODELS = [
     { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
 ];
 
-const OFFLINE_MODELS = [
-    { id: 'Qwen2.5-0.5B-Instruct', name: 'Qwen 2.5 0.5B', size: '600 MB', description: 'Fast responses, basic conversations' },
-    { id: 'Llama-3.2-1B-Instruct', name: 'Llama 3.2 1B', size: '1.2 GB', description: 'Balanced performance and quality' },
-    { id: 'Llama-3.2-3B-Instruct', name: 'Llama 3.2 3B', size: '2 GB', description: 'High-quality responses, complex reasoning' },
-    { id: 'Phi-3.5-mini-instruct', name: 'Phi 3.5 Mini', size: '2.3 GB', description: 'Code generation, technical tasks' },
+
+const BASE_OFFLINE_MODELS = [
+    { id: 'Qwen2.5-0.5B-Instruct', name: 'Qwen 2.5 0.5B', size: '600 MB', description: 'Fast responses, basic conversations', provider: 'mlc' },
+    { id: 'Llama-3.2-1B-Instruct', name: 'Llama 3.2 1B', size: '1.2 GB', description: 'Balanced performance and quality', provider: 'mlc' },
+    { id: 'Llama-3.2-3B-Instruct', name: 'Llama 3.2 3B', size: '2 GB', description: 'High-quality responses, complex reasoning', provider: 'mlc' },
+    { id: 'Phi-3.5-mini-instruct', name: 'Phi 3.5 Mini', size: '2.3 GB', description: 'Code generation, technical tasks', provider: 'mlc' },
 ];
+
+const getOfflineModels = () => {
+    const models = [...BASE_OFFLINE_MODELS];
+
+    // Add Apple AI if available
+    if (apple.isAvailable()) {
+        models.unshift({
+            id: 'apple-intelligence',
+            name: 'Apple Intelligence',
+            size: 'Built-in',
+            description: 'Native Apple AI (iOS 18+)',
+            provider: 'apple'
+        });
+    }
+
+    return models;
+};
+
+// Export function to get models dynamically
+export const getOfflineModelsList = getOfflineModels;
 
 const ModelSelectionModal = ({ visible, onClose, onSelect, currentModel }: { visible: boolean, onClose: () => void, onSelect: (modelId: string) => void, currentModel: string }) => {
     const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -339,12 +361,20 @@ const ModelListModal = ({ visible, onClose, mode, selectedModel, selectedOffline
         const downloadedModelsStr = await AsyncStorage.getItem('downloadedOfflineModels');
         const downloadedModels = downloadedModelsStr ? JSON.parse(downloadedModelsStr) : [];
 
-        for (const model of OFFLINE_MODELS) {
-            const isDownloaded = downloadedModels.includes(model.id);
-            states[model.id] = {
-                status: isDownloaded ? 'downloaded' : 'idle',
-                progress: isDownloaded ? 1 : 0
-            };
+        for (const model of getOfflineModels()) {
+            // Apple AI is always available (no download needed)
+            if (model.id === 'apple-intelligence') {
+                states[model.id] = {
+                    status: 'downloaded',
+                    progress: 1
+                };
+            } else {
+                const isDownloaded = downloadedModels.includes(model.id);
+                states[model.id] = {
+                    status: isDownloaded ? 'downloaded' : 'idle',
+                    progress: isDownloaded ? 1 : 0
+                };
+            }
         }
         setDownloadStates(states);
     };
@@ -361,6 +391,12 @@ const ModelListModal = ({ visible, onClose, mode, selectedModel, selectedOffline
     };
 
     const handleDownload = async (modelId: string) => {
+        // Apple AI doesn't need to be downloaded
+        if (modelId === 'apple-intelligence') {
+            Alert.alert("Info", "Apple Intelligence is built-in and doesn't need to be downloaded.");
+            return;
+        }
+
         if (downloadStates[modelId]?.status === 'downloading' || downloadStates[modelId]?.status === 'preparing') {
             return;
         }
@@ -413,7 +449,7 @@ const ModelListModal = ({ visible, onClose, mode, selectedModel, selectedOffline
                 [modelId]: { status: 'downloaded', progress: 1 }
             }));
 
-            Alert.alert("Success", `Model ${OFFLINE_MODELS.find(m => m.id === modelId)?.name} downloaded and ready!`);
+            Alert.alert("Success", `Model ${getOfflineModels().find(m => m.id === modelId)?.name} downloaded and ready!`);
             onOfflineModelsUpdate();
         } catch (error) {
             if (!downloadCancelRef.current[modelId]) {
@@ -433,9 +469,15 @@ const ModelListModal = ({ visible, onClose, mode, selectedModel, selectedOffline
     };
 
     const handleDelete = async (modelId: string) => {
+        // Apple AI cannot be deleted
+        if (modelId === 'apple-intelligence') {
+            Alert.alert("Info", "Apple Intelligence is built-in and cannot be deleted.");
+            return;
+        }
+
         Alert.alert(
             "Delete Model",
-            `Are you sure you want to delete ${OFFLINE_MODELS.find(m => m.id === modelId)?.name}?`,
+            `Are you sure you want to delete ${getOfflineModels().find(m => m.id === modelId)?.name}?`,
             [
                 { text: "Cancel", style: "cancel" },
                 {
@@ -530,10 +572,11 @@ const ModelListModal = ({ visible, onClose, mode, selectedModel, selectedOffline
                         </>
                     ) : (
                         <>
-                            {OFFLINE_MODELS.map((model) => {
+                            {getOfflineModels().map((model) => {
                                 const state = downloadStates[model.id] || { status: 'idle' as const, progress: 0 };
                                 const isDownloading = state.status === 'downloading' || state.status === 'preparing';
                                 const isDownloaded = state.status === 'downloaded';
+                                const isAppleAI = model.id === 'apple-intelligence';
 
                                 return (
                                     <View key={model.id}>
@@ -542,14 +585,14 @@ const ModelListModal = ({ visible, onClose, mode, selectedModel, selectedOffline
                                                 styles.offlineModelItem,
                                                 selectedOfflineModel === model.id && styles.selectedOfflineModelItem
                                             ]}
-                                            onPress={() => isDownloaded && handleSelectOfflineModel(model.id)}
-                                            disabled={!isDownloaded}
+                                            onPress={() => (isDownloaded || isAppleAI) && handleSelectOfflineModel(model.id)}
+                                            disabled={!isDownloaded && !isAppleAI}
                                         >
                                             <View style={styles.offlineModelInfo}>
                                                 <Text style={styles.offlineModelName}>{model.name}</Text>
                                                 <Text style={styles.offlineModelSize}>{model.size}</Text>
 
-                                                {isDownloading && (
+                                                {isDownloading && !isAppleAI && (
                                                     <View style={styles.downloadingContainer}>
                                                         <Animated.Text
                                                             style={[
@@ -569,7 +612,7 @@ const ModelListModal = ({ visible, onClose, mode, selectedModel, selectedOffline
                                             </View>
 
                                             <View style={styles.offlineModelRight}>
-                                                {isDownloaded ? (
+                                                {isDownloaded && !isAppleAI ? (
                                                     <TouchableOpacity
                                                         style={styles.deleteButton}
                                                         onPress={(e) => {
@@ -589,7 +632,7 @@ const ModelListModal = ({ visible, onClose, mode, selectedModel, selectedOffline
                                                     >
                                                         <Ionicons name="stop-circle-outline" size={20} color="#ff4444" />
                                                     </TouchableOpacity>
-                                                ) : (
+                                                ) : !isAppleAI ? (
                                                     <TouchableOpacity
                                                         style={styles.downloadButton}
                                                         onPress={(e) => {
@@ -600,7 +643,7 @@ const ModelListModal = ({ visible, onClose, mode, selectedModel, selectedOffline
                                                     >
                                                         <Ionicons name="cloud-download-outline" size={20} color={"black"} />
                                                     </TouchableOpacity>
-                                                )}
+                                                ) : null}
                                             </View>
                                         </TouchableOpacity>
                                     </View>
@@ -667,7 +710,7 @@ const ModelPreferencesModal = ({ visible, onClose, geminiKey, selectedModel, sel
 
     const currentModelName = mode === 'online'
         ? (MODELS.find(m => m.id === selectedModel)?.name || selectedModel)
-        : (selectedOfflineModel ? OFFLINE_MODELS.find(m => m.id === selectedOfflineModel)?.name || selectedOfflineModel : 'None selected');
+        : (selectedOfflineModel ? getOfflineModels().find(m => m.id === selectedOfflineModel)?.name || selectedOfflineModel : 'None selected');
 
     return (
         <>
@@ -808,16 +851,30 @@ const OfflineModelTestModal = ({ visible, onClose, modelId }: {
         setOutputText("");
 
         try {
-            const languageModel = mlc.languageModel(modelId);
+            const isAppleAI = modelId === 'apple-intelligence';
 
-            // Ensure model is prepared
-            await languageModel.prepare();
+            if (isAppleAI && !apple.isAvailable()) {
+                setOutputText("Error: Apple Intelligence is not available on this device");
+                setIsGenerating(false);
+                return;
+            }
 
-            // Generate response using generateText from ai package
-            const result = await generateText({
-                model: languageModel,
-                prompt: inputText,
-            });
+            let result;
+
+            if (isAppleAI) {
+                const appleModel = apple.languageModel();
+                result = await generateText({
+                    model: appleModel as any,
+                    prompt: inputText,
+                });
+            } else {
+                const mlcModel = mlc.languageModel(modelId!);
+                await mlcModel.prepare();
+                result = await generateText({
+                    model: mlcModel as any,
+                    prompt: inputText,
+                });
+            }
 
             setOutputText(result.text || "No response generated");
         } catch (error) {
@@ -830,7 +887,7 @@ const OfflineModelTestModal = ({ visible, onClose, modelId }: {
 
     if (!visible) return null;
 
-    const modelName = modelId ? OFFLINE_MODELS.find(m => m.id === modelId)?.name : "Unknown Model";
+    const modelName = modelId ? getOfflineModels().find(m => m.id === modelId)?.name : "Unknown Model";
 
     return (
         <Modal
@@ -947,12 +1004,20 @@ const OfflineModelsModal = ({ visible, onClose, onSelect, currentModel }: {
         const downloadedModelsStr = await AsyncStorage.getItem('downloadedOfflineModels');
         const downloadedModels = downloadedModelsStr ? JSON.parse(downloadedModelsStr) : [];
 
-        for (const model of OFFLINE_MODELS) {
-            const isDownloaded = downloadedModels.includes(model.id);
-            states[model.id] = {
-                status: isDownloaded ? 'downloaded' : 'idle',
-                progress: isDownloaded ? 1 : 0
-            };
+        for (const model of getOfflineModels()) {
+            // Apple AI is always available (no download needed)
+            if (model.id === 'apple-intelligence') {
+                states[model.id] = {
+                    status: 'downloaded',
+                    progress: 1
+                };
+            } else {
+                const isDownloaded = downloadedModels.includes(model.id);
+                states[model.id] = {
+                    status: isDownloaded ? 'downloaded' : 'idle',
+                    progress: isDownloaded ? 1 : 0
+                };
+            }
         }
 
         setDownloadStates(states);
@@ -970,6 +1035,12 @@ const OfflineModelsModal = ({ visible, onClose, onSelect, currentModel }: {
     };
 
     const handleDownload = async (modelId: string) => {
+        // Apple AI doesn't need to be downloaded
+        if (modelId === 'apple-intelligence') {
+            Alert.alert("Info", "Apple Intelligence is built-in and doesn't need to be downloaded.");
+            return;
+        }
+
         if (downloadStates[modelId]?.status === 'downloading' || downloadStates[modelId]?.status === 'preparing') {
             return;
         }
@@ -1024,7 +1095,7 @@ const OfflineModelsModal = ({ visible, onClose, onSelect, currentModel }: {
                 [modelId]: { status: 'downloaded', progress: 1 }
             }));
 
-            Alert.alert("Success", `Model ${OFFLINE_MODELS.find(m => m.id === modelId)?.name} downloaded and ready!`);
+            Alert.alert("Success", `Model ${getOfflineModels().find(m => m.id === modelId)?.name} downloaded and ready!`);
         } catch (error) {
             if (!downloadCancelRef.current[modelId]) {
                 console.error(`Error downloading model ${modelId}:`, error);
@@ -1043,9 +1114,15 @@ const OfflineModelsModal = ({ visible, onClose, onSelect, currentModel }: {
     };
 
     const handleDelete = async (modelId: string) => {
+        // Apple AI cannot be deleted
+        if (modelId === 'apple-intelligence') {
+            Alert.alert("Info", "Apple Intelligence is built-in and cannot be deleted.");
+            return;
+        }
+
         Alert.alert(
             "Delete Model",
-            `Are you sure you want to delete ${OFFLINE_MODELS.find(m => m.id === modelId)?.name}?`,
+            `Are you sure you want to delete ${getOfflineModels().find(m => m.id === modelId)?.name}?`,
             [
                 { text: "Cancel", style: "cancel" },
                 {
@@ -1104,10 +1181,11 @@ const OfflineModelsModal = ({ visible, onClose, onSelect, currentModel }: {
                             <Text style={styles.modalSubtitle}>Download and select models for offline use</Text>
 
                             <ScrollView style={styles.modelList} showsVerticalScrollIndicator={false}>
-                                {OFFLINE_MODELS.map((model) => {
+                                {getOfflineModels().map((model) => {
                                     const state = downloadStates[model.id] || { status: 'idle' as const, progress: 0 };
                                     const isDownloading = state.status === 'downloading' || state.status === 'preparing';
                                     const isDownloaded = state.status === 'downloaded';
+                                    const isAppleAI = model.id === 'apple-intelligence';
 
                                     return (
                                         <View key={model.id} style={styles.offlineModelItem}>
@@ -1115,7 +1193,7 @@ const OfflineModelsModal = ({ visible, onClose, onSelect, currentModel }: {
                                                 <Text style={styles.offlineModelName}>{model.name}</Text>
                                                 <Text style={styles.offlineModelSize}>{model.size}</Text>
 
-                                                {isDownloading && (
+                                                {isDownloading && !isAppleAI && (
                                                     <View style={styles.downloadingContainer}>
                                                         <Animated.Text
                                                             style={[
@@ -1135,7 +1213,7 @@ const OfflineModelsModal = ({ visible, onClose, onSelect, currentModel }: {
                                             </View>
 
                                             <View style={styles.offlineModelActions}>
-                                                {isDownloaded ? (
+                                                {(isDownloaded || isAppleAI) ? (
                                                     <>
                                                         {onSelect && (
                                                             <TouchableOpacity
@@ -1155,12 +1233,14 @@ const OfflineModelsModal = ({ visible, onClose, onSelect, currentModel }: {
                                                         {!onSelect && (
                                                             <Ionicons name="checkmark-circle" size={24} color={Colors.tint} />
                                                         )}
-                                                        <TouchableOpacity
-                                                            style={styles.deleteButton}
-                                                            onPress={() => handleDelete(model.id)}
-                                                        >
-                                                            <Ionicons name="trash-outline" size={20} color="#ff4444" />
-                                                        </TouchableOpacity>
+                                                        {!isAppleAI && (
+                                                            <TouchableOpacity
+                                                                style={styles.deleteButton}
+                                                                onPress={() => handleDelete(model.id)}
+                                                            >
+                                                                <Ionicons name="trash-outline" size={20} color="#ff4444" />
+                                                            </TouchableOpacity>
+                                                        )}
                                                     </>
                                                 ) : isDownloading ? (
                                                     <TouchableOpacity
@@ -1493,8 +1573,9 @@ export default function Settings() {
                             const downloadedModelsStr = await AsyncStorage.getItem("downloadedOfflineModels");
                             const trackedModels = downloadedModelsStr ? JSON.parse(downloadedModelsStr) : [];
 
-                            // Remove all models from storage
-                            for (const model of OFFLINE_MODELS) {
+                            // Remove all models from storage (skip Apple AI)
+                            for (const model of getOfflineModels()) {
+                                if (model.id === 'apple-intelligence') continue; // Skip Apple AI
                                 try {
                                     const languageModel = mlc.languageModel(model.id);
                                     await languageModel.remove();
@@ -1504,11 +1585,15 @@ export default function Settings() {
                                 }
                             }
 
-                            // Re-download and prepare only the tracked models
+                            // Re-download and prepare only the tracked models (skip Apple AI)
                             let successCount = 0;
                             let failCount = 0;
 
                             for (const modelId of trackedModels) {
+                                if (modelId === 'apple-intelligence') {
+                                    successCount++; // Apple AI is always available
+                                    continue;
+                                }
                                 try {
                                     const languageModel = mlc.languageModel(modelId);
                                     await languageModel.download();

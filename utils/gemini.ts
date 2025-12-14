@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { apple } from "@react-native-ai/apple";
 import { mlc } from "@react-native-ai/mlc";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { generateText } from "ai";
@@ -42,20 +43,31 @@ async function generateSnippetsWithOfflineModel(
     const CHUNK_SIZE = 2000; // Very small for fast processing
 
     try {
-        const languageModel = mlc.languageModel(modelId);
+        // Check if using Apple AI
+        const isAppleAI = modelId === 'apple-intelligence';
 
-        // Add timeout for prepare (15 seconds max - models can take time to load)
-        const prepareTimeout = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error("Prepare timeout")), 120000);
-        });
+        if (isAppleAI && !apple.isAvailable()) {
+            console.warn("Apple AI is not available on this device");
+            return [];
+        }
 
-        try {
-            await Promise.race([languageModel.prepare(), prepareTimeout]);
-            console.log("Model prepared successfully");
-        } catch (prepareError) {
-            console.warn("Model prepare timed out or failed:", prepareError);
-            // Try to continue anyway - model might already be prepared
-            console.log("Attempting to generate anyway...");
+        // Prepare MLC model if needed (Apple AI doesn't need preparation)
+        if (!isAppleAI) {
+            const mlcModel = mlc.languageModel(modelId);
+            const prepareTimeout = new Promise((_, reject) => {
+                setTimeout(() => reject(new Error("Prepare timeout")), 120000);
+            });
+
+            try {
+                await Promise.race([mlcModel.prepare(), prepareTimeout]);
+                console.log("Model prepared successfully");
+            } catch (prepareError) {
+                console.warn("Model prepare timed out or failed:", prepareError);
+                // Try to continue anyway - model might already be prepared
+                console.log("Attempting to generate anyway...");
+            }
+        } else {
+            console.log("Using Apple AI (no preparation needed)");
         }
 
         // Calculate number of chunks
@@ -118,9 +130,13 @@ Create 3 learning snippets. Output ONLY a JSON array, no other text, no markdown
 
         let result;
         try {
+            const modelToUse = isAppleAI
+                ? apple.languageModel()
+                : mlc.languageModel(modelId);
+
             result = await Promise.race([
                 generateText({
-                    model: languageModel,
+                    model: modelToUse as any,
                     prompt: prompt,
                 }),
                 timeoutPromise
@@ -206,8 +222,8 @@ Create 3 learning snippets. Output ONLY a JSON array, no other text, no markdown
             }
         } catch (e) {
             // Last resort: create simple snippets from text
-            const fallbackLines = textResponse.split(/[.!?]/).filter(l => l.trim().length > 20);
-            return fallbackLines.slice(0, 3).map((line, idx) => JSON.stringify({
+            const fallbackLines = textResponse.split(/[.!?]/).filter((l: string) => l.trim().length > 20);
+            return fallbackLines.slice(0, 3).map((line: string, idx: number) => JSON.stringify({
                 type: 'fact',
                 content: line.trim(),
                 label: 'Learning Point'
@@ -384,12 +400,17 @@ export async function generateSnippets(
         const mode = modePreference === 'offline' ? 'offline' : 'online';
 
         if (mode === 'offline') {
-            // Check if an offline model is selected and downloaded
+            // Check if an offline model is selected and downloaded (or Apple AI)
             const selectedOfflineModel = await AsyncStorage.getItem("selectedOfflineModel");
             const downloadedModelsStr = await AsyncStorage.getItem("downloadedOfflineModels");
             const downloadedModels = downloadedModelsStr ? JSON.parse(downloadedModelsStr) : [];
+            const isAppleAI = selectedOfflineModel === 'apple-intelligence';
 
-            if (selectedOfflineModel && downloadedModels.includes(selectedOfflineModel)) {
+            if (selectedOfflineModel && (downloadedModels.includes(selectedOfflineModel) || isAppleAI)) {
+                if (isAppleAI && !apple.isAvailable()) {
+                    console.log("Apple AI selected but not available, falling back to Gemini");
+                    return await generateSnippetsWithGemini(text, apiKey, numberOfSnippets, fileId);
+                }
                 console.log(`Using offline model: ${selectedOfflineModel}`);
                 return await generateSnippetsWithOfflineModel(text, selectedOfflineModel, numberOfSnippets, fileId);
             } else {
