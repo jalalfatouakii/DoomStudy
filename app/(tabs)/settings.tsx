@@ -21,6 +21,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useCourses } from "@/context/CourseContext";
 import { useStats } from "@/context/StatsContext";
+import { mlc } from "@react-native-ai/mlc";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
@@ -182,6 +183,13 @@ const MODELS = [
     { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
 ];
 
+const OFFLINE_MODELS = [
+    { id: 'Qwen2.5-0.5B-Instruct', name: 'Qwen 2.5 0.5B', size: '600 MB', description: 'Fast responses, basic conversations' },
+    { id: 'Llama-3.2-1B-Instruct', name: 'Llama 3.2 1B', size: '1.2 GB', description: 'Balanced performance and quality' },
+    { id: 'Llama-3.2-3B-Instruct', name: 'Llama 3.2 3B', size: '2 GB', description: 'High-quality responses, complex reasoning' },
+    { id: 'Phi-3.5-mini-instruct', name: 'Phi 3.5 Mini', size: '2.3 GB', description: 'Code generation, technical tasks' },
+];
+
 const ModelSelectionModal = ({ visible, onClose, onSelect, currentModel }: { visible: boolean, onClose: () => void, onSelect: (modelId: string) => void, currentModel: string }) => {
     const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -265,6 +273,234 @@ const SNIPPET_TYPES = [
     { id: 'qna', name: 'Q&A', label: 'Q&A Format', description: 'Question and Answer' },
     { id: 'true_false', name: 'True/False', label: 'True or False', description: 'With explanation' },
 ];
+
+type DownloadState = { status: 'idle' | 'downloading' | 'downloaded' | 'preparing', progress: number };
+
+const OfflineModelsModal = ({ visible, onClose }: { visible: boolean, onClose: () => void }) => {
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+    const [downloadStates, setDownloadStates] = useState<Record<string, DownloadState>>({});
+    const [downloadingModelId, setDownloadingModelId] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (visible) {
+            fadeAnim.setValue(0);
+            Animated.timing(fadeAnim, {
+                toValue: 1,
+                duration: 200,
+                useNativeDriver: true,
+            }).start();
+            checkDownloadedModels();
+        }
+    }, [visible]);
+
+    const checkDownloadedModels = async () => {
+        const states: Record<string, DownloadState> = {};
+
+        // Check AsyncStorage for tracked downloads
+        const downloadedModelsStr = await AsyncStorage.getItem('downloadedOfflineModels');
+        const downloadedModels = downloadedModelsStr ? JSON.parse(downloadedModelsStr) : [];
+
+        for (const model of OFFLINE_MODELS) {
+            const isDownloaded = downloadedModels.includes(model.id);
+            states[model.id] = {
+                status: isDownloaded ? 'downloaded' : 'idle',
+                progress: isDownloaded ? 1 : 0
+            };
+        }
+
+        setDownloadStates(states);
+    };
+
+    const handleDownload = async (modelId: string) => {
+        if (downloadStates[modelId]?.status === 'downloading' || downloadStates[modelId]?.status === 'preparing') {
+            return;
+        }
+
+        setDownloadingModelId(modelId);
+        setDownloadStates(prev => ({
+            ...prev,
+            [modelId]: { status: 'downloading', progress: 0 }
+        }));
+
+        try {
+            const languageModel = mlc.languageModel(modelId);
+
+            // Download with progress tracking
+            // Note: The download method may not support progress callback directly
+            // We'll use a workaround with periodic checks or handle it differently
+            await languageModel.download();
+
+            // Prepare the model
+            setDownloadStates(prev => ({
+                ...prev,
+                [modelId]: { status: 'preparing', progress: 0.9 }
+            }));
+
+            await languageModel.prepare();
+
+            // Track successful download in AsyncStorage
+            const downloadedModelsStr = await AsyncStorage.getItem('downloadedOfflineModels');
+            const downloadedModels = downloadedModelsStr ? JSON.parse(downloadedModelsStr) : [];
+            if (!downloadedModels.includes(modelId)) {
+                downloadedModels.push(modelId);
+                await AsyncStorage.setItem('downloadedOfflineModels', JSON.stringify(downloadedModels));
+            }
+
+            setDownloadStates(prev => ({
+                ...prev,
+                [modelId]: { status: 'downloaded', progress: 1 }
+            }));
+
+            Alert.alert("Success", `Model ${OFFLINE_MODELS.find(m => m.id === modelId)?.name} downloaded and ready!`);
+        } catch (error) {
+            console.error(`Error downloading model ${modelId}:`, error);
+            Alert.alert("Error", `Failed to download model: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            setDownloadStates(prev => ({
+                ...prev,
+                [modelId]: { status: 'idle', progress: 0 }
+            }));
+        } finally {
+            setDownloadingModelId(null);
+        }
+    };
+
+    const handleDelete = async (modelId: string) => {
+        Alert.alert(
+            "Delete Model",
+            `Are you sure you want to delete ${OFFLINE_MODELS.find(m => m.id === modelId)?.name}?`,
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Delete",
+                    style: "destructive",
+                    onPress: async () => {
+                        try {
+                            const languageModel = mlc.languageModel(modelId);
+                            await languageModel.remove();
+
+                            // Remove from AsyncStorage tracking
+                            const downloadedModelsStr = await AsyncStorage.getItem('downloadedOfflineModels');
+                            const downloadedModels = downloadedModelsStr ? JSON.parse(downloadedModelsStr) : [];
+                            const updatedModels = downloadedModels.filter((id: string) => id !== modelId);
+                            await AsyncStorage.setItem('downloadedOfflineModels', JSON.stringify(updatedModels));
+
+                            setDownloadStates(prev => ({
+                                ...prev,
+                                [modelId]: { status: 'idle', progress: 0 }
+                            }));
+                            Alert.alert("Success", "Model deleted successfully");
+                        } catch (error) {
+                            console.error(`Error deleting model ${modelId}:`, error);
+                            Alert.alert("Error", "Failed to delete model");
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
+    const animateClose = () => {
+        Animated.timing(fadeAnim, {
+            toValue: 0,
+            duration: 150,
+            useNativeDriver: true,
+        }).start(() => {
+            onClose();
+        });
+    };
+
+    if (!visible) return null;
+
+    return (
+        <Modal
+            transparent
+            visible={visible}
+            onRequestClose={animateClose}
+            animationType="none"
+        >
+            <TouchableWithoutFeedback onPress={animateClose}>
+                <View style={styles.modalOverlay}>
+                    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                        <Animated.View style={[styles.modalContent, { opacity: fadeAnim, transform: [{ scale: fadeAnim.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] }) }] }]}>
+                            <Text style={styles.modalTitle}>Download Offline Models</Text>
+                            <Text style={styles.modalSubtitle}>Download models for offline use</Text>
+
+                            <ScrollView style={styles.modelList} showsVerticalScrollIndicator={false}>
+                                {OFFLINE_MODELS.map((model) => {
+                                    const state = downloadStates[model.id] || { status: 'idle' as const, progress: 0 };
+                                    const isDownloading = state.status === 'downloading' || state.status === 'preparing';
+                                    const isDownloaded = state.status === 'downloaded';
+
+                                    return (
+                                        <View key={model.id} style={styles.offlineModelItem}>
+                                            <View style={styles.offlineModelInfo}>
+                                                <Text style={styles.offlineModelName}>{model.name}</Text>
+                                                <Text style={styles.offlineModelSize}>{model.size}</Text>
+                                                <Text style={styles.offlineModelDescription}>{model.description}</Text>
+
+                                                {isDownloading && (
+                                                    <View style={styles.progressContainer}>
+                                                        <View style={styles.progressBarBg}>
+                                                            <Animated.View
+                                                                style={[
+                                                                    styles.progressBarFill,
+                                                                    { width: `${state.progress * 100}%` }
+                                                                ]}
+                                                            />
+                                                        </View>
+                                                        <Text style={styles.progressText}>
+                                                            {state.status === 'preparing'
+                                                                ? 'Preparing...'
+                                                                : `${Math.round(state.progress * 100)}%`
+                                                            }
+                                                        </Text>
+                                                    </View>
+                                                )}
+                                            </View>
+
+                                            <View style={styles.offlineModelActions}>
+                                                {isDownloaded ? (
+                                                    <>
+                                                        <Ionicons name="checkmark-circle" size={24} color={Colors.tint} />
+                                                        <TouchableOpacity
+                                                            style={styles.deleteButton}
+                                                            onPress={() => handleDelete(model.id)}
+                                                        >
+                                                            <Ionicons name="trash-outline" size={20} color="#ff4444" />
+                                                        </TouchableOpacity>
+                                                    </>
+                                                ) : (
+                                                    <TouchableOpacity
+                                                        style={[
+                                                            styles.downloadButton,
+                                                            isDownloading && styles.downloadButtonDisabled
+                                                        ]}
+                                                        onPress={() => handleDownload(model.id)}
+                                                        disabled={isDownloading || downloadingModelId !== null}
+                                                    >
+                                                        {isDownloading ? (
+                                                            <Ionicons name="hourglass-outline" size={20} color={Colors.text} />
+                                                        ) : (
+                                                            <Ionicons name="cloud-download-outline" size={20} color={"black"} />
+                                                        )}
+                                                    </TouchableOpacity>
+                                                )}
+                                            </View>
+                                        </View>
+                                    );
+                                })}
+                            </ScrollView>
+
+                            <TouchableOpacity style={[styles.cancelRedButton]} onPress={animateClose}>
+                                <Text style={styles.cancelRedButtonText}>Close</Text>
+                            </TouchableOpacity>
+                        </Animated.View>
+                    </TouchableWithoutFeedback>
+                </View>
+            </TouchableWithoutFeedback>
+        </Modal>
+    );
+};
 
 const SnippetTypesModal = ({ visible, onClose, onSave, selectedTypes }: {
     visible: boolean,
@@ -441,6 +677,7 @@ export default function Settings() {
     const [selectedModel, setSelectedModel] = useState<string>("");
     const [modelModalVisible, setModelModalVisible] = useState(false);
     const [geminiKeyModalVisible, setGeminiKeyModalVisible] = useState(false);
+    const [offlineModelsModalVisible, setOfflineModelsModalVisible] = useState(false);
     const [selectedSnippetTypes, setSelectedSnippetTypes] = useState<string[]>(['fact', 'concept', 'qna', 'true_false']);
 
     useEffect(() => {
@@ -613,6 +850,11 @@ export default function Settings() {
                             onPress={() => setModelModalVisible(true)}
                         />
 
+                        <ActionItem
+                            icon="cloud-download"
+                            title="Download Local Models"
+                            onPress={() => setOfflineModelsModalVisible(true)}
+                        />
                     </View>
                 </View>
 
@@ -731,6 +973,11 @@ export default function Settings() {
                 onClose={() => setGeminiKeyModalVisible(false)}
                 onSave={handleGeminiKeySave}
                 initialKey={geminiKey}
+            />
+
+            <OfflineModelsModal
+                visible={offlineModelsModalVisible}
+                onClose={() => setOfflineModelsModalVisible(false)}
             />
         </SafeAreaView>
     );
@@ -1021,6 +1268,24 @@ const styles = StyleSheet.create({
     cancelButton: {
         backgroundColor: Colors.backgroundLighter,
     },
+
+    cancelRedButton: {
+        backgroundColor: "#ff444420",
+        borderColor: "#ff4444",
+        borderWidth: 1,
+        borderRadius: 12,
+        paddingVertical: 12,
+        paddingHorizontal: 24,
+        height: 48,
+    },
+    cancelRedButtonText: {
+        color: "#ff4444",
+        fontSize: 16,
+        fontWeight: '600',
+        textAlign: 'center',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
     saveButton: {
         backgroundColor: Colors.tint,
     },
@@ -1101,6 +1366,83 @@ const styles = StyleSheet.create({
     checkboxDescription: {
         fontSize: 13,
         color: Colors.tabIconDefault,
+    },
+    offlineModelItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: 16,
+        backgroundColor: Colors.backgroundLighter,
+        borderRadius: 12,
+        marginBottom: 12,
+        borderWidth: 1,
+        borderColor: 'transparent',
+    },
+    offlineModelInfo: {
+        flex: 1,
+        marginRight: 12,
+    },
+    offlineModelName: {
+        fontSize: 16,
+        color: Colors.text,
+        fontWeight: '600',
+        marginBottom: 4,
+    },
+    offlineModelSize: {
+        fontSize: 13,
+        color: Colors.tint,
+        fontWeight: '500',
+        marginBottom: 4,
+    },
+    offlineModelDescription: {
+        fontSize: 12,
+        color: Colors.tabIconDefault,
+        marginTop: 4,
+    },
+    offlineModelActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    downloadButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: Colors.tint,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    downloadButtonDisabled: {
+        opacity: 0.5,
+    },
+    deleteButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: Colors.backgroundLighter,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    progressContainer: {
+        marginTop: 12,
+        width: '100%',
+    },
+    progressBarBg: {
+        height: 6,
+        backgroundColor: Colors.backgroundSecondary,
+        borderRadius: 3,
+        overflow: 'hidden',
+        marginBottom: 4,
+    },
+    progressBarFill: {
+        height: '100%',
+        backgroundColor: Colors.tint,
+        borderRadius: 3,
+    },
+    progressText: {
+        fontSize: 11,
+        color: Colors.tabIconDefault,
+        textAlign: 'right',
     },
 });
 

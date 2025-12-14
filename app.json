@@ -21,8 +21,8 @@
       },
       "appleTeamId": "KH4448LD3D",
       "icon": {
-        "light": "./assets/images/image.png",
-        "dark": "./assets/images/dstudyblack.png"
+        "light": "./assets/images/ios.png",
+        "dark": "./assets/images/darkmode.png"
       }
     },
     "android": {
@@ -65,7 +65,8 @@
           "iosAppId": "ca-app-pub-7857372081627659~5771451405",
           "androidAppId": "ca-app-pub-7857372081627659~3062253933"
         }
-      ]
+      ],
+      "@react-native-ai/mlc"
     ],
     "experiments": {
       "typedRoutes": true,
