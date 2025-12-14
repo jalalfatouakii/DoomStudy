@@ -23,6 +23,7 @@ import { useCourses } from "@/context/CourseContext";
 import { useStats } from "@/context/StatsContext";
 import { mlc } from "@react-native-ai/mlc";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { generateText } from "ai";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 
@@ -275,6 +276,229 @@ const SNIPPET_TYPES = [
 ];
 
 type DownloadState = { status: 'idle' | 'downloading' | 'downloaded' | 'preparing', progress: number };
+
+const OfflineModelSelectorModal = ({ visible, onClose, onSelect, currentModel, downloadedModels }: {
+    visible: boolean,
+    onClose: () => void,
+    onSelect: (modelId: string) => void,
+    currentModel: string | null,
+    downloadedModels: string[]
+}) => {
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+        if (visible) {
+            fadeAnim.setValue(0);
+            Animated.timing(fadeAnim, {
+                toValue: 1,
+                duration: 200,
+                useNativeDriver: true,
+            }).start();
+        }
+    }, [visible]);
+
+    const animateClose = () => {
+        Animated.timing(fadeAnim, {
+            toValue: 0,
+            duration: 150,
+            useNativeDriver: true,
+        }).start(() => {
+            onClose();
+        });
+    };
+
+    const handleSelect = (modelId: string) => {
+        onSelect(modelId);
+        animateClose();
+    };
+
+    if (!visible) return null;
+
+    const availableModels = OFFLINE_MODELS.filter(m => downloadedModels.includes(m.id));
+
+    return (
+        <Modal
+            transparent
+            visible={visible}
+            onRequestClose={animateClose}
+            animationType="none"
+        >
+            <TouchableWithoutFeedback onPress={animateClose}>
+                <View style={styles.modalOverlay}>
+                    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                        <Animated.View style={[styles.modalContent, { opacity: fadeAnim, transform: [{ scale: fadeAnim.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] }) }] }]}>
+                            <Text style={styles.modalTitle}>Select Offline Model</Text>
+                            <Text style={styles.modalSubtitle}>Choose a downloaded model to use</Text>
+
+                            {availableModels.length === 0 ? (
+                                <View style={styles.emptyModelsContainer}>
+                                    <Ionicons name="cloud-download-outline" size={48} color={Colors.tabIconDefault} />
+                                    <Text style={styles.emptyModelsText}>No models downloaded yet</Text>
+                                    <Text style={styles.emptyModelsSubtext}>Download a model first to use offline</Text>
+                                </View>
+                            ) : (
+                                <View style={styles.modelList}>
+                                    {availableModels.map((model) => (
+                                        <TouchableOpacity
+                                            key={model.id}
+                                            style={[
+                                                styles.modelOption,
+                                                currentModel === model.id && styles.selectedModelOption
+                                            ]}
+                                            onPress={() => handleSelect(model.id)}
+                                        >
+                                            <View style={styles.modelOptionLeft}>
+                                                <Text style={[
+                                                    styles.modelOptionText,
+                                                    currentModel === model.id && styles.selectedModelOptionText
+                                                ]}>
+                                                    {model.name}
+                                                </Text>
+                                                <Text style={styles.modelOptionSize}>{model.size}</Text>
+                                            </View>
+                                            {currentModel === model.id && (
+                                                <Ionicons name="checkmark-circle" size={24} color={Colors.tint} />
+                                            )}
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            )}
+
+                            <TouchableOpacity style={[styles.cancelRedButton, { marginTop: 20 }]} onPress={animateClose}>
+                                <Text style={styles.cancelRedButtonText}>Close</Text>
+                            </TouchableOpacity>
+                        </Animated.View>
+                    </TouchableWithoutFeedback>
+                </View>
+            </TouchableWithoutFeedback>
+        </Modal>
+    );
+};
+
+const OfflineModelTestModal = ({ visible, onClose, modelId }: {
+    visible: boolean,
+    onClose: () => void,
+    modelId: string | null
+}) => {
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+    const [inputText, setInputText] = useState("");
+    const [outputText, setOutputText] = useState("");
+    const [isGenerating, setIsGenerating] = useState(false);
+
+    useEffect(() => {
+        if (visible) {
+            fadeAnim.setValue(0);
+            Animated.timing(fadeAnim, {
+                toValue: 1,
+                duration: 200,
+                useNativeDriver: true,
+            }).start();
+            setInputText("");
+            setOutputText("");
+        }
+    }, [visible]);
+
+    const animateClose = () => {
+        Animated.timing(fadeAnim, {
+            toValue: 0,
+            duration: 150,
+            useNativeDriver: true,
+        }).start(() => {
+            onClose();
+        });
+    };
+
+    const handleTest = async () => {
+        if (!modelId || !inputText.trim()) {
+            Alert.alert("Error", "Please enter some text to test");
+            return;
+        }
+
+        setIsGenerating(true);
+        setOutputText("");
+
+        try {
+            const languageModel = mlc.languageModel(modelId);
+
+            // Ensure model is prepared
+            await languageModel.prepare();
+
+            // Generate response using generateText from ai package
+            const result = await generateText({
+                model: languageModel,
+                prompt: inputText,
+            });
+
+            setOutputText(result.text || "No response generated");
+        } catch (error) {
+            console.error("Error testing model:", error);
+            setOutputText(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
+    if (!visible) return null;
+
+    const modelName = modelId ? OFFLINE_MODELS.find(m => m.id === modelId)?.name : "Unknown Model";
+
+    return (
+        <Modal
+            transparent
+            visible={visible}
+            onRequestClose={animateClose}
+            animationType="none"
+        >
+            <TouchableWithoutFeedback onPress={animateClose}>
+                <View style={styles.modalOverlay}>
+                    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                        <Animated.View style={[styles.testModalContent, { opacity: fadeAnim, transform: [{ scale: fadeAnim.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] }) }] }]}>
+                            <Text style={styles.modalTitle}>Test Model: {modelName}</Text>
+                            <Text style={styles.modalSubtitle}>Enter text to test the model</Text>
+
+                            <TextInput
+                                style={styles.testInput}
+                                value={inputText}
+                                onChangeText={setInputText}
+                                placeholder="Enter your prompt here..."
+                                placeholderTextColor={Colors.tabIconDefault}
+                                multiline
+                                numberOfLines={4}
+                                selectionColor={Colors.tint}
+                                editable={!isGenerating}
+                            />
+
+                            <TouchableOpacity
+                                style={[styles.testButton, isGenerating && styles.testButtonDisabled]}
+                                onPress={handleTest}
+                                disabled={isGenerating || !inputText.trim()}
+                            >
+                                {isGenerating ? (
+                                    <Text style={styles.testButtonText}>Generating...</Text>
+                                ) : (
+                                    <Text style={styles.testButtonText}>Generate Response</Text>
+                                )}
+                            </TouchableOpacity>
+
+                            {outputText ? (
+                                <View style={styles.outputContainer}>
+                                    <Text style={styles.outputLabel}>Response:</Text>
+                                    <ScrollView style={styles.outputScrollView}>
+                                        <Text style={styles.outputText}>{outputText}</Text>
+                                    </ScrollView>
+                                </View>
+                            ) : null}
+
+                            <TouchableOpacity style={[styles.cancelRedButton]} onPress={animateClose}>
+                                <Text style={styles.cancelRedButtonText}>Close</Text>
+                            </TouchableOpacity>
+                        </Animated.View>
+                    </TouchableWithoutFeedback>
+                </View>
+            </TouchableWithoutFeedback>
+        </Modal>
+    );
+};
 
 const OfflineModelsModal = ({ visible, onClose }: { visible: boolean, onClose: () => void }) => {
     const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -678,6 +902,10 @@ export default function Settings() {
     const [modelModalVisible, setModelModalVisible] = useState(false);
     const [geminiKeyModalVisible, setGeminiKeyModalVisible] = useState(false);
     const [offlineModelsModalVisible, setOfflineModelsModalVisible] = useState(false);
+    const [offlineModelSelectorVisible, setOfflineModelSelectorVisible] = useState(false);
+    const [offlineModelTestVisible, setOfflineModelTestVisible] = useState(false);
+    const [selectedOfflineModel, setSelectedOfflineModel] = useState<string | null>(null);
+    const [downloadedOfflineModels, setDownloadedOfflineModels] = useState<string[]>([]);
     const [selectedSnippetTypes, setSelectedSnippetTypes] = useState<string[]>(['fact', 'concept', 'qna', 'true_false']);
 
     useEffect(() => {
@@ -685,12 +913,16 @@ export default function Settings() {
             const key = await AsyncStorage.getItem("geminiKey");
             const model = await AsyncStorage.getItem("geminiModel");
             const snippetTypes = await AsyncStorage.getItem("snippetTypePreferences");
+            const offlineModel = await AsyncStorage.getItem("selectedOfflineModel");
+            const downloadedModels = await AsyncStorage.getItem("downloadedOfflineModels");
 
             if (key) setGeminiKey(key);
             if (model) setSelectedModel(model);
             if (snippetTypes) {
                 setSelectedSnippetTypes(JSON.parse(snippetTypes));
             }
+            if (offlineModel) setSelectedOfflineModel(offlineModel);
+            if (downloadedModels) setDownloadedOfflineModels(JSON.parse(downloadedModels));
         };
         loadSettings();
     }, []);
@@ -715,6 +947,20 @@ export default function Settings() {
     const handleGeminiKeySave = async (key: string) => {
         setGeminiKey(key);
         await AsyncStorage.setItem("geminiKey", key);
+    };
+
+    const handleOfflineModelSelect = async (modelId: string) => {
+        setSelectedOfflineModel(modelId);
+        await AsyncStorage.setItem("selectedOfflineModel", modelId);
+    };
+
+    // Update downloaded models list when modal closes
+    const handleOfflineModelsModalClose = async () => {
+        setOfflineModelsModalVisible(false);
+        const downloadedModels = await AsyncStorage.getItem("downloadedOfflineModels");
+        if (downloadedModels) {
+            setDownloadedOfflineModels(JSON.parse(downloadedModels));
+        }
     };
 
     const ActionItem = ({ icon, title, onPress }: any) => (
@@ -855,6 +1101,32 @@ export default function Settings() {
                             title="Download Local Models"
                             onPress={() => setOfflineModelsModalVisible(true)}
                         />
+                        <View style={styles.separator} />
+
+                        <ActionItem
+                            icon="phone-portrait"
+                            title={`Offline Model: ${selectedOfflineModel ? OFFLINE_MODELS.find(m => m.id === selectedOfflineModel)?.name || selectedOfflineModel : 'None'}`}
+                            onPress={() => {
+                                const downloaded = downloadedOfflineModels;
+                                if (downloaded.length === 0) {
+                                    Alert.alert("No Models", "Please download a model first");
+                                } else {
+                                    setOfflineModelSelectorVisible(true);
+                                }
+                            }}
+                        />
+                        <View style={styles.separator} />
+
+                        {selectedOfflineModel && (
+                            <>
+                                <ActionItem
+                                    icon="flask"
+                                    title="Test Offline Model"
+                                    onPress={() => setOfflineModelTestVisible(true)}
+                                />
+                                <View style={styles.separator} />
+                            </>
+                        )}
                     </View>
                 </View>
 
@@ -977,7 +1249,21 @@ export default function Settings() {
 
             <OfflineModelsModal
                 visible={offlineModelsModalVisible}
-                onClose={() => setOfflineModelsModalVisible(false)}
+                onClose={handleOfflineModelsModalClose}
+            />
+
+            <OfflineModelSelectorModal
+                visible={offlineModelSelectorVisible}
+                onClose={() => setOfflineModelSelectorVisible(false)}
+                onSelect={handleOfflineModelSelect}
+                currentModel={selectedOfflineModel}
+                downloadedModels={downloadedOfflineModels}
+            />
+
+            <OfflineModelTestModal
+                visible={offlineModelTestVisible}
+                onClose={() => setOfflineModelTestVisible(false)}
+                modelId={selectedOfflineModel}
             />
         </SafeAreaView>
     );
@@ -1286,6 +1572,92 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
+    emptyModelsContainer: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 40,
+    },
+    emptyModelsText: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: Colors.text,
+        marginTop: 16,
+        marginBottom: 8,
+    },
+    emptyModelsSubtext: {
+        fontSize: 14,
+        color: Colors.tabIconDefault,
+        textAlign: 'center',
+    },
+    modelOptionLeft: {
+        flex: 1,
+    },
+    testModalContent: {
+        backgroundColor: Colors.backgroundSecondary,
+        borderRadius: 20,
+        padding: 24,
+        width: '90%',
+        maxWidth: 500,
+        maxHeight: '80%',
+        shadowColor: "#000",
+        shadowOffset: {
+            width: 0,
+            height: 2,
+        },
+        shadowOpacity: 0.25,
+        shadowRadius: 4,
+        elevation: 5,
+    },
+    testInput: {
+        backgroundColor: Colors.backgroundLighter,
+        borderRadius: 12,
+        padding: 16,
+        color: Colors.text,
+        fontSize: 16,
+        marginBottom: 16,
+        borderWidth: 1,
+        borderColor: Colors.backgroundLighter,
+        minHeight: 100,
+        textAlignVertical: 'top',
+    },
+    testButton: {
+        backgroundColor: Colors.tint,
+        borderRadius: 12,
+        paddingVertical: 14,
+        paddingHorizontal: 24,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 16,
+    },
+    testButtonDisabled: {
+        opacity: 0.5,
+    },
+    testButtonText: {
+        color: Colors.background,
+        fontSize: 16,
+        fontWeight: 'bold',
+    },
+    outputContainer: {
+        marginTop: 16,
+        marginBottom: 16,
+    },
+    outputLabel: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: Colors.text,
+        marginBottom: 8,
+    },
+    outputScrollView: {
+        maxHeight: 200,
+        backgroundColor: Colors.backgroundLighter,
+        borderRadius: 12,
+        padding: 16,
+    },
+    outputText: {
+        fontSize: 14,
+        color: Colors.text,
+        lineHeight: 20,
+    },
     saveButton: {
         backgroundColor: Colors.tint,
     },
@@ -1321,6 +1693,11 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: Colors.text,
         fontWeight: '500',
+    },
+    modelOptionSize: {
+        fontSize: 12,
+        color: Colors.tabIconDefault,
+        marginTop: 4,
     },
     selectedModelOptionText: {
         color: Colors.tint,
