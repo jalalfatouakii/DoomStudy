@@ -160,8 +160,9 @@ export default function AddCourse() {
         let aiSnippets: string[] = [];
 
         // Generate AI content if we have either Gemini key (online) or offline model (offline)
-        const canGenerateAI = currentMode === 'online' ? geminiKey : (selectedOfflineModel && downloadedOfflineModels.includes(selectedOfflineModel));
 
+        const canGenerateAI = currentMode === 'online' ? geminiKey : (selectedOfflineModel && downloadedOfflineModels.includes(selectedOfflineModel)) || selectedOfflineModel === 'apple-intelligence';
+        console.log("Can generate AI content:", canGenerateAI, "Mode:", currentMode, "Key:", geminiKey, "Offline Model:", selectedOfflineModel, "Downloaded Models:", downloadedOfflineModels);
         if (canGenerateAI) {
             setIsGeneratingAI(true);
             setProcessingVisible(true);

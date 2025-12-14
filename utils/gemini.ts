@@ -129,7 +129,7 @@ async function generateSnippetsWithOfflineModel(
 
 Material: "${textSnippet}"
 
-Create ${actualSnippetCount} learning snippets with content that's maximum 300 characters. Output ONLY a JSON array, no other text, no markdown, no explanations. Format: [{"type":"fact","content":"..."},{"type":"fact","content":"..."},{"type":"fact","content":"..."}]`;
+Create ${actualSnippetCount} learning snippets. Output ONLY a JSON array, no other text, no markdown, no explanations. Format: [{"type":"fact","content":"..."},{"type":"fact","content":"..."},{"type":"fact","content":"..."}]`;
 
         console.log("Starting offline model generation");
 

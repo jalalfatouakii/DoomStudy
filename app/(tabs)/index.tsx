@@ -166,7 +166,12 @@ export default function Index() {
     if (isGeneratingMoreRef.current[categoryId]) return;
 
     const key = await AsyncStorage.getItem("geminiKey");
-    if (!key) return; // No key, no AI generation
+   // Check mode preference and required model availability
+        const modePreference = await AsyncStorage.getItem("modelModePreference");
+        const currentMode = modePreference === 'offline' ? 'offline' : 'online';
+    if (currentMode !== 'offline' && !key) {
+      return;
+    }
 
     isGeneratingMoreRef.current[categoryId] = true;
     setIsGeneratingMore(prev => ({ ...prev, [categoryId]: true }));
