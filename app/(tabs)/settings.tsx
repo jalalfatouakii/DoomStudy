@@ -292,7 +292,6 @@ const ModelListModal = ({ visible, onClose, mode, selectedModel, selectedOffline
     const [downloadStates, setDownloadStates] = useState<Record<string, DownloadState>>({});
     const [downloadingModelId, setDownloadingModelId] = useState<string | null>(null);
     const downloadCancelRef = useRef<Record<string, boolean>>({});
-    const downloadingTextAnim = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
         if (visible) {
@@ -307,32 +306,6 @@ const ModelListModal = ({ visible, onClose, mode, selectedModel, selectedOffline
             }
         }
     }, [visible, mode]);
-
-    useEffect(() => {
-        const hasDownloading = Object.values(downloadStates).some(state =>
-            state.status === 'downloading' || state.status === 'preparing'
-        );
-        if (hasDownloading) {
-            const loop = Animated.loop(
-                Animated.sequence([
-                    Animated.timing(downloadingTextAnim, {
-                        toValue: 1,
-                        duration: 1000,
-                        useNativeDriver: true,
-                    }),
-                    Animated.timing(downloadingTextAnim, {
-                        toValue: 0,
-                        duration: 1000,
-                        useNativeDriver: true,
-                    }),
-                ])
-            );
-            loop.start();
-            return () => loop.stop();
-        } else {
-            downloadingTextAnim.setValue(0);
-        }
-    }, [downloadStates]);
 
     const checkDownloadedModels = async () => {
         const states: Record<string, DownloadState> = {};
@@ -372,9 +345,42 @@ const ModelListModal = ({ visible, onClose, mode, selectedModel, selectedOffline
             [modelId]: { status: 'downloading', progress: 0 }
         }));
 
+        let progressInterval: NodeJS.Timeout | null = null;
+        const downloadStartTime = Date.now();
         try {
             const languageModel = mlc.languageModel(modelId);
+
+            // Simulate progress updates during download with time-based estimation
+            // Progress slows down as it approaches 85% to be more realistic
+            progressInterval = setInterval(() => {
+                if (downloadCancelRef.current[modelId]) {
+                    if (progressInterval) clearInterval(progressInterval);
+                    return;
+                }
+
+                // Time-based progress that slows down exponentially
+                const elapsed = Date.now() - downloadStartTime;
+                // Estimate: small models ~30s, large models ~120s
+                // Use exponential curve that approaches 85% but never quite reaches it
+                const estimatedDuration = 60000; // 60 seconds estimate
+                const progressValue = Math.min(0.85 * (1 - Math.exp(-elapsed / (estimatedDuration * 0.5))), 0.85);
+
+                setDownloadStates(prev => ({
+                    ...prev,
+                    [modelId]: { status: 'downloading', progress: progressValue }
+                }));
+            }, 300); // Update every 300ms for smoother progress
+
+            // Download the model
             await languageModel.download();
+
+            if (progressInterval) clearInterval(progressInterval);
+
+            // Immediately set to 85% when download completes
+            setDownloadStates(prev => ({
+                ...prev,
+                [modelId]: { status: 'downloading', progress: 0.85 }
+            }));
 
             if (downloadCancelRef.current[modelId]) {
                 setDownloadStates(prev => ({
@@ -416,6 +422,7 @@ const ModelListModal = ({ visible, onClose, mode, selectedModel, selectedOffline
             Alert.alert("Success", `Model ${OFFLINE_MODELS.find(m => m.id === modelId)?.name} downloaded and ready!`);
             onOfflineModelsUpdate();
         } catch (error) {
+            if (progressInterval) clearInterval(progressInterval);
             if (!downloadCancelRef.current[modelId]) {
                 console.error(`Error downloading model ${modelId}:`, error);
                 Alert.alert("Error", `Failed to download model: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -450,6 +457,20 @@ const ModelListModal = ({ visible, onClose, mode, selectedModel, selectedOffline
                             const downloadedModels = downloadedModelsStr ? JSON.parse(downloadedModelsStr) : [];
                             const updatedModels = downloadedModels.filter((id: string) => id !== modelId);
                             await AsyncStorage.setItem('downloadedOfflineModels', JSON.stringify(updatedModels));
+
+                            // If the deleted model was selected, select another available model
+                            const currentSelected = await AsyncStorage.getItem("selectedOfflineModel");
+                            if (currentSelected === modelId) {
+                                if (updatedModels.length > 0) {
+                                    // Select the first available downloaded model
+                                    await AsyncStorage.setItem("selectedOfflineModel", updatedModels[0]);
+                                    onOfflineModelSelect(updatedModels[0]);
+                                } else {
+                                    // No models available, clear selection
+                                    await AsyncStorage.removeItem("selectedOfflineModel");
+                                    onOfflineModelSelect('');
+                                }
+                            }
 
                             setDownloadStates(prev => ({
                                 ...prev,
@@ -547,23 +568,18 @@ const ModelListModal = ({ visible, onClose, mode, selectedModel, selectedOffline
                                         >
                                             <View style={styles.offlineModelInfo}>
                                                 <Text style={styles.offlineModelName}>{model.name}</Text>
-                                                <Text style={styles.offlineModelSize}>{model.size}</Text>
+                                                <Text style={styles.offlineModelSize}>~{model.size}</Text>
 
                                                 {isDownloading && (
                                                     <View style={styles.downloadingContainer}>
-                                                        <Animated.Text
-                                                            style={[
-                                                                styles.downloadingText,
-                                                                {
-                                                                    opacity: downloadingTextAnim.interpolate({
-                                                                        inputRange: [0, 1],
-                                                                        outputRange: [0.3, 1],
-                                                                    }),
-                                                                }
-                                                            ]}
-                                                        >
-                                                            {state.status === 'preparing' ? 'Preparing...' : 'Downloading...'}
-                                                        </Animated.Text>
+                                                        <Text style={styles.downloadingText}>
+                                                            {state.status === 'preparing' ? 'Preparing...' : `Downloading... ${Math.round(state.progress * 100)}%`}
+                                                        </Text>
+                                                        {state.status === 'downloading' && (
+                                                            <View style={styles.progressBarContainer}>
+                                                                <View style={[styles.progressBar, { width: `${state.progress * 100}%` }]} />
+                                                            </View>
+                                                        )}
                                                     </View>
                                                 )}
                                             </View>
@@ -900,7 +916,6 @@ const OfflineModelsModal = ({ visible, onClose, onSelect, currentModel }: {
     const [downloadStates, setDownloadStates] = useState<Record<string, DownloadState>>({});
     const [downloadingModelId, setDownloadingModelId] = useState<string | null>(null);
     const downloadCancelRef = useRef<Record<string, boolean>>({});
-    const downloadingTextAnim = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
         if (visible) {
@@ -913,32 +928,6 @@ const OfflineModelsModal = ({ visible, onClose, onSelect, currentModel }: {
             checkDownloadedModels();
         }
     }, [visible]);
-
-    useEffect(() => {
-        const hasDownloading = Object.values(downloadStates).some(state =>
-            state.status === 'downloading' || state.status === 'preparing'
-        );
-        if (hasDownloading) {
-            const loop = Animated.loop(
-                Animated.sequence([
-                    Animated.timing(downloadingTextAnim, {
-                        toValue: 1,
-                        duration: 1000,
-                        useNativeDriver: true,
-                    }),
-                    Animated.timing(downloadingTextAnim, {
-                        toValue: 0,
-                        duration: 1000,
-                        useNativeDriver: true,
-                    }),
-                ])
-            );
-            loop.start();
-            return () => loop.stop();
-        } else {
-            downloadingTextAnim.setValue(0);
-        }
-    }, [downloadStates]);
 
     const checkDownloadedModels = async () => {
         const states: Record<string, DownloadState> = {};
@@ -981,9 +970,42 @@ const OfflineModelsModal = ({ visible, onClose, onSelect, currentModel }: {
             [modelId]: { status: 'downloading', progress: 0 }
         }));
 
+        let progressInterval: NodeJS.Timeout | null = null;
+        const downloadStartTime = Date.now();
         try {
             const languageModel = mlc.languageModel(modelId);
+
+            // Simulate progress updates during download with time-based estimation
+            // Progress slows down as it approaches 85% to be more realistic
+            progressInterval = setInterval(() => {
+                if (downloadCancelRef.current[modelId]) {
+                    if (progressInterval) clearInterval(progressInterval);
+                    return;
+                }
+
+                // Time-based progress that slows down exponentially
+                const elapsed = Date.now() - downloadStartTime;
+                // Estimate: small models ~30s, large models ~120s
+                // Use exponential curve that approaches 85% but never quite reaches it
+                const estimatedDuration = 60000; // 60 seconds estimate
+                const progressValue = Math.min(0.85 * (1 - Math.exp(-elapsed / (estimatedDuration * 0.5))), 0.85);
+
+                setDownloadStates(prev => ({
+                    ...prev,
+                    [modelId]: { status: 'downloading', progress: progressValue }
+                }));
+            }, 300); // Update every 300ms for smoother progress
+
+            // Download the model
             await languageModel.download();
+
+            if (progressInterval) clearInterval(progressInterval);
+
+            // Immediately set to 85% when download completes
+            setDownloadStates(prev => ({
+                ...prev,
+                [modelId]: { status: 'downloading', progress: 0.85 }
+            }));
 
             if (downloadCancelRef.current[modelId]) {
                 setDownloadStates(prev => ({
@@ -1026,6 +1048,7 @@ const OfflineModelsModal = ({ visible, onClose, onSelect, currentModel }: {
 
             Alert.alert("Success", `Model ${OFFLINE_MODELS.find(m => m.id === modelId)?.name} downloaded and ready!`);
         } catch (error) {
+            if (progressInterval) clearInterval(progressInterval);
             if (!downloadCancelRef.current[modelId]) {
                 console.error(`Error downloading model ${modelId}:`, error);
                 Alert.alert("Error", `Failed to download model: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -1061,6 +1084,24 @@ const OfflineModelsModal = ({ visible, onClose, onSelect, currentModel }: {
                             const downloadedModels = downloadedModelsStr ? JSON.parse(downloadedModelsStr) : [];
                             const updatedModels = downloadedModels.filter((id: string) => id !== modelId);
                             await AsyncStorage.setItem('downloadedOfflineModels', JSON.stringify(updatedModels));
+
+                            // If the deleted model was selected, select another available model
+                            const currentSelected = await AsyncStorage.getItem("selectedOfflineModel");
+                            if (currentSelected === modelId) {
+                                if (updatedModels.length > 0) {
+                                    // Select the first available downloaded model
+                                    await AsyncStorage.setItem("selectedOfflineModel", updatedModels[0]);
+                                    if (onSelect) {
+                                        onSelect(updatedModels[0]);
+                                    }
+                                } else {
+                                    // No models available, clear selection
+                                    await AsyncStorage.removeItem("selectedOfflineModel");
+                                    if (onSelect) {
+                                        onSelect('');
+                                    }
+                                }
+                            }
 
                             setDownloadStates(prev => ({
                                 ...prev,
@@ -1117,19 +1158,14 @@ const OfflineModelsModal = ({ visible, onClose, onSelect, currentModel }: {
 
                                                 {isDownloading && (
                                                     <View style={styles.downloadingContainer}>
-                                                        <Animated.Text
-                                                            style={[
-                                                                styles.downloadingText,
-                                                                {
-                                                                    opacity: downloadingTextAnim.interpolate({
-                                                                        inputRange: [0, 1],
-                                                                        outputRange: [0.3, 1],
-                                                                    }),
-                                                                }
-                                                            ]}
-                                                        >
-                                                            {state.status === 'preparing' ? 'Preparing...' : 'Downloading...'}
-                                                        </Animated.Text>
+                                                        <Text style={styles.downloadingText}>
+                                                            {state.status === 'preparing' ? 'Preparing...' : `Downloading... ${Math.round(state.progress * 100)}%`}
+                                                        </Text>
+                                                        {state.status === 'downloading' && (
+                                                            <View style={styles.progressBarContainer}>
+                                                                <View style={[styles.progressBar, { width: `${state.progress * 100}%` }]} />
+                                                            </View>
+                                                        )}
                                                     </View>
                                                 )}
                                             </View>
@@ -2387,6 +2423,7 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         borderWidth: 1,
         borderColor: 'transparent',
+        marginBottom: 12,
     },
     selectedOfflineModelItem: {
         borderColor: Colors.tint,
@@ -2495,6 +2532,19 @@ const styles = StyleSheet.create({
         fontSize: 13,
         color: Colors.tint,
         fontWeight: '500',
+    },
+    progressBarContainer: {
+        marginTop: 8,
+        width: '100%',
+        height: 4,
+        backgroundColor: Colors.backgroundLighter,
+        borderRadius: 2,
+        overflow: 'hidden',
+    },
+    progressBar: {
+        height: '100%',
+        backgroundColor: Colors.tint,
+        borderRadius: 2,
     },
     stopButton: {
         width: 40,
