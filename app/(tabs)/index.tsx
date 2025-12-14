@@ -137,20 +137,10 @@ export default function Index() {
 
     setRefreshing(prev => ({ ...prev, [categoryId]: true }));
 
-    // Simulate a brief delay for better UX
-    await new Promise(resolve => setTimeout(resolve, 300));
-
-    let newSnippets: ContentSnippet[] = [];
-    if (category.id === "for-you") {
-      newSnippets = getRandomSnippets(INITIAL_LOAD);
-    } else if (category.id.startsWith("tag-")) {
-      const tag = category.title;
-      newSnippets = getRandomSnippets(INITIAL_LOAD, [tag]);
-    }
-
+    // Clear existing snippets for this category
     setCategorySnippets(prev => ({
       ...prev,
-      [categoryId]: enrichWithAds(newSnippets),
+      [categoryId]: [],
     }));
 
     // Update list key to force FlatList recreation
@@ -159,6 +149,9 @@ export default function Index() {
       [categoryId]: (prev[categoryId] || 0) + 1,
     }));
 
+    // Regenerate new snippets
+    await generateMoreAiContent(categoryId);
+
     setRefreshing(prev => ({ ...prev, [categoryId]: false }));
   };
 
@@ -166,9 +159,9 @@ export default function Index() {
     if (isGeneratingMoreRef.current[categoryId]) return;
 
     const key = await AsyncStorage.getItem("geminiKey");
-   // Check mode preference and required model availability
-        const modePreference = await AsyncStorage.getItem("modelModePreference");
-        const currentMode = modePreference === 'offline' ? 'offline' : 'online';
+    // Check mode preference and required model availability
+    const modePreference = await AsyncStorage.getItem("modelModePreference");
+    const currentMode = modePreference === 'offline' ? 'offline' : 'online';
     if (currentMode !== 'offline' && !key) {
       return;
     }
@@ -228,7 +221,7 @@ export default function Index() {
 
         try {
           const fileId = `${file.courseId}-${file.fileName}`;
-          const fileSnippets = await generateSnippets(file.parsedText, key, snippetsPerFile, fileId);
+          const fileSnippets = await generateSnippets(file.parsedText, key || '', snippetsPerFile, fileId);
 
           const newContentSnippets: ContentSnippet[] = [];
 

@@ -123,9 +123,61 @@ async function generateSnippetsWithOfflineModel(
             }));
         }
 
-        // Super simple prompt - minimal text
+        // Load snippet type preferences
+        const savedPreferences = await AsyncStorage.getItem("snippetTypePreferences");
+        const enabledTypes = savedPreferences ? JSON.parse(savedPreferences) : ['fact', 'concept', 'qna', 'true_false'];
+
+        // Build type descriptions based on enabled types
+        const typeDescriptions = [];
+        const typesList = [];
+
+        if (enabledTypes.includes('fact')) {
+            typeDescriptions.push('- Interesting Facts ("Did you know...?") -> type: "fact"');
+            typesList.push('"fact"');
+        }
+        if (enabledTypes.includes('concept')) {
+            typeDescriptions.push('- Key Concepts defined simply. -> type: "concept"');
+            typesList.push('"concept"');
+        }
+        if (enabledTypes.includes('qna')) {
+            typeDescriptions.push('- Short Q&A ("Question: ... Answer: ...") -> type: "qna"');
+            typesList.push('"qna"');
+        }
+        if (enabledTypes.includes('true_false')) {
+            typeDescriptions.push('- True/False statements with explanation. -> type: "true_false"');
+            typesList.push('"true_false"');
+        }
+
+        const needsAnswer = enabledTypes.includes('qna') || enabledTypes.includes('true_false');
+
+        // Use full prompt with user preferences for Apple AI (more powerful)
+        // Use simple prompt for MLC models (less powerful)
         const textSnippet = chunkText;
-        const prompt = `You are an expert tutor. Your goal is to help a student learn the following material by creating engaging, bite-sized learning snippets in the original language of the material (this is important).
+        const prompt = isAppleAI ? `
+        You are an expert tutor. Your goal is to help a student learn the following material by creating engaging, bite-sized learning snippets in the original language of the material (this is important).
+        
+        Please do not translate the material to another language.
+        Material:
+        "${textSnippet}" 
+        
+        ${totalChunks > 1 ? `(Note: This is section ${selectedChunk + 1} of ${totalChunks} from a larger document)` : ''}
+
+        Please generate ${actualSnippetCount} distinct, short, and engaging snippets in the original language of the material and based on this text.
+        Mix the following types:
+        ${typeDescriptions.join('\n        ')}
+
+        Format the output as a JSON array of objects with this structure:
+        {
+            "type": ${typesList.join(' | ')},
+            "content": "The main text, question, or statement in the original language of the material not the prompt. For Q&A, this is ONLY the question. Do NOT include the answer here.",
+            ${!needsAnswer ? "" : "\"answer\": \"The answer or explanation (required for qna and true_false in the original language of the material not the prompt.)\","}
+            "label": "Optional label like 'Did you know?' or 'Key Concept' like the type, don't add extra text"
+        }
+        All in the original language of the material that is provided.
+
+        Do not include markdown formatting like \`\`\`json. Just the raw JSON array.
+        Make sure each snippet is standalone and understandable without context.
+        ` : `You are an expert tutor. Your goal is to help a student learn the following material by creating engaging, bite-sized learning snippets in the original language of the material (this is important).
 
 Material: "${textSnippet}"
 
@@ -142,7 +194,7 @@ Create ${actualSnippetCount} learning snippets. Output ONLY a JSON array, no oth
         try {
             result = await Promise.race([
                 generateText({
-                    model: languageModel,
+                    model: languageModel as any,
                     prompt: prompt,
                 }),
                 timeoutPromise
@@ -238,8 +290,8 @@ Create ${actualSnippetCount} learning snippets. Output ONLY a JSON array, no oth
             }
         } catch (e) {
             // Last resort: create simple snippets from text
-            const fallbackLines = textResponse.split(/[.!?]/).filter(l => l.trim().length > 20);
-            return fallbackLines.slice(0, actualSnippetCount).map((line, idx) => JSON.stringify({
+            const fallbackLines = textResponse.split(/[.!?]/).filter((l: string) => l.trim().length > 20);
+            return fallbackLines.slice(0, actualSnippetCount).map((line: string, idx: number) => JSON.stringify({
                 type: 'fact',
                 content: line.trim(),
                 label: 'Learning Point'
