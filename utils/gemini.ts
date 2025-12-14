@@ -170,7 +170,7 @@ async function generateSnippetsWithOfflineModel(
         {
             "type": ${typesList.join(' | ')},
             "content": "The main text, question, or statement in the original language of the material not the prompt. For Q&A, this is ONLY the question. Do NOT include the answer here.",
-            ${!needsAnswer ? "" : "\"answer\": \"The answer or explanation (required for qna and true_false in the original language of the material not the prompt.)\","}
+            ${!needsAnswer ? "" : "\"answer\": \"The answer or explanation (required for qna and true_false ONLY, NOT FACT OR CONCEPT, in the original language of the material not the prompt.)\","}
             "label": "Optional label like 'Did you know?' or 'Key Concept' like the type, don't add extra text"
         }
         All in the original language of the material that is provided.

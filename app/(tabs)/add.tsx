@@ -73,13 +73,11 @@ export default function AddCourse() {
 
     const checkGeminiKey = async () => {
         const key = await AsyncStorage.getItem("geminiKey");
+        const mode = await AsyncStorage.getItem("modelModePreference");
         if (key) {
             setGeminiKey(key);
         } else {
-            // Show modal if no key found on first load (optional logic, or just show it)
-            // For now, let's show it if it's the first time visiting add page? 
-            // Or just show it. The user requested "if its the first time the user opens the add page"
-            // We can check a separate flag for "hasSeenKeyPrompt" if needed, but checking key existence is simpler.
+            if (mode !== 'offline')
             setShowKeyModal(true);
         }
     };
