@@ -56,13 +56,13 @@ export default function SnippetCard({ snippet, height }: SnippetCardProps) {
             case "fact":
                 return <Ionicons name="bulb" size={24} color={Colors.tint} />;
             case "qna":
-                return <Ionicons name="help-circle" size={24} color="#FF9500" />;
+                return <Ionicons name="information-circle" size={24} color="#FF9500" />;
             case "true_false":
                 return <Ionicons name="checkbox" size={24} color="#34C759" />;
             case "concept":
                 return <Ionicons name="key" size={24} color="#AF52DE" />;
             default:
-                return <Ionicons name="document-text" size={24} color={Colors.tabIconDefault} />;
+                return <Ionicons name="document" size={24} color={Colors.tabIconDefault} />;
         }
     };
 
