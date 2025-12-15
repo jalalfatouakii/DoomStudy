@@ -6,7 +6,7 @@ import { generateSnippets } from "@/utils/gemini";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
     ActivityIndicator,
     Dimensions,
@@ -27,6 +27,7 @@ export default function CourseDetail() {
     const { id, snippetId } = useLocalSearchParams<{ id: string; snippetId?: string }>();
     const { courses, getRandomSnippets } = useCourses();
     const router = useRouter();
+    const flatListRef = useRef<FlatList>(null);
     const [itemHeight, setItemHeight] = useState(0);
     const [snippets, setSnippets] = useState<ContentSnippet[]>([]);
     const [refreshing, setRefreshing] = useState(false);
@@ -42,8 +43,8 @@ export default function CourseDetail() {
 
             // If a specific snippet was tapped, ensure it's in the list and at the front
             if (snippetId && course) {
-                // Try to find the snippet in the current list
-                const existingIndex = allSnippets.findIndex(s => s.id === snippetId);
+                // Try to find the snippet in the current list by ID
+                let existingIndex = allSnippets.findIndex(s => s.id === snippetId);
 
                 if (existingIndex >= 0) {
                     // Snippet exists, move it to front if not already there
@@ -54,39 +55,94 @@ export default function CourseDetail() {
                     }
                 } else {
                     // Snippet not in list, we need to create it from the course data
-                    // Parse the snippetId to extract file info
-                    const parts = snippetId.split('-');
-                    if (parts.length >= 3) {
-                        const fileName = parts.slice(1, -1).join('-');
-                        const sentenceIndex = parseInt(parts[parts.length - 1]);
+                    let tappedSnippet: ContentSnippet | null = null;
 
-                        const file = course.files.find(f => f.name === fileName);
-                        if (file && file.parsedText) {
-                            const sentences = file.parsedText
-                                .split(/[.!?]\s+|\n+/)
-                                .map(s => s.trim())
-                                .filter(s => s.length > 20);
+                    // Check if it's an AI snippet (format: {courseId}-ai-{idx})
+                    if (snippetId.includes('-ai-')) {
+                        const parts = snippetId.split('-ai-');
+                        if (parts.length === 2) {
+                            const aiIndex = parseInt(parts[1]);
+                            if (!isNaN(aiIndex) && course.aiSnippets && course.aiSnippets[aiIndex]) {
+                                try {
+                                    const snippetStr = course.aiSnippets[aiIndex];
+                                    const parsed = JSON.parse(snippetStr);
 
-                            if (sentences[sentenceIndex]) {
-                                const tappedSnippet: ContentSnippet = {
-                                    id: snippetId,
-                                    type: 'text',
-                                    content: sentences[sentenceIndex],
-                                    courseId: id,
-                                    courseName: course.title,
-                                    fileName: file.name,
-                                    tags: course.tags,
-                                };
-                                allSnippets.unshift(tappedSnippet);
+                                    if (parsed && typeof parsed === 'object' && parsed.content) {
+                                        tappedSnippet = {
+                                            id: snippetId,
+                                            type: (parsed.type || 'text') as SnippetType,
+                                            content: parsed.content,
+                                            answer: parsed.answer,
+                                            label: parsed.label,
+                                            courseId: id,
+                                            courseName: course.title,
+                                            fileName: parsed.sourceFileName || "AI Generated",
+                                            tags: course.tags,
+                                        };
+                                    } else {
+                                        // Fallback for plain string snippets
+                                        tappedSnippet = {
+                                            id: snippetId,
+                                            type: 'text',
+                                            content: snippetStr,
+                                            courseId: id,
+                                            courseName: course.title,
+                                            fileName: "AI Generated",
+                                            tags: course.tags,
+                                        };
+                                    }
+                                } catch (e) {
+                                    // Not JSON, treat as plain string
+                                    tappedSnippet = {
+                                        id: snippetId,
+                                        type: 'text',
+                                        content: course.aiSnippets[aiIndex],
+                                        courseId: id,
+                                        courseName: course.title,
+                                        fileName: "AI Generated",
+                                        tags: course.tags,
+                                    };
+                                }
                             }
                         }
+                    } else {
+                        // Try to parse as regular snippet (format: {courseId}-{fileName}-{sentenceIndex})
+                        const parts = snippetId.split('-');
+                        if (parts.length >= 3) {
+                            const fileName = parts.slice(1, -1).join('-');
+                            const sentenceIndex = parseInt(parts[parts.length - 1]);
+
+                            const file = course.files.find(f => f.name === fileName);
+                            if (file && file.parsedText) {
+                                const sentences = file.parsedText
+                                    .split(/[.!?]\s+|\n+/)
+                                    .map(s => s.trim())
+                                    .filter(s => s.length > 20);
+
+                                if (sentences[sentenceIndex]) {
+                                    tappedSnippet = {
+                                        id: snippetId,
+                                        type: 'text',
+                                        content: sentences[sentenceIndex],
+                                        courseId: id,
+                                        courseName: course.title,
+                                        fileName: file.name,
+                                        tags: course.tags,
+                                    };
+                                }
+                            }
+                        }
+                    }
+
+                    if (tappedSnippet) {
+                        allSnippets.unshift(tappedSnippet);
                     }
                 }
             }
 
             setSnippets(allSnippets);
         }
-    }, [id, snippetId]);
+    }, [id, snippetId, course]);
 
     const generateMoreAiContent = async () => {
         if (isGeneratingMore || !course) return;
@@ -195,6 +251,22 @@ export default function CourseDetail() {
         </View>
     );
 
+    // Scroll to top when snippetId is provided and itemHeight is set
+    useEffect(() => {
+        if (snippetId && snippets.length > 0 && itemHeight > 0) {
+            // Use a longer delay to ensure FlatList is fully laid out
+            const timeoutId = setTimeout(() => {
+                try {
+                    flatListRef.current?.scrollToIndex({ index: 0, animated: false });
+                } catch (error) {
+                    // Fallback: scroll to offset if scrollToIndex fails
+                    flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
+                }
+            }, 300);
+            return () => clearTimeout(timeoutId);
+        }
+    }, [snippetId, snippets.length, itemHeight]);
+
     if (!course) {
         return (
             <SafeAreaView style={styles.container}>
@@ -241,13 +313,37 @@ export default function CourseDetail() {
             </View>
 
             <FlatList
+                ref={flatListRef}
                 data={snippets}
                 keyExtractor={(item) => item.id}
                 renderItem={renderSnippetItem}
                 pagingEnabled
                 showsVerticalScrollIndicator={false}
-                onLayout={(e) => setItemHeight(e.nativeEvent.layout.height)}
+                onLayout={(e) => {
+                    const newHeight = e.nativeEvent.layout.height;
+                    setItemHeight(newHeight);
+                    // Scroll to top immediately after layout if we have a snippetId
+                    if (snippetId && newHeight > 0) {
+                        setTimeout(() => {
+                            flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
+                        }, 50);
+                    }
+                }}
                 style={styles.list}
+                getItemLayout={itemHeight > 0 ? (data, index) => ({
+                    length: itemHeight,
+                    offset: itemHeight * index,
+                    index,
+                }) : undefined}
+                onScrollToIndexFailed={(info) => {
+                    // Fallback if scroll fails - scroll to offset instead
+                    const wait = new Promise(resolve => setTimeout(resolve, 500));
+                    wait.then(() => {
+                        if (itemHeight > 0) {
+                            flatListRef.current?.scrollToOffset({ offset: itemHeight * info.index, animated: false });
+                        }
+                    });
+                }}
                 onEndReached={() => {
                     loadMoreSnippets();
                     generateMoreAiContent();
