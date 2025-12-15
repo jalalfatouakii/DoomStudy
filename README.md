@@ -1,4 +1,4 @@
-<img src="./assets/images/image.png" alt="DoomStudy Logo" width="100" height="100" style="display: block; margin: 0 auto;">
+<img src="./assets/images/image.png" alt="DoomStudy Logo" width="100" height="100" style="display: block;">
 
 <div style="text-align: center;">
     <h1>DoomStudy</h1>
