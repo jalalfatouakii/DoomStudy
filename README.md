@@ -1,50 +1,103 @@
-# Welcome to your Expo app 👋
+<img src="./assets/images/image.png" alt="DoomStudy Logo" width="100" height="100" style="display: block; margin: 0 auto;">
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+<br>
+<div style="text-align: center;">
+    <h1>DoomStudy</h1>
+</div>
 
-## Get started
+Transform your study materials into an engaging, scrollable learning experience. DoomStudy helps you learn through bite-sized content snippets generated from your course materials.
 
-1. Install dependencies
+<div style="display: flex; gap: 10px; justify-content: center;">
+    <a href="https://apps.apple.com/us/app/doomstudy/id6755923722" class="badge-custom">
+        <img src="https://img.shields.io/badge/iOS-000000?style=for-the-badge&logo=apple&logoColor=white" alt="iOS">
+    </a>
+    <a href="https://play.google.com/store/apps/details?id=com.doomstudy.jxlxl" class="badge-custom">
+        <img src="https://img.shields.io/badge/Android-3DDC84?style=for-the-badge&logo=android&logoColor=white" alt="Android">
+    </a>
+</div>
 
+## Features
+
+### Document Upload
+- Upload PDFs (PPTX and DOCX support to come soon)
+- Automatic text extraction and processing
+- Organize content by courses with custom tags
+
+### AI-Powered Learning
+- Generate study snippets using AI (Gemini or offline models)
+- Multiple snippet types: Facts, Concepts, Q&A, and True/False
+- Customizable snippet generation settings
+
+### Doomscroll Feed
+- Learn through an endless, engaging feed interface
+- Filter content by tags or specific courses
+- Personalized "For You" recommendations
+- Smooth, native scrolling experience
+
+### Progress Tracking
+- Monitor your learning journey
+- Track statistics and progress
+- View detailed course information
+
+### Modern Design
+- Beautiful, clean interface
+- Native iOS and Android experience
+- iOS widgets for quick access
+
+### Customization
+- Configure AI model preferences
+- Adjust snippet generation parameters
+- Personalize your learning experience
+
+## Technologies
+
+- **Framework**: React Native with Expo
+- **AI**: Google Gemini API & On-device ML models (Apple Intelligence supported)
+- **Platforms**: iOS, Android
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js (v18 or later)
+- npm or yarn
+- Expo CLI
+
+### Installation
+
+1. Clone the repository
+   ```bash
+   git clone https://github.com/yourusername/doomstudy.git
+   cd doomstudy
+   ```
+
+2. Install dependencies
    ```bash
    npm install
    ```
 
-2. Start the app
-
+3. Prebuild the app
    ```bash
-   npx expo start
+   npx expo prebuild
    ```
 
-In the output, you'll find options to open the app in a
+4. Run the app
+   ```bash
+   npx run:{ios|android}
+   ```
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+## Project Structure
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```
+doomstudy/
+├── app/              # App screens and routing
+├── components/       # Reusable components
+├── context/          # React context providers
+├── utils/            # Utility functions
+├── constants/        # App constants
+└── assets/           # Images and static assets
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## License
 
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+This project is open source and available under the [MIT License](LICENSE).
