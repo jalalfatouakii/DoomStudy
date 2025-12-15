@@ -130,41 +130,31 @@ export default function AITermsModal({ visible, onAccept, onDecline }: AITermsMo
                                         </Text>
                                     </View>
                                 </View>
-
-                                <View style={styles.linksSection}>
-                                    <Text style={styles.linksSectionTitle}>Legal Documents</Text>
-                                    <View style={styles.linksContainer}>
-                                        <TouchableOpacity onPress={openTermsOfService} style={styles.linkButton}>
-                                            <Ionicons name="document-text" size={18} color={Colors.tint} />
-                                            <Text style={styles.linkButtonText}>
-                                                Terms of Service
-                                            </Text>
-                                            <Ionicons name="open-outline" size={14} color={Colors.tint} />
-                                        </TouchableOpacity>
-                                        <TouchableOpacity onPress={openPrivacyPolicy} style={styles.linkButton}>
-                                            <Ionicons name="document-text" size={18} color={Colors.tint} />
-                                            <Text style={styles.linkButtonText}>
-                                                Privacy Policy
-                                            </Text>
-                                            <Ionicons name="open-outline" size={14} color={Colors.tint} />
-                                        </TouchableOpacity>
-                                    </View>
-                                </View>
                             </ScrollView>
 
                             <View style={styles.checkboxContainer}>
                                 <TouchableOpacity
                                     style={styles.checkbox}
                                     onPress={() => setAccepted(!accepted)}
+                                    activeOpacity={0.7}
                                 >
                                     <Ionicons
                                         name={accepted ? "checkbox" : "checkbox-outline"}
                                         size={24}
                                         color={accepted ? Colors.tint : Colors.tabIconDefault}
                                     />
-                                    <Text style={styles.checkboxText}>
-                                        I understand and agree to the terms above
-                                    </Text>
+                                    <View style={styles.checkboxTextContainer}>
+                                        <Text style={styles.checkboxText}>
+                                            I understand and agree to the{' '}
+                                        </Text>
+                                        <TouchableOpacity onPress={openTermsOfService} activeOpacity={0.7}>
+                                            <Text style={styles.checkboxLink}>Terms of Service</Text>
+                                        </TouchableOpacity>
+                                        <Text style={styles.checkboxText}> and </Text>
+                                        <TouchableOpacity onPress={openPrivacyPolicy} activeOpacity={0.7}>
+                                            <Text style={styles.checkboxLink}>Privacy Policy</Text>
+                                        </TouchableOpacity>
+                                    </View>
                                 </TouchableOpacity>
                             </View>
 
@@ -281,48 +271,31 @@ const styles = StyleSheet.create({
         marginLeft: 8,
         lineHeight: 18,
     },
-    linksSection: {
-        marginTop: 16,
-        marginBottom: 8,
-    },
-    linksSectionTitle: {
-        fontSize: 14,
-        fontWeight: "600",
-        color: Colors.text,
-        marginBottom: 12,
-    },
-    linksContainer: {
-        gap: 10,
-    },
-    linkButton: {
-        flexDirection: "row",
-        alignItems: "center",
-        backgroundColor: Colors.backgroundLighter,
-        padding: 12,
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: Colors.tint + '30',
-        gap: 10,
-    },
-    linkButtonText: {
-        flex: 1,
-        color: Colors.tint,
-        fontSize: 14,
-        fontWeight: "600",
-    },
     checkboxContainer: {
         marginBottom: 20,
     },
     checkbox: {
         flexDirection: "row",
-        alignItems: "center",
+        alignItems: "flex-start",
         paddingVertical: 8,
     },
-    checkboxText: {
+    checkboxTextContainer: {
         flex: 1,
+        flexDirection: "row",
+        flexWrap: "wrap",
+        alignItems: "center",
+        marginLeft: 10,
+    },
+    checkboxText: {
         fontSize: 14,
         color: Colors.text,
-        marginLeft: 10,
+        lineHeight: 20,
+    },
+    checkboxLink: {
+        fontSize: 14,
+        color: Colors.tint,
+        fontWeight: "600",
+        textDecorationLine: "underline",
         lineHeight: 20,
     },
     buttons: {
