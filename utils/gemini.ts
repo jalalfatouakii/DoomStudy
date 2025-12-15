@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { apple } from "@react-native-ai/apple";
 import { mlc } from "@react-native-ai/mlc";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { generateText } from "ai";
@@ -47,21 +48,36 @@ async function generateSnippetsWithOfflineModel(
     const savedSnippetCount = await AsyncStorage.getItem("snippetCount");
     const actualSnippetCount = savedSnippetCount ? parseInt(savedSnippetCount, 10) : numberOfSnippets;
 
+    // Check if using Apple AI
+    const isAppleAI = modelId === 'apple-intelligence';
+
+    if (isAppleAI && !apple.isAvailable()) {
+        console.warn("Apple AI is not available on this device");
+        return [];
+    }
+
     try {
-        const languageModel = mlc.languageModel(modelId);
+        // Prepare MLC model if needed (Apple AI doesn't need preparation)
+        let languageModel;
+        if (!isAppleAI) {
+            languageModel = mlc.languageModel(modelId);
 
-        // Add timeout for prepare (15 seconds max - models can take time to load)
-        const prepareTimeout = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error("Prepare timeout")), 120000);
-        });
+            // Add timeout for prepare (15 seconds max - models can take time to load)
+            const prepareTimeout = new Promise((_, reject) => {
+                setTimeout(() => reject(new Error("Prepare timeout")), 120000);
+            });
 
-        try {
-            await Promise.race([languageModel.prepare(), prepareTimeout]);
-            console.log("Model prepared successfully");
-        } catch (prepareError) {
-            console.warn("Model prepare timed out or failed:", prepareError);
-            // Try to continue anyway - model might already be prepared
-            console.log("Attempting to generate anyway...");
+            try {
+                await Promise.race([languageModel.prepare(), prepareTimeout]);
+                console.log("Model prepared successfully");
+            } catch (prepareError) {
+                console.warn("Model prepare timed out or failed:", prepareError);
+                // Try to continue anyway - model might already be prepared
+                console.log("Attempting to generate anyway...");
+            }
+        } else {
+            languageModel = apple.languageModel();
+            console.log("Using Apple AI (no preparation needed)");
         }
 
         // Calculate number of chunks
@@ -107,13 +123,65 @@ async function generateSnippetsWithOfflineModel(
             }));
         }
 
-        // Super simple prompt - minimal text
+        // Load snippet type preferences
+        const savedPreferences = await AsyncStorage.getItem("snippetTypePreferences");
+        const enabledTypes = savedPreferences ? JSON.parse(savedPreferences) : ['fact', 'concept', 'qna', 'true_false'];
+
+        // Build type descriptions based on enabled types
+        const typeDescriptions = [];
+        const typesList = [];
+
+        if (enabledTypes.includes('fact')) {
+            typeDescriptions.push('- Interesting Facts ("Did you know...?") -> type: "fact"');
+            typesList.push('"fact"');
+        }
+        if (enabledTypes.includes('concept')) {
+            typeDescriptions.push('- Key Concepts defined simply. -> type: "concept"');
+            typesList.push('"concept"');
+        }
+        if (enabledTypes.includes('qna')) {
+            typeDescriptions.push('- Short Q&A ("Question: ... Answer: ...") -> type: "qna"');
+            typesList.push('"qna"');
+        }
+        if (enabledTypes.includes('true_false')) {
+            typeDescriptions.push('- True/False statements with explanation. -> type: "true_false"');
+            typesList.push('"true_false"');
+        }
+
+        const needsAnswer = enabledTypes.includes('qna') || enabledTypes.includes('true_false');
+
+        // Use full prompt with user preferences for Apple AI (more powerful)
+        // Use simple prompt for MLC models (less powerful)
         const textSnippet = chunkText;
-        const prompt = `You are an expert tutor. Your goal is to help a student learn the following material by creating engaging, bite-sized learning snippets in the original language of the material (this is important).
+        const prompt = isAppleAI ? `
+        You are an expert tutor. Your goal is to help a student learn the following material by creating engaging, bite-sized learning snippets in the original language of the material (this is important).
+        
+        Please do not translate the material to another language.
+        Material:
+        "${textSnippet}" 
+        
+        ${totalChunks > 1 ? `(Note: This is section ${selectedChunk + 1} of ${totalChunks} from a larger document)` : ''}
+
+        Please generate ${actualSnippetCount} distinct, short, and engaging snippets in the original language of the material and based on this text.
+        Mix the following types:
+        ${typeDescriptions.join('\n        ')}
+
+        Format the output as a JSON array of objects with this structure:
+        {
+            "type": ${typesList.join(' | ')},
+            "content": "The main text, question, or statement in the original language of the material not the prompt. For Q&A, this is ONLY the question. Do NOT include the answer here.",
+            ${!needsAnswer ? "" : "\"answer\": \"The answer or explanation (required for qna and true_false ONLY, NOT FACT OR CONCEPT, in the original language of the material not the prompt.)\","}
+            "label": "Optional label like 'Did you know?' or 'Key Concept' like the type, don't add extra text"
+        }
+        All in the original language of the material that is provided.
+
+        Do not include markdown formatting like \`\`\`json. Just the raw JSON array.
+        Make sure each snippet is standalone and understandable without context.
+        ` : `You are an expert tutor. Your goal is to help a student learn the following material by creating engaging, bite-sized learning snippets in the original language of the material (this is important).
 
 Material: "${textSnippet}"
 
-Create ${actualSnippetCount} learning snippets with content that's maximum 300 characters. Output ONLY a JSON array, no other text, no markdown, no explanations. Format: [{"type":"fact","content":"..."},{"type":"fact","content":"..."},{"type":"fact","content":"..."}]`;
+Create ${actualSnippetCount} learning snippets. Output ONLY a JSON array, no other text, no markdown, no explanations. Format: [{"type":"fact","content":"..."},{"type":"fact","content":"..."},{"type":"fact","content":"..."}]`;
 
         console.log("Starting offline model generation");
 
@@ -126,7 +194,7 @@ Create ${actualSnippetCount} learning snippets with content that's maximum 300 c
         try {
             result = await Promise.race([
                 generateText({
-                    model: languageModel,
+                    model: languageModel as any,
                     prompt: prompt,
                 }),
                 timeoutPromise
@@ -222,8 +290,8 @@ Create ${actualSnippetCount} learning snippets with content that's maximum 300 c
             }
         } catch (e) {
             // Last resort: create simple snippets from text
-            const fallbackLines = textResponse.split(/[.!?]/).filter(l => l.trim().length > 20);
-            return fallbackLines.slice(0, actualSnippetCount).map((line, idx) => JSON.stringify({
+            const fallbackLines = textResponse.split(/[.!?]/).filter((l: string) => l.trim().length > 20);
+            return fallbackLines.slice(0, actualSnippetCount).map((line: string, idx: number) => JSON.stringify({
                 type: 'fact',
                 content: line.trim(),
                 label: 'Learning Point'
@@ -406,12 +474,17 @@ export async function generateSnippets(
         const mode = modePreference === 'offline' ? 'offline' : 'online';
 
         if (mode === 'offline') {
-            // Check if an offline model is selected and downloaded
+            // Check if an offline model is selected and downloaded (or Apple AI)
             const selectedOfflineModel = await AsyncStorage.getItem("selectedOfflineModel");
             const downloadedModelsStr = await AsyncStorage.getItem("downloadedOfflineModels");
             const downloadedModels = downloadedModelsStr ? JSON.parse(downloadedModelsStr) : [];
+            const isAppleAI = selectedOfflineModel === 'apple-intelligence';
 
-            if (selectedOfflineModel && downloadedModels.includes(selectedOfflineModel)) {
+            if (selectedOfflineModel && (downloadedModels.includes(selectedOfflineModel) || isAppleAI)) {
+                if (isAppleAI && !apple.isAvailable()) {
+                    console.log("Apple AI selected but not available, falling back to Gemini");
+                    return await generateSnippetsWithGemini(text, apiKey, numberOfSnippets, fileId);
+                }
                 console.log(`Using offline model: ${selectedOfflineModel}`);
                 return await generateSnippetsWithOfflineModel(text, selectedOfflineModel, numberOfSnippets, fileId);
             } else {

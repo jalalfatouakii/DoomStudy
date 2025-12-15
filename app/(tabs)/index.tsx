@@ -1,6 +1,7 @@
 import SnippetCard from "@/components/SnippetCard";
 import { Colors } from "@/constants/colors";
 import { ContentSnippet, Course, useCourses } from "@/context/CourseContext";
+import { useRefresh } from "@/context/RefreshContext";
 import { useTabPress } from "@/hooks/useTabPress";
 import { SnippetType } from "@/utils/contentExtractor";
 import { generateSnippets } from "@/utils/gemini";
@@ -60,6 +61,7 @@ const enrichWithAds = (items: ContentSnippet[]): ContentSnippet[] => {
 export default function Index() {
   const router = useRouter();
   const { courses, allTags, getRandomSnippets } = useCourses();
+  const { setRefreshing: setGlobalRefreshing } = useRefresh();
   const [activeIndex, setActiveIndex] = useState(0);
   const [itemHeight, setItemHeight] = useState(0);
   const mainListRef = useRef<FlatList>(null);
@@ -130,43 +132,156 @@ export default function Index() {
     mainListRef.current?.scrollToIndex({ index, animated: true });
     headerListRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.5 });
   };
-
   const refreshSnippets = async (categoryId: string) => {
     const category = categories.find(c => c.id === categoryId);
     if (!category || category.id === "specific-courses") return;
 
-    setRefreshing(prev => ({ ...prev, [categoryId]: true }));
-
-    // Simulate a brief delay for better UX
-    await new Promise(resolve => setTimeout(resolve, 300));
-
-    let newSnippets: ContentSnippet[] = [];
-    if (category.id === "for-you") {
-      newSnippets = getRandomSnippets(INITIAL_LOAD);
-    } else if (category.id.startsWith("tag-")) {
-      const tag = category.title;
-      newSnippets = getRandomSnippets(INITIAL_LOAD, [tag]);
+    // Set global refreshing state for home icon animation
+    if (categoryId === "for-you") {
+      setGlobalRefreshing(true);
     }
 
-    setCategorySnippets(prev => ({
-      ...prev,
-      [categoryId]: enrichWithAds(newSnippets),
-    }));
+    setRefreshing(prev => ({ ...prev, [categoryId]: true }));
 
-    // Update list key to force FlatList recreation
-    setListKeys(prev => ({
-      ...prev,
-      [categoryId]: (prev[categoryId] || 0) + 1,
-    }));
+    const key = await AsyncStorage.getItem("geminiKey");
+    // Check mode preference and required model availability
+    const modePreference = await AsyncStorage.getItem("modelModePreference");
+    const currentMode = modePreference === 'offline' ? 'offline' : 'online';
+    if (currentMode !== 'offline' && !key) {
+      setRefreshing(prev => ({ ...prev, [categoryId]: false }));
+      return;
+    }
 
-    setRefreshing(prev => ({ ...prev, [categoryId]: false }));
+    try {
+      // Pick courses to generate content from
+      let candidateCourses = courses;
+      if (categoryId.startsWith("tag-")) {
+        const tag = categories.find(c => c.id === categoryId)?.title;
+        if (tag) {
+          candidateCourses = courses.filter(c => c.tags.includes(tag));
+        }
+      }
+
+      if (candidateCourses.length === 0) {
+        setRefreshing(prev => ({ ...prev, [categoryId]: false }));
+        return;
+      }
+
+      // Gather all 'valid' files from these courses
+      const allFiles: { parsedText: string, courseId: string, courseName: string, fileName: string, tags: string[] }[] = [];
+
+      candidateCourses.forEach(course => {
+        course.files.forEach(f => {
+          if (f.parsedText && f.parsedText.trim().length > 0) {
+            allFiles.push({
+              parsedText: f.parsedText,
+              courseId: course.id,
+              courseName: course.title,
+              fileName: f.name,
+              tags: course.tags
+            });
+          }
+        });
+      });
+
+      if (allFiles.length === 0) {
+        setRefreshing(prev => ({ ...prev, [categoryId]: false }));
+        return;
+      }
+
+      // Shuffle files to ensure variety if we have many
+      const shuffledFiles = allFiles.sort(() => 0.5 - Math.random());
+
+      // We want ~20 snippets total
+      const TOTAL_SNIPPETS_TARGET = 20;
+
+      // Limit to max 10 files to avoid too many parallel requests, 
+      // but try to use as many as possible to be "from all files"
+      const maxFilesToUse = Math.min(shuffledFiles.length, 10);
+      const targetFiles = shuffledFiles.slice(0, maxFilesToUse);
+
+      const snippetsPerFile = Math.max(1, Math.floor(TOTAL_SNIPPETS_TARGET / targetFiles.length));
+
+      // Collect all new snippets first (without updating state)
+      const allNewSnippets: ContentSnippet[] = [];
+
+      // Generate content for each selected file SEQUENTIALLY
+      for (let i = 0; i < targetFiles.length; i++) {
+        const file = targetFiles[i];
+
+        try {
+          const fileId = `${file.courseId}-${file.fileName}`;
+          const fileSnippets = await generateSnippets(file.parsedText, key || '', snippetsPerFile, fileId);
+
+          fileSnippets.forEach((snippetStr, idx) => {
+            let type: SnippetType = 'text';
+            let content = snippetStr;
+            let answer = undefined;
+            let label = undefined;
+
+            try {
+              const parsed = JSON.parse(snippetStr);
+              if (parsed && typeof parsed === 'object' && parsed.content) {
+                type = parsed.type || 'text';
+                content = parsed.content;
+                answer = parsed.answer;
+                label = parsed.label;
+              }
+            } catch (e) {
+              // fallback
+            }
+
+            allNewSnippets.push({
+              id: `${file.courseId}-${file.fileName}-ai-gen-${Date.now()}-${idx}-${Math.random()}`,
+              type,
+              content,
+              answer,
+              label,
+              courseId: file.courseId,
+              courseName: file.courseName,
+              fileName: file.fileName,
+              tags: file.tags
+            });
+          });
+        } catch (error) {
+          console.error(`Error generating snippets for ${file.fileName}:`, error);
+        }
+      }
+
+      // Only replace old snippets once all new ones are ready
+      if (allNewSnippets.length > 0) {
+        setCategorySnippets(prev => ({
+          ...prev,
+          [categoryId]: enrichWithAds(allNewSnippets),
+        }));
+
+        // Update list key to force FlatList recreation
+        setListKeys(prev => ({
+          ...prev,
+          [categoryId]: (prev[categoryId] || 0) + 1,
+        }));
+      }
+    } catch (error) {
+      console.error("Error refreshing snippets:", error);
+    } finally {
+      setRefreshing(prev => ({ ...prev, [categoryId]: false }));
+      // Clear global refreshing state
+      if (categoryId === "for-you") {
+        setGlobalRefreshing(false);
+      }
+    }
   };
 
   const generateMoreAiContent = async (categoryId: string) => {
     if (isGeneratingMoreRef.current[categoryId]) return;
 
     const key = await AsyncStorage.getItem("geminiKey");
-    if (!key) return; // No key, no AI generation
+    // Check mode preference and required model availability
+    const modePreference = await AsyncStorage.getItem("modelModePreference");
+    const currentMode = modePreference === 'offline' ? 'offline' : 'online';
+    if (currentMode !== 'offline' && !key) {
+      return;
+    }
 
     isGeneratingMoreRef.current[categoryId] = true;
     setIsGeneratingMore(prev => ({ ...prev, [categoryId]: true }));
@@ -223,7 +338,7 @@ export default function Index() {
 
         try {
           const fileId = `${file.courseId}-${file.fileName}`;
-          const fileSnippets = await generateSnippets(file.parsedText, key, snippetsPerFile, fileId);
+          const fileSnippets = await generateSnippets(file.parsedText, key || '', snippetsPerFile, fileId);
 
           const newContentSnippets: ContentSnippet[] = [];
 

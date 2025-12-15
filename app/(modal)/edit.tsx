@@ -1,3 +1,4 @@
+import AITermsModal from "@/components/AITermsModal";
 import GeminiKeyModal from "@/components/GeminiKeyModal";
 import PdfTextExtractor from "@/components/PdfTextExtractor";
 import ProcessingModal from "@/components/ProcessingModal";
@@ -51,9 +52,11 @@ export default function EditCourse() {
 
     // AI Integration State
     const [showKeyModal, setShowKeyModal] = useState(false);
+    const [showTermsModal, setShowTermsModal] = useState(false);
     const [geminiKey, setGeminiKey] = useState<string | null>(null);
     const [isGeneratingAI, setIsGeneratingAI] = useState(false);
     const [generationStatus, setGenerationStatus] = useState("");
+    const [pendingGeneration, setPendingGeneration] = useState<(() => Promise<void>) | null>(null);
 
     // Processing Modal State
     const [processingVisible, setProcessingVisible] = useState(false);
@@ -258,61 +261,30 @@ export default function EditCourse() {
             const offlineModel = await AsyncStorage.getItem("selectedOfflineModel");
             const downloadedModelsStr = await AsyncStorage.getItem("downloadedOfflineModels");
             const downloadedModels = downloadedModelsStr ? JSON.parse(downloadedModelsStr) : [];
-            canGenerateAI = !!offlineModel && downloadedModels.includes(offlineModel);
+            const isAppleAI = offlineModel === 'apple-intelligence';
+            canGenerateAI = !!offlineModel && (downloadedModels.includes(offlineModel) || isAppleAI);
         } else {
             canGenerateAI = !!geminiKey;
         }
 
+        // Check if terms are accepted before generating AI content
+        const termsAccepted = await AsyncStorage.getItem("aiTermsAccepted");
+
+        // If we can generate AI but terms aren't accepted, show modal and wait
+        if (newFilesWithContent.length > 0 && canGenerateAI && !termsAccepted) {
+            const capturedSnippets = currentAiSnippets;
+            const capturedId = id;
+            setPendingGeneration(() => async () => {
+                const updatedSnippets = await performAIGenerationForEdit(newFilesWithContent, capturedSnippets, capturedId, currentMode);
+                await finalizeCourseUpdate(capturedId, updatedSnippets);
+            });
+            setShowTermsModal(true);
+            return;
+        }
+
         if (newFilesWithContent.length > 0 && canGenerateAI) {
-            setIsGeneratingAI(true);
-            setProcessingVisible(true);
-            setProcessingTitle("Updating Course");
-            setProcessingStep("Generating AI Content");
-            setProcessingStatus(`Using ${currentMode === 'offline' ? 'offline model' : 'Gemini'}...`);
-            setProcessingProgress(0);
-
-            try {
-                const totalFiles = newFilesWithContent.length;
-                for (let i = 0; i < totalFiles; i++) {
-                    const file = newFilesWithContent[i];
-                    setProcessingStatus(`Analyzing new file ${i + 1} of ${totalFiles}: ${file.name}...`);
-                    setProcessingProgress(i / totalFiles);
-
-                    try {
-                        // Force non-null assertion because we filtered for parsedText above
-                        const fileId = `${id}-${file.name}`;
-                        // Use unified generateSnippets function which handles both online and offline modes
-                        const snippets = await generateSnippets(file.parsedText!, geminiKey || '', 20, fileId);
-
-                        // Tag newly generated snippets
-                        const taggedSnippets = snippets.map(s => {
-                            try {
-                                const parsed = JSON.parse(s);
-                                parsed.sourceFileName = file.name;
-                                return JSON.stringify(parsed);
-                            } catch (e) {
-                                return s;
-                            }
-                        });
-
-                        currentAiSnippets.push(...taggedSnippets);
-                    } catch (err) {
-                        console.error(`Error generating snippets for ${file.name}`, err);
-                    }
-                }
-                setProcessingStatus("Finalizing course...");
-                setProcessingProgress(1);
-            } catch (error) {
-                console.error("AI Generation in Edit failed:", error);
-                Alert.alert("AI update failed", "Could not generate snippets for some files.");
-            } finally {
-                setIsGeneratingAI(false);
-                setProcessingVisible(false);
-            }
-        } else if (newFilesWithContent.length > 0 && !geminiKey) {
-            // New content but no key? Maybe prompt? 
-            // For now, proceed without AI, maybe Alert user?
-            // "You added files but no AI key is saved, so no new snippets will be generated."
+            const newSnippets = await performAIGenerationForEdit(newFilesWithContent, currentAiSnippets, id, currentMode);
+            currentAiSnippets = newSnippets;
         }
 
         await updateCourse(id, {
@@ -329,6 +301,112 @@ export default function EditCourse() {
         });
 
         setProcessingVisible(false);
+        router.back();
+    };
+
+    const performAIGenerationForEdit = async (
+        newFilesWithContent: FileState[],
+        currentAiSnippets: string[],
+        courseId: string,
+        currentMode: 'online' | 'offline'
+    ): Promise<string[]> => {
+        setIsGeneratingAI(true);
+        setProcessingVisible(true);
+        setProcessingTitle("Updating Course");
+        setProcessingStep("Generating AI Content");
+        setProcessingStatus(`Using ${currentMode === 'offline' ? 'offline model' : 'Gemini'}...`);
+        setProcessingProgress(0);
+
+        const updatedSnippets = [...currentAiSnippets];
+
+        try {
+            const totalFiles = newFilesWithContent.length;
+            for (let i = 0; i < totalFiles; i++) {
+                const file = newFilesWithContent[i];
+                setProcessingStatus(`Analyzing new file ${i + 1} of ${totalFiles}: ${file.name}...`);
+                setProcessingProgress(i / totalFiles);
+
+                try {
+                    // Force non-null assertion because we filtered for parsedText above
+                    const fileId = `${courseId}-${file.name}`;
+                    // Use unified generateSnippets function which handles both online and offline modes
+                    const snippets = await generateSnippets(file.parsedText!, geminiKey || '', 20, fileId);
+
+                    // Tag newly generated snippets
+                    const taggedSnippets = snippets.map(s => {
+                        try {
+                            const parsed = JSON.parse(s);
+                            parsed.sourceFileName = file.name;
+                            return JSON.stringify(parsed);
+                        } catch (e) {
+                            return s;
+                        }
+                    });
+
+                    updatedSnippets.push(...taggedSnippets);
+                } catch (err) {
+                    console.error(`Error generating snippets for ${file.name}`, err);
+                }
+            }
+            setProcessingStatus("Finalizing course...");
+            setProcessingProgress(1);
+        } catch (error) {
+            console.error("AI Generation in Edit failed:", error);
+            Alert.alert("AI update failed", "Could not generate snippets for some files.");
+        } finally {
+            setIsGeneratingAI(false);
+            setProcessingVisible(false);
+        }
+
+        return updatedSnippets;
+    };
+
+    const finalizeCourseUpdate = async (courseId: string, aiSnippets: string[]) => {
+        await updateCourse(courseId, {
+            title,
+            description,
+            tags,
+            files: files.map(f => ({
+                name: f.name,
+                size: f.size,
+                uri: f.uri,
+                parsedText: f.parsedText
+            })),
+            aiSnippets
+        });
+
+        setProcessingVisible(false);
+        router.back();
+    };
+
+    const handleTermsAccepted = async () => {
+        setShowTermsModal(false);
+        if (pendingGeneration) {
+            await pendingGeneration();
+            setPendingGeneration(null);
+        }
+    };
+
+    const handleTermsDeclined = async () => {
+        setShowTermsModal(false);
+        setPendingGeneration(null);
+        // Proceed without AI generation - update course with existing snippets
+        const existingCourse = courses.find(c => c.id === id);
+        const currentAiSnippets = existingCourse?.aiSnippets ? [...existingCourse.aiSnippets] : [];
+
+        await updateCourse(id!, {
+            title,
+            description,
+            tags,
+            files: files.map(f => ({
+                name: f.name,
+                size: f.size,
+                uri: f.uri,
+                parsedText: f.parsedText
+            })),
+            aiSnippets: currentAiSnippets
+        });
+
         router.back();
     };
 
@@ -364,6 +442,12 @@ export default function EditCourse() {
                 visible={showKeyModal}
                 onClose={() => setShowKeyModal(false)}
                 onSave={handleKeySaved}
+            />
+
+            <AITermsModal
+                visible={showTermsModal}
+                onAccept={handleTermsAccepted}
+                onDecline={handleTermsDeclined}
             />
 
             <ProcessingModal

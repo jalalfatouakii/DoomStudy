@@ -21,6 +21,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useCourses } from "@/context/CourseContext";
 import { useStats } from "@/context/StatsContext";
+import { apple } from "@react-native-ai/apple";
 import { mlc } from "@react-native-ai/mlc";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { generateText } from "ai";
@@ -102,170 +103,35 @@ const EditNameModal = ({ visible, onClose, onSave, initialName }: { visible: boo
 };
 
 
-const EditGeminiKeyModal = ({ visible, onClose, onSave, initialKey }: { visible: boolean, onClose: () => void, onSave: (key: string) => void, initialKey: string }) => {
-    const [key, setKey] = useState(initialKey);
-    const fadeAnim = useRef(new Animated.Value(0)).current;
-
-    useEffect(() => {
-        if (visible) {
-            setKey(initialKey);
-            fadeAnim.setValue(0);
-            Animated.timing(fadeAnim, {
-                toValue: 1,
-                duration: 200,
-                useNativeDriver: true,
-            }).start();
-        }
-    }, [visible, initialKey]);
-
-    const animateClose = () => {
-        Animated.timing(fadeAnim, {
-            toValue: 0,
-            duration: 150,
-            useNativeDriver: true,
-        }).start(() => {
-            onClose();
-        });
-    };
-
-    const handleSave = () => {
-        onSave(key);
-        animateClose();
-    };
-
-    if (!visible) return null;
-
-    return (
-        <Modal
-            transparent
-            visible={visible}
-            onRequestClose={animateClose}
-            animationType="none"
-        >
-            <TouchableWithoutFeedback onPress={animateClose}>
-                <View style={styles.modalOverlay}>
-                    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-                        <Animated.View style={[styles.modalContent, { opacity: fadeAnim, transform: [{ scale: fadeAnim.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] }) }] }]}>
-                            <Text style={styles.modalTitle}>Edit Gemini Key</Text>
-                            <Text style={styles.modalSubtitle}>Enter your Gemini API Key</Text>
-
-                            <TextInput
-                                style={styles.input}
-                                value={key}
-                                onChangeText={setKey}
-                                placeholder="API Key"
-                                placeholderTextColor={Colors.tabIconDefault}
-                                autoFocus
-                                selectionColor={Colors.tint}
-                                autoCapitalize="none"
-                                autoCorrect={false}
-                            />
-
-                            <View style={styles.modalButtons}>
-                                <Pressable style={[styles.modalButton, styles.cancelButton]} onPress={animateClose}>
-                                    <Text style={styles.cancelButtonText}>Cancel</Text>
-                                </Pressable>
-                                <Pressable style={[styles.modalButton, styles.saveButton]} onPress={handleSave}>
-                                    <Text style={styles.saveButtonText}>Save</Text>
-                                </Pressable>
-                            </View>
-                        </Animated.View>
-                    </TouchableWithoutFeedback>
-                </View>
-            </TouchableWithoutFeedback>
-        </Modal>
-    );
-};
-
-
-
 const MODELS = [
     { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite' },
     { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
 ];
 
-const OFFLINE_MODELS = [
-    { id: 'Qwen2.5-0.5B-Instruct', name: 'Qwen 2.5 0.5B', size: '600 MB', description: 'Fast responses, basic conversations' },
-    { id: 'Llama-3.2-1B-Instruct', name: 'Llama 3.2 1B', size: '1.2 GB', description: 'Balanced performance and quality' },
-    { id: 'Llama-3.2-3B-Instruct', name: 'Llama 3.2 3B', size: '2 GB', description: 'High-quality responses, complex reasoning' },
-    { id: 'Phi-3.5-mini-instruct', name: 'Phi 3.5 Mini', size: '2.3 GB', description: 'Code generation, technical tasks' },
+const BASE_OFFLINE_MODELS = [
+    { id: 'Qwen2.5-0.5B-Instruct', name: 'Qwen 2.5 0.5B', size: '600 MB', description: 'Fast responses, basic conversations', provider: 'mlc' },
+    { id: 'Llama-3.2-1B-Instruct', name: 'Llama 3.2 1B', size: '1.2 GB', description: 'Balanced performance and quality', provider: 'mlc' },
+    { id: 'Llama-3.2-3B-Instruct', name: 'Llama 3.2 3B', size: '2 GB', description: 'High-quality responses, complex reasoning', provider: 'mlc' },
+    { id: 'Phi-3.5-mini-instruct', name: 'Phi 3.5 Mini', size: '2.3 GB', description: 'Code generation, technical tasks', provider: 'mlc' },
 ];
 
-const ModelSelectionModal = ({ visible, onClose, onSelect, currentModel }: { visible: boolean, onClose: () => void, onSelect: (modelId: string) => void, currentModel: string }) => {
-    const fadeAnim = useRef(new Animated.Value(0)).current;
+const getOfflineModels = () => {
+    const models = [...BASE_OFFLINE_MODELS];
 
-    useEffect(() => {
-        if (visible) {
-            fadeAnim.setValue(0);
-            Animated.timing(fadeAnim, {
-                toValue: 1,
-                duration: 200,
-                useNativeDriver: true,
-            }).start();
-        }
-    }, [visible]);
-
-    const animateClose = () => {
-        Animated.timing(fadeAnim, {
-            toValue: 0,
-            duration: 150,
-            useNativeDriver: true,
-        }).start(() => {
-            onClose();
+    // Add Apple AI if available
+    if (apple.isAvailable()) {
+        models.unshift({
+            id: 'apple-intelligence',
+            name: 'Apple Intelligence',
+            size: 'Built-in',
+            description: 'Native Apple AI (iOS 18+)',
+            provider: 'apple'
         });
-    };
+    }
 
-    const handleSelect = (modelId: string) => {
-        onSelect(modelId);
-        animateClose();
-    };
-
-    if (!visible) return null;
-
-    return (
-        <Modal
-            transparent
-            visible={visible}
-            onRequestClose={animateClose}
-            animationType="none"
-        >
-            <TouchableWithoutFeedback onPress={animateClose}>
-                <View style={styles.modalOverlay}>
-                    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-                        <Animated.View style={[styles.modalContent, { opacity: fadeAnim, transform: [{ scale: fadeAnim.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] }) }] }]}>
-                            <Text style={styles.modalTitle}>Select Model</Text>
-                            <Text style={styles.modalSubtitle}>Choose your preferred Gemini model</Text>
-
-                            <View style={styles.modelList}>
-                                {MODELS.map((model) => (
-                                    <TouchableOpacity
-                                        key={model.id}
-                                        style={[
-                                            styles.modelOption,
-                                            currentModel === model.id && styles.selectedModelOption
-                                        ]}
-                                        onPress={() => handleSelect(model.id)}
-                                    >
-                                        <Text style={[
-                                            styles.modelOptionText,
-                                            currentModel === model.id && styles.selectedModelOptionText
-                                        ]}>
-                                            {model.name}
-                                        </Text>
-                                        {currentModel === model.id && (
-                                            <Ionicons name="checkmark-circle" size={24} color={Colors.tint} />
-                                        )}
-                                    </TouchableOpacity>
-                                ))}
-                            </View>
-
-                        </Animated.View>
-                    </TouchableWithoutFeedback>
-                </View>
-            </TouchableWithoutFeedback>
-        </Modal>
-    );
+    return models;
 };
+
 
 
 const SNIPPET_TYPES = [
@@ -312,12 +178,20 @@ const ModelListModal = ({ visible, onClose, mode, selectedModel, selectedOffline
         const downloadedModelsStr = await AsyncStorage.getItem('downloadedOfflineModels');
         const downloadedModels = downloadedModelsStr ? JSON.parse(downloadedModelsStr) : [];
 
-        for (const model of OFFLINE_MODELS) {
-            const isDownloaded = downloadedModels.includes(model.id);
-            states[model.id] = {
-                status: isDownloaded ? 'downloaded' : 'idle',
-                progress: isDownloaded ? 1 : 0
-            };
+        for (const model of getOfflineModels()) {
+            // Apple AI is always available (no download needed)
+            if (model.id === 'apple-intelligence') {
+                states[model.id] = {
+                    status: 'downloaded',
+                    progress: 1
+                };
+            } else {
+                const isDownloaded = downloadedModels.includes(model.id);
+                states[model.id] = {
+                    status: isDownloaded ? 'downloaded' : 'idle',
+                    progress: isDownloaded ? 1 : 0
+                };
+            }
         }
         setDownloadStates(states);
     };
@@ -334,6 +208,12 @@ const ModelListModal = ({ visible, onClose, mode, selectedModel, selectedOffline
     };
 
     const handleDownload = async (modelId: string) => {
+        // Apple AI doesn't need to be downloaded
+        if (modelId === 'apple-intelligence') {
+            Alert.alert("Info", "Apple Intelligence is built-in and doesn't need to be downloaded.");
+            return;
+        }
+
         if (downloadStates[modelId]?.status === 'downloading' || downloadStates[modelId]?.status === 'preparing') {
             return;
         }
@@ -419,7 +299,7 @@ const ModelListModal = ({ visible, onClose, mode, selectedModel, selectedOffline
                 [modelId]: { status: 'downloaded', progress: 1 }
             }));
 
-            Alert.alert("Success", `Model ${OFFLINE_MODELS.find(m => m.id === modelId)?.name} downloaded and ready!`);
+            Alert.alert("Success", `Model ${getOfflineModels().find(m => m.id === modelId)?.name} downloaded and ready!`);
             onOfflineModelsUpdate();
         } catch (error) {
             if (progressInterval) clearInterval(progressInterval);
@@ -440,9 +320,15 @@ const ModelListModal = ({ visible, onClose, mode, selectedModel, selectedOffline
     };
 
     const handleDelete = async (modelId: string) => {
+        // Apple AI cannot be deleted
+        if (modelId === 'apple-intelligence') {
+            Alert.alert("Info", "Apple Intelligence is built-in and cannot be deleted.");
+            return;
+        }
+
         Alert.alert(
             "Delete Model",
-            `Are you sure you want to delete ${OFFLINE_MODELS.find(m => m.id === modelId)?.name}?`,
+            `Are you sure you want to delete ${getOfflineModels().find(m => m.id === modelId)?.name}?`,
             [
                 { text: "Cancel", style: "cancel" },
                 {
@@ -551,10 +437,11 @@ const ModelListModal = ({ visible, onClose, mode, selectedModel, selectedOffline
                         </>
                     ) : (
                         <>
-                            {OFFLINE_MODELS.map((model) => {
+                            {getOfflineModels().map((model) => {
                                 const state = downloadStates[model.id] || { status: 'idle' as const, progress: 0 };
                                 const isDownloading = state.status === 'downloading' || state.status === 'preparing';
                                 const isDownloaded = state.status === 'downloaded';
+                                const isAppleAI = model.id === 'apple-intelligence';
 
                                 return (
                                     <View key={model.id}>
@@ -563,14 +450,14 @@ const ModelListModal = ({ visible, onClose, mode, selectedModel, selectedOffline
                                                 styles.offlineModelItem,
                                                 selectedOfflineModel === model.id && styles.selectedOfflineModelItem
                                             ]}
-                                            onPress={() => isDownloaded && handleSelectOfflineModel(model.id)}
-                                            disabled={!isDownloaded}
+                                            onPress={() => (isDownloaded || isAppleAI) && handleSelectOfflineModel(model.id)}
+                                            disabled={!isDownloaded && !isAppleAI}
                                         >
                                             <View style={styles.offlineModelInfo}>
                                                 <Text style={styles.offlineModelName}>{model.name}</Text>
                                                 <Text style={styles.offlineModelSize}>~{model.size}</Text>
 
-                                                {isDownloading && (
+                                                {isDownloading && !isAppleAI && (
                                                     <View style={styles.downloadingContainer}>
                                                         <Text style={styles.downloadingText}>
                                                             {state.status === 'preparing' ? 'Preparing...' : `Downloading... ${Math.round(state.progress * 100)}%`}
@@ -585,7 +472,7 @@ const ModelListModal = ({ visible, onClose, mode, selectedModel, selectedOffline
                                             </View>
 
                                             <View style={styles.offlineModelRight}>
-                                                {isDownloaded ? (
+                                                {isDownloaded && !isAppleAI ? (
                                                     <TouchableOpacity
                                                         style={styles.deleteButton}
                                                         onPress={(e) => {
@@ -605,7 +492,7 @@ const ModelListModal = ({ visible, onClose, mode, selectedModel, selectedOffline
                                                     >
                                                         <Ionicons name="stop-circle-outline" size={20} color="#ff4444" />
                                                     </TouchableOpacity>
-                                                ) : (
+                                                ) : !isAppleAI ? (
                                                     <TouchableOpacity
                                                         style={styles.downloadButton}
                                                         onPress={(e) => {
@@ -616,7 +503,7 @@ const ModelListModal = ({ visible, onClose, mode, selectedModel, selectedOffline
                                                     >
                                                         <Ionicons name="cloud-download-outline" size={20} color={"black"} />
                                                     </TouchableOpacity>
-                                                )}
+                                                ) : null}
                                             </View>
                                         </TouchableOpacity>
                                     </View>
@@ -697,7 +584,7 @@ const ModelPreferencesModal = ({ visible, onClose, geminiKey, selectedModel, sel
 
     const currentModelName = mode === 'online'
         ? (MODELS.find(m => m.id === selectedModel)?.name || selectedModel)
-        : (selectedOfflineModel ? OFFLINE_MODELS.find(m => m.id === selectedOfflineModel)?.name || selectedOfflineModel : 'None selected');
+        : (selectedOfflineModel ? getOfflineModels().find(m => m.id === selectedOfflineModel)?.name || selectedOfflineModel : 'None selected');
 
     return (
         <>
@@ -933,14 +820,26 @@ const OfflineModelTestModal = ({ visible, onClose, modelId }: {
         setOutputText("");
 
         try {
-            const languageModel = mlc.languageModel(modelId);
+            const isAppleAI = modelId === 'apple-intelligence';
 
-            // Ensure model is prepared
-            await languageModel.prepare();
+            if (isAppleAI && !apple.isAvailable()) {
+                setOutputText("Error: Apple Intelligence is not available on this device");
+                setIsGenerating(false);
+                return;
+            }
+
+            let languageModel;
+            if (isAppleAI) {
+                languageModel = apple.languageModel();
+            } else {
+                languageModel = mlc.languageModel(modelId);
+                // Ensure model is prepared
+                await languageModel.prepare();
+            }
 
             // Generate response using generateText from ai package
             const result = await generateText({
-                model: languageModel,
+                model: languageModel as any,
                 prompt: inputText,
             });
 
@@ -955,7 +854,7 @@ const OfflineModelTestModal = ({ visible, onClose, modelId }: {
 
     if (!visible) return null;
 
-    const modelName = modelId ? OFFLINE_MODELS.find(m => m.id === modelId)?.name : "Unknown Model";
+    const modelName = modelId ? getOfflineModels().find(m => m.id === modelId)?.name : "Unknown Model";
 
     return (
         <Modal
@@ -1003,331 +902,6 @@ const OfflineModelTestModal = ({ visible, onClose, modelId }: {
                                     </ScrollView>
                                 </View>
                             ) : null}
-
-                            <TouchableOpacity style={[styles.cancelRedButton]} onPress={animateClose}>
-                                <Text style={styles.cancelRedButtonText}>Close</Text>
-                            </TouchableOpacity>
-                        </Animated.View>
-                    </TouchableWithoutFeedback>
-                </View>
-            </TouchableWithoutFeedback>
-        </Modal>
-    );
-};
-
-const OfflineModelsModal = ({ visible, onClose, onSelect, currentModel }: {
-    visible: boolean,
-    onClose: () => void,
-    onSelect?: (modelId: string) => void,
-    currentModel?: string | null
-}) => {
-    const fadeAnim = useRef(new Animated.Value(0)).current;
-    const [downloadStates, setDownloadStates] = useState<Record<string, DownloadState>>({});
-    const [downloadingModelId, setDownloadingModelId] = useState<string | null>(null);
-    const downloadCancelRef = useRef<Record<string, boolean>>({});
-
-    useEffect(() => {
-        if (visible) {
-            fadeAnim.setValue(0);
-            Animated.timing(fadeAnim, {
-                toValue: 1,
-                duration: 200,
-                useNativeDriver: true,
-            }).start();
-            checkDownloadedModels();
-        }
-    }, [visible]);
-
-    const checkDownloadedModels = async () => {
-        const states: Record<string, DownloadState> = {};
-
-        // Check AsyncStorage for tracked downloads
-        const downloadedModelsStr = await AsyncStorage.getItem('downloadedOfflineModels');
-        const downloadedModels = downloadedModelsStr ? JSON.parse(downloadedModelsStr) : [];
-
-        for (const model of OFFLINE_MODELS) {
-            const isDownloaded = downloadedModels.includes(model.id);
-            states[model.id] = {
-                status: isDownloaded ? 'downloaded' : 'idle',
-                progress: isDownloaded ? 1 : 0
-            };
-        }
-
-        setDownloadStates(states);
-    };
-
-    const handleStopDownload = (modelId: string) => {
-        downloadCancelRef.current[modelId] = true;
-        setDownloadStates(prev => ({
-            ...prev,
-            [modelId]: { status: 'idle', progress: 0 }
-        }));
-        if (downloadingModelId === modelId) {
-            setDownloadingModelId(null);
-        }
-    };
-
-    const handleDownload = async (modelId: string) => {
-        if (downloadStates[modelId]?.status === 'downloading' || downloadStates[modelId]?.status === 'preparing') {
-            return;
-        }
-
-        downloadCancelRef.current[modelId] = false;
-        setDownloadingModelId(modelId);
-        setDownloadStates(prev => ({
-            ...prev,
-            [modelId]: { status: 'downloading', progress: 0 }
-        }));
-
-        let progressInterval: NodeJS.Timeout | null = null;
-        const downloadStartTime = Date.now();
-        try {
-            const languageModel = mlc.languageModel(modelId);
-
-            // Simulate progress updates during download with time-based estimation
-            // Progress slows down as it approaches 85% to be more realistic
-            progressInterval = setInterval(() => {
-                if (downloadCancelRef.current[modelId]) {
-                    if (progressInterval) clearInterval(progressInterval);
-                    return;
-                }
-
-                // Time-based progress that slows down exponentially
-                const elapsed = Date.now() - downloadStartTime;
-                // Estimate: small models ~30s, large models ~120s
-                // Use exponential curve that approaches 85% but never quite reaches it
-                const estimatedDuration = 60000; // 60 seconds estimate
-                const progressValue = Math.min(0.85 * (1 - Math.exp(-elapsed / (estimatedDuration * 0.5))), 0.85);
-
-                setDownloadStates(prev => ({
-                    ...prev,
-                    [modelId]: { status: 'downloading', progress: progressValue }
-                }));
-            }, 300); // Update every 300ms for smoother progress
-
-            // Download the model
-            await languageModel.download();
-
-            if (progressInterval) clearInterval(progressInterval);
-
-            // Immediately set to 85% when download completes
-            setDownloadStates(prev => ({
-                ...prev,
-                [modelId]: { status: 'downloading', progress: 0.85 }
-            }));
-
-            if (downloadCancelRef.current[modelId]) {
-                setDownloadStates(prev => ({
-                    ...prev,
-                    [modelId]: { status: 'idle', progress: 0 }
-                }));
-                setDownloadingModelId(null);
-                return;
-            }
-
-            // Prepare the model
-            setDownloadStates(prev => ({
-                ...prev,
-                [modelId]: { status: 'preparing', progress: 0.9 }
-            }));
-
-            await languageModel.prepare();
-
-            if (downloadCancelRef.current[modelId]) {
-                setDownloadStates(prev => ({
-                    ...prev,
-                    [modelId]: { status: 'idle', progress: 0 }
-                }));
-                setDownloadingModelId(null);
-                return;
-            }
-
-            // Track successful download in AsyncStorage
-            const downloadedModelsStr = await AsyncStorage.getItem('downloadedOfflineModels');
-            const downloadedModels = downloadedModelsStr ? JSON.parse(downloadedModelsStr) : [];
-            if (!downloadedModels.includes(modelId)) {
-                downloadedModels.push(modelId);
-                await AsyncStorage.setItem('downloadedOfflineModels', JSON.stringify(downloadedModels));
-            }
-
-            setDownloadStates(prev => ({
-                ...prev,
-                [modelId]: { status: 'downloaded', progress: 1 }
-            }));
-
-            Alert.alert("Success", `Model ${OFFLINE_MODELS.find(m => m.id === modelId)?.name} downloaded and ready!`);
-        } catch (error) {
-            if (progressInterval) clearInterval(progressInterval);
-            if (!downloadCancelRef.current[modelId]) {
-                console.error(`Error downloading model ${modelId}:`, error);
-                Alert.alert("Error", `Failed to download model: ${error instanceof Error ? error.message : 'Unknown error'}`);
-                setDownloadStates(prev => ({
-                    ...prev,
-                    [modelId]: { status: 'idle', progress: 0 }
-                }));
-            }
-        } finally {
-            if (downloadingModelId === modelId) {
-                setDownloadingModelId(null);
-            }
-            delete downloadCancelRef.current[modelId];
-        }
-    };
-
-    const handleDelete = async (modelId: string) => {
-        Alert.alert(
-            "Delete Model",
-            `Are you sure you want to delete ${OFFLINE_MODELS.find(m => m.id === modelId)?.name}?`,
-            [
-                { text: "Cancel", style: "cancel" },
-                {
-                    text: "Delete",
-                    style: "destructive",
-                    onPress: async () => {
-                        try {
-                            const languageModel = mlc.languageModel(modelId);
-                            await languageModel.remove();
-
-                            // Remove from AsyncStorage tracking
-                            const downloadedModelsStr = await AsyncStorage.getItem('downloadedOfflineModels');
-                            const downloadedModels = downloadedModelsStr ? JSON.parse(downloadedModelsStr) : [];
-                            const updatedModels = downloadedModels.filter((id: string) => id !== modelId);
-                            await AsyncStorage.setItem('downloadedOfflineModels', JSON.stringify(updatedModels));
-
-                            // If the deleted model was selected, select another available model
-                            const currentSelected = await AsyncStorage.getItem("selectedOfflineModel");
-                            if (currentSelected === modelId) {
-                                if (updatedModels.length > 0) {
-                                    // Select the first available downloaded model
-                                    await AsyncStorage.setItem("selectedOfflineModel", updatedModels[0]);
-                                    if (onSelect) {
-                                        onSelect(updatedModels[0]);
-                                    }
-                                } else {
-                                    // No models available, clear selection
-                                    await AsyncStorage.removeItem("selectedOfflineModel");
-                                    if (onSelect) {
-                                        onSelect('');
-                                    }
-                                }
-                            }
-
-                            setDownloadStates(prev => ({
-                                ...prev,
-                                [modelId]: { status: 'idle', progress: 0 }
-                            }));
-                            Alert.alert("Success", "Model deleted successfully");
-                        } catch (error) {
-                            console.error(`Error deleting model ${modelId}:`, error);
-                            Alert.alert("Error", "Failed to delete model");
-                        }
-                    }
-                }
-            ]
-        );
-    };
-
-    const animateClose = () => {
-        Animated.timing(fadeAnim, {
-            toValue: 0,
-            duration: 150,
-            useNativeDriver: true,
-        }).start(() => {
-            onClose();
-        });
-    };
-
-    if (!visible) return null;
-
-    return (
-        <Modal
-            transparent
-            visible={visible}
-            onRequestClose={animateClose}
-            animationType="none"
-        >
-            <TouchableWithoutFeedback onPress={animateClose}>
-                <View style={styles.modalOverlay}>
-                    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-                        <Animated.View style={[styles.modalContent, { opacity: fadeAnim, transform: [{ scale: fadeAnim.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] }) }] }]}>
-                            <Text style={styles.modalTitle}>Offline Models</Text>
-                            <Text style={styles.modalSubtitle}>Download and select models for offline use</Text>
-
-                            <ScrollView style={styles.modelList} showsVerticalScrollIndicator={false}>
-                                {OFFLINE_MODELS.map((model) => {
-                                    const state = downloadStates[model.id] || { status: 'idle' as const, progress: 0 };
-                                    const isDownloading = state.status === 'downloading' || state.status === 'preparing';
-                                    const isDownloaded = state.status === 'downloaded';
-
-                                    return (
-                                        <View key={model.id} style={styles.offlineModelItem}>
-                                            <View style={styles.offlineModelInfo}>
-                                                <Text style={styles.offlineModelName}>{model.name}</Text>
-                                                <Text style={styles.offlineModelSize}>{model.size}</Text>
-
-                                                {isDownloading && (
-                                                    <View style={styles.downloadingContainer}>
-                                                        <Text style={styles.downloadingText}>
-                                                            {state.status === 'preparing' ? 'Preparing...' : `Downloading... ${Math.round(state.progress * 100)}%`}
-                                                        </Text>
-                                                        {state.status === 'downloading' && (
-                                                            <View style={styles.progressBarContainer}>
-                                                                <View style={[styles.progressBar, { width: `${state.progress * 100}%` }]} />
-                                                            </View>
-                                                        )}
-                                                    </View>
-                                                )}
-                                            </View>
-
-                                            <View style={styles.offlineModelActions}>
-                                                {isDownloaded ? (
-                                                    <>
-                                                        {onSelect && (
-                                                            <TouchableOpacity
-                                                                style={[
-                                                                    styles.selectButton,
-                                                                    currentModel === model.id && styles.selectButtonActive
-                                                                ]}
-                                                                onPress={() => onSelect(model.id)}
-                                                            >
-                                                                {currentModel === model.id ? (
-                                                                    <Ionicons name="checkmark-circle" size={24} color={Colors.tint} />
-                                                                ) : (
-                                                                    <Ionicons name="radio-button-off-outline" size={24} color={Colors.tabIconDefault} />
-                                                                )}
-                                                            </TouchableOpacity>
-                                                        )}
-                                                        {!onSelect && (
-                                                            <Ionicons name="checkmark-circle" size={24} color={Colors.tint} />
-                                                        )}
-                                                        <TouchableOpacity
-                                                            style={styles.deleteButton}
-                                                            onPress={() => handleDelete(model.id)}
-                                                        >
-                                                            <Ionicons name="trash-outline" size={20} color="#ff4444" />
-                                                        </TouchableOpacity>
-                                                    </>
-                                                ) : isDownloading ? (
-                                                    <TouchableOpacity
-                                                        style={styles.stopButton}
-                                                        onPress={() => handleStopDownload(model.id)}
-                                                    >
-                                                        <Ionicons name="stop-circle-outline" size={20} color="#ff4444" />
-                                                    </TouchableOpacity>
-                                                ) : (
-                                                    <TouchableOpacity
-                                                        style={styles.downloadButton}
-                                                        onPress={() => handleDownload(model.id)}
-                                                        disabled={downloadingModelId !== null}
-                                                    >
-                                                        <Ionicons name="cloud-download-outline" size={20} color={"black"} />
-                                                    </TouchableOpacity>
-                                                )}
-                                            </View>
-                                        </View>
-                                    );
-                                })}
-                            </ScrollView>
 
                             <TouchableOpacity style={[styles.cancelRedButton]} onPress={animateClose}>
                                 <Text style={styles.cancelRedButtonText}>Close</Text>
@@ -1623,67 +1197,6 @@ export default function Settings() {
         );
     };
 
-    const handleCleanupIncompleteDownloads = async () => {
-        Alert.alert(
-            "Clean Up Incomplete Downloads",
-            "This will remove all model files from storage and re-download only the properly tracked models. This will free up space from incomplete downloads. Continue?",
-            [
-                { text: "Cancel", style: "cancel" },
-                {
-                    text: "Clean Up",
-                    style: "destructive",
-                    onPress: async () => {
-                        try {
-                            // Get the list of properly tracked models
-                            const downloadedModelsStr = await AsyncStorage.getItem("downloadedOfflineModels");
-                            const trackedModels = downloadedModelsStr ? JSON.parse(downloadedModelsStr) : [];
-
-                            // Remove all models from storage
-                            for (const model of OFFLINE_MODELS) {
-                                try {
-                                    const languageModel = mlc.languageModel(model.id);
-                                    await languageModel.remove();
-                                } catch (error) {
-                                    // Ignore errors if model doesn't exist
-                                    console.log(`Model ${model.id} not found in storage, skipping`);
-                                }
-                            }
-
-                            // Re-download and prepare only the tracked models
-                            let successCount = 0;
-                            let failCount = 0;
-
-                            for (const modelId of trackedModels) {
-                                try {
-                                    const languageModel = mlc.languageModel(modelId);
-                                    await languageModel.download();
-                                    await languageModel.prepare();
-                                    successCount++;
-                                } catch (error) {
-                                    console.error(`Failed to re-download ${modelId}:`, error);
-                                    failCount++;
-                                    // Remove from tracking if it fails to download
-                                    const updatedModels = trackedModels.filter((id: string) => id !== modelId);
-                                    await AsyncStorage.setItem("downloadedOfflineModels", JSON.stringify(updatedModels));
-                                }
-                            }
-
-                            // Update the state
-                            await handleOfflineModelsUpdate();
-
-                            Alert.alert(
-                                "Cleanup Complete",
-                                `Successfully cleaned up storage.\nRe-downloaded: ${successCount} model(s)\nFailed: ${failCount} model(s)`
-                            );
-                        } catch (error) {
-                            console.error("Error during cleanup:", error);
-                            Alert.alert("Error", "Failed to clean up incomplete downloads");
-                        }
-                    }
-                }
-            ]
-        );
-    };
 
     const ActionItem = ({ icon, title, onPress }: any) => (
         <TouchableOpacity style={styles.settingItem} onPress={onPress}>
