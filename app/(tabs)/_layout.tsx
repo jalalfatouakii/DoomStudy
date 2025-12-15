@@ -1,4 +1,5 @@
 import { Colors } from "@/constants/colors";
+import { useRefresh } from "@/context/RefreshContext";
 import { emitTabPress } from "@/hooks/useTabPress";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -107,33 +108,58 @@ function AnimatedAddButton() {
 }
 
 function AnimatedHomeButton({ focused, spinTrigger }: { focused: boolean; spinTrigger: number }) {
+    const { isRefreshing } = useRefresh();
     const spinValue = useRef(new Animated.Value(0)).current;
     const [isSpinning, setIsSpinning] = useState(false);
     const prevSpinTriggerRef = useRef(spinTrigger);
+    const rotationAnim = useRef(new Animated.Value(0)).current;
 
+    // Handle continuous spinning while refreshing
     useEffect(() => {
-        // Only spin if the trigger actually changed (not initial render)
-        if (spinTrigger > 0 && spinTrigger !== prevSpinTriggerRef.current) {
+        if (isRefreshing) {
             setIsSpinning(true);
-            spinValue.setValue(0);
-            Animated.timing(spinValue, {
-                toValue: 1,
-                duration: 800,
-                useNativeDriver: true,
-            }).start(() => setIsSpinning(false));
+            // Start continuous rotation animation
+            rotationAnim.setValue(0);
+            Animated.loop(
+                Animated.timing(rotationAnim, {
+                    toValue: 1,
+                    duration: 1000,
+                    useNativeDriver: true,
+                })
+            ).start();
+        } else {
+            // Stop continuous rotation
+            rotationAnim.stopAnimation();
+            setIsSpinning(false);
+            // Do a quick spin animation when refresh completes
+            if (spinTrigger > 0 && spinTrigger !== prevSpinTriggerRef.current) {
+                spinValue.setValue(0);
+                Animated.timing(spinValue, {
+                    toValue: 1,
+                    duration: 300,
+                    useNativeDriver: true,
+                }).start();
+            }
+            prevSpinTriggerRef.current = spinTrigger;
         }
-        prevSpinTriggerRef.current = spinTrigger;
-    }, [spinTrigger]);
+    }, [isRefreshing, spinTrigger]);
 
-    const spin = spinValue.interpolate({
+    const continuousSpin = rotationAnim.interpolate({
         inputRange: [0, 1],
         outputRange: ['0deg', '360deg'],
     });
 
+    const quickSpin = spinValue.interpolate({
+        inputRange: [0, 1],
+        outputRange: ['0deg', '360deg'],
+    });
+
+    const rotation = isRefreshing ? continuousSpin : (spinTrigger > 0 ? quickSpin : '0deg');
+
     return (
-        <Animated.View style={{ transform: [{ rotate: isSpinning ? spin : '0deg' }] }}>
+        <Animated.View style={{ transform: [{ rotate: rotation }] }}>
             <Ionicons
-                name={isSpinning ? "refresh" : (focused ? "home" : "home-outline")}
+                name={isRefreshing || isSpinning ? "refresh" : (focused ? "home" : "home-outline")}
                 size={24}
                 color={focused ? Colors.tint : Colors.tabIconDefault}
             />

@@ -1,6 +1,7 @@
 import SnippetCard from "@/components/SnippetCard";
 import { Colors } from "@/constants/colors";
 import { ContentSnippet, Course, useCourses } from "@/context/CourseContext";
+import { useRefresh } from "@/context/RefreshContext";
 import { useTabPress } from "@/hooks/useTabPress";
 import { SnippetType } from "@/utils/contentExtractor";
 import { generateSnippets } from "@/utils/gemini";
@@ -60,6 +61,7 @@ const enrichWithAds = (items: ContentSnippet[]): ContentSnippet[] => {
 export default function Index() {
   const router = useRouter();
   const { courses, allTags, getRandomSnippets } = useCourses();
+  const { setRefreshing: setGlobalRefreshing } = useRefresh();
   const [activeIndex, setActiveIndex] = useState(0);
   const [itemHeight, setItemHeight] = useState(0);
   const mainListRef = useRef<FlatList>(null);
@@ -130,9 +132,14 @@ export default function Index() {
     mainListRef.current?.scrollToIndex({ index, animated: true });
     headerListRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.5 });
   };
-   const refreshSnippets = async (categoryId: string) => {
+  const refreshSnippets = async (categoryId: string) => {
     const category = categories.find(c => c.id === categoryId);
     if (!category || category.id === "specific-courses") return;
+
+    // Set global refreshing state for home icon animation
+    if (categoryId === "for-you") {
+      setGlobalRefreshing(true);
+    }
 
     setRefreshing(prev => ({ ...prev, [categoryId]: true }));
 
@@ -258,6 +265,10 @@ export default function Index() {
       console.error("Error refreshing snippets:", error);
     } finally {
       setRefreshing(prev => ({ ...prev, [categoryId]: false }));
+      // Clear global refreshing state
+      if (categoryId === "for-you") {
+        setGlobalRefreshing(false);
+      }
     }
   };
 
