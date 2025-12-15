@@ -87,6 +87,11 @@ export default function Onboarding() {
     }).current;
 
     const handleNext = async () => {
+        // Hide keyboard if we're on the name input slide
+        if (currentIndex === 0) {
+            Keyboard.dismiss();
+        }
+
         if (currentIndex < slides.length - 1) {
             flatListRef.current?.scrollToIndex({
                 index: currentIndex + 1,
