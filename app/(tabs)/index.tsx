@@ -462,7 +462,14 @@ export default function Index() {
     return (
       <TouchableOpacity
         style={[styles.verticalItem, { height: itemHeight }]}
-        onPress={() => router.push({ pathname: "/course/[id]", params: { id: item.courseId, snippetId: item.id } })}
+        onPress={() => router.push({
+          pathname: "/course/[id]",
+          params: {
+            id: item.courseId,
+            snippetId: item.id,
+            snippetData: JSON.stringify(item)
+          }
+        })}
         activeOpacity={0.9}
       >
         <SnippetCard snippet={item} height={itemHeight ? itemHeight * 0.85 : undefined} />
