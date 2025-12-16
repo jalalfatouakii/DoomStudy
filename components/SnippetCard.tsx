@@ -134,16 +134,19 @@ export default function SnippetCard({ snippet, height }: SnippetCardProps) {
 
 const styles = StyleSheet.create({
     card: {
-        backgroundColor: Colors.backgroundLighter,
+        backgroundColor: 'rgba(0, 0, 0, 0.4)', // More transparent for TikTok-style immersion
         borderRadius: 24,
         padding: 24,
         width: "100%",
         justifyContent: "space-between",
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 12,
-        elevation: 5,
+        shadowOpacity: 0.6,
+        shadowRadius: 20,
+        elevation: 8,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.15)',
+        backdropFilter: 'blur(10px)', // Glass effect (may not work on all platforms)
     },
     header: {
         flexDirection: "row",
@@ -166,6 +169,9 @@ const styles = StyleSheet.create({
         textTransform: "uppercase",
         letterSpacing: 1,
         maxWidth: "50%",
+        textShadowColor: 'rgba(0, 0, 0, 0.5)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 4,
     },
     contentContainer: {
         flex: 1,
@@ -177,6 +183,9 @@ const styles = StyleSheet.create({
         color: Colors.text,
         lineHeight: 32,
         marginBottom: 24,
+        textShadowColor: 'rgba(0, 0, 0, 0.75)',
+        textShadowOffset: { width: 0, height: 2 },
+        textShadowRadius: 8,
     },
     conceptText: {
         fontWeight: "700",
@@ -222,6 +231,9 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: Colors.text,
         lineHeight: 24,
+        textShadowColor: 'rgba(0, 0, 0, 0.5)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 4,
     },
     footer: {
         marginTop: 24,
@@ -230,6 +242,9 @@ const styles = StyleSheet.create({
     metaText: {
         color: Colors.tabIconDefault,
         fontSize: 13,
+        textShadowColor: 'rgba(0, 0, 0, 0.5)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 3,
     },
     tagsRow: {
         flexDirection: 'row',

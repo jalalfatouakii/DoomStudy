@@ -1,4 +1,5 @@
 import SnippetCard from "@/components/SnippetCard";
+import VideoBackground from "@/components/VideoBackground";
 import { Colors } from "@/constants/colors";
 import { ContentSnippet, Course, useCourses } from "@/context/CourseContext";
 import { useRefresh } from "@/context/RefreshContext";
@@ -28,7 +29,7 @@ import {
 
 import NativeAdCard from "@/components/NativeAdCard"; // [NEW]
 
-const { width } = Dimensions.get("window");
+const { width, height: screenHeight } = Dimensions.get("window");
 const INITIAL_LOAD = 20;
 const LOAD_MORE_COUNT = 10;
 const GENERATION_THRESHOLD = 10;
@@ -450,32 +451,38 @@ export default function Index() {
     }
   }, []);
 
-  const renderSnippetItem = useCallback(({ item }: { item: ContentSnippet }) => {
+  const renderSnippetItem = useCallback(({ item, index }: { item: ContentSnippet; index?: number }) => {
     if (item.type === 'ad') {
       return (
-        <View style={[styles.verticalItem, { height: itemHeight }]}>
-          <NativeAdCard height={itemHeight ? itemHeight * 0.5 : undefined} />
+        <View style={styles.verticalItem}>
+          <VideoBackground isVisible={true} videoIndex={index || 0} />
+          <View style={styles.contentOverlay}>
+            <NativeAdCard height={screenHeight * 0.5} />
+          </View>
         </View>
       );
     }
 
     return (
-      <TouchableOpacity
-        style={[styles.verticalItem, { height: itemHeight }]}
-        onPress={() => router.push({
-          pathname: "/course/[id]",
-          params: {
-            id: item.courseId,
-            snippetId: item.id,
-            snippetData: JSON.stringify(item)
-          }
-        })}
-        activeOpacity={0.9}
-      >
-        <SnippetCard snippet={item} height={itemHeight ? itemHeight * 0.85 : undefined} />
-      </TouchableOpacity>
+      <View style={styles.verticalItem}>
+        <VideoBackground isVisible={true} videoIndex={index || 0} />
+        <TouchableOpacity
+          style={styles.contentOverlay}
+          onPress={() => router.push({
+            pathname: "/course/[id]",
+            params: {
+              id: item.courseId,
+              snippetId: item.id,
+              snippetData: JSON.stringify(item)
+            }
+          })}
+          activeOpacity={0.9}
+        >
+          <SnippetCard snippet={item} height={screenHeight * 0.65} />
+        </TouchableOpacity>
+      </View>
     );
-  }, [itemHeight, router]);
+  }, [router]);
 
   const renderCourseItem = ({ item }: { item: Course }) => (
     <TouchableOpacity
@@ -515,7 +522,7 @@ export default function Index() {
   const renderCategoryPage = ({ item: category }: { item: typeof categories[0] }) => {
     if (category.id === "specific-courses") {
       return (
-        <View style={{ width, height: "100%", paddingTop: 100 }}>
+        <View style={{ width, height: screenHeight, paddingTop: 100, backgroundColor: Colors.backgroundSecondary }}>
           {courses.length === 0 ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyStateText}>No courses yet. Add one!</Text>
@@ -552,7 +559,7 @@ export default function Index() {
     }
 
     return (
-      <View style={{ width, height: "100%" }}>
+      <View style={{ width, height: screenHeight }}>
         <FlatList
           key={`${category.id}-${listKeys[category.id] || 0}`}
           ref={(ref) => { verticalListRefs.current[category.id] = ref; }}
@@ -561,7 +568,11 @@ export default function Index() {
           renderItem={renderSnippetItem}
           pagingEnabled
           showsVerticalScrollIndicator={false}
-          onLayout={(e) => setItemHeight(e.nativeEvent.layout.height)}
+          getItemLayout={(data, index) => ({
+            length: screenHeight,
+            offset: screenHeight * index,
+            index,
+          })}
           onEndReached={() => {
             loadMoreSnippets(category.id);
             // Also try to generate AI content if we are running low or just periodically
@@ -653,7 +664,7 @@ export default function Index() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.backgroundSecondary,
+    backgroundColor: 'transparent',
   },
   headerContainer: {
     position: "absolute",
@@ -685,16 +696,22 @@ const styles = StyleSheet.create({
     opacity: 1,
     fontSize: 17,
     fontWeight: "bold",
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: { width: -1, height: 1 },
-    textShadowRadius: 10
   },
   verticalItem: {
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: Colors.backgroundSecondary,
-    paddingTop: 120,
-    paddingBottom: 30,
+    backgroundColor: 'transparent',
+    width: width,
+    height: screenHeight,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  contentOverlay: {
+    flex: 1,
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1,
     paddingHorizontal: 20,
   },
   snippetCard: {

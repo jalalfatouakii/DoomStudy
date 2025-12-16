@@ -1,4 +1,5 @@
 import SnippetCard from "@/components/SnippetCard";
+import VideoBackground from "@/components/VideoBackground";
 import { Colors } from "@/constants/colors";
 import { ContentSnippet, useCourses } from "@/context/CourseContext";
 import { SnippetType } from "@/utils/contentExtractor";
@@ -19,7 +20,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-const { height, width } = Dimensions.get("window");
+const { height: screenHeight, width } = Dimensions.get("window");
 const INITIAL_LOAD = 20;
 const LOAD_MORE_COUNT = 10;
 
@@ -28,9 +29,9 @@ export default function CourseDetail() {
     const { courses, getRandomSnippets } = useCourses();
     const router = useRouter();
     const flatListRef = useRef<FlatList>(null);
-    const [itemHeight, setItemHeight] = useState(0);
     const [snippets, setSnippets] = useState<ContentSnippet[]>([]);
     const [refreshing, setRefreshing] = useState(false);
+    const [listHeight, setListHeight] = useState(screenHeight);
 
     // AI Generation State
     const [isGeneratingMore, setIsGeneratingMore] = useState(false);
@@ -164,15 +165,18 @@ export default function CourseDetail() {
         setRefreshing(false);
     };
 
-    const renderSnippetItem = ({ item }: { item: ContentSnippet }) => (
-        <View style={[styles.verticalItem, { height: itemHeight }]}>
-            <SnippetCard snippet={item} height={itemHeight ? itemHeight * 0.85 : undefined} />
+    const renderSnippetItem = ({ item, index }: { item: ContentSnippet; index?: number }) => (
+        <View style={[styles.verticalItem, { height: listHeight }]}>
+            <VideoBackground isVisible={true} videoIndex={index || 0} />
+            <View style={styles.contentOverlay}>
+                <SnippetCard snippet={item} height={listHeight * 0.65} />
+            </View>
         </View>
     );
 
-    // Scroll to top when snippetId or snippetData is provided and itemHeight is set
+    // Scroll to top when snippetId or snippetData is provided
     useEffect(() => {
-        if ((snippetId || snippetData) && snippets.length > 0 && itemHeight > 0) {
+        if ((snippetId || snippetData) && snippets.length > 0) {
             // Use a longer delay to ensure FlatList is fully laid out
             const timeoutId = setTimeout(() => {
                 try {
@@ -184,7 +188,7 @@ export default function CourseDetail() {
             }, 300);
             return () => clearTimeout(timeoutId);
         }
-    }, [snippetId, snippetData, snippets.length, itemHeight]);
+    }, [snippetId, snippetData, snippets.length]);
 
     if (!course) {
         return (
@@ -238,29 +242,23 @@ export default function CourseDetail() {
                 renderItem={renderSnippetItem}
                 pagingEnabled
                 showsVerticalScrollIndicator={false}
+                style={styles.list}
                 onLayout={(e) => {
-                    const newHeight = e.nativeEvent.layout.height;
-                    setItemHeight(newHeight);
-                    // Scroll to top immediately after layout if we have a snippetId or snippetData
-                    if ((snippetId || snippetData) && newHeight > 0) {
-                        setTimeout(() => {
-                            flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
-                        }, 50);
+                    const height = e.nativeEvent.layout.height;
+                    if (height > 0) {
+                        setListHeight(height);
                     }
                 }}
-                style={styles.list}
-                getItemLayout={itemHeight > 0 ? (data, index) => ({
-                    length: itemHeight,
-                    offset: itemHeight * index,
+                getItemLayout={(data, index) => ({
+                    length: listHeight,
+                    offset: listHeight * index,
                     index,
-                }) : undefined}
+                })}
                 onScrollToIndexFailed={(info) => {
                     // Fallback if scroll fails - scroll to offset instead
                     const wait = new Promise(resolve => setTimeout(resolve, 500));
                     wait.then(() => {
-                        if (itemHeight > 0) {
-                            flatListRef.current?.scrollToOffset({ offset: itemHeight * info.index, animated: false });
-                        }
+                        flatListRef.current?.scrollToOffset({ offset: listHeight * info.index, animated: false });
                     });
                 }}
                 onScroll={() => {
@@ -304,7 +302,7 @@ export default function CourseDetail() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: Colors.background,
+        backgroundColor: 'transparent',
     },
     header: {
         flexDirection: "row",
@@ -331,9 +329,17 @@ const styles = StyleSheet.create({
     verticalItem: {
         justifyContent: "center",
         alignItems: "center",
-        backgroundColor: Colors.backgroundSecondary,
-        paddingTop: 40,
-        paddingBottom: 40,
+        backgroundColor: 'transparent',
+        width: width,
+        position: 'relative',
+        overflow: 'hidden',
+    },
+    contentOverlay: {
+        flex: 1,
+        width: '100%',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 1,
         paddingHorizontal: 20,
     },
     snippetCard: {
