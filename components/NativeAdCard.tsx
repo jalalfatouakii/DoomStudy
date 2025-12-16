@@ -208,7 +208,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     callToActionText: {
-        color: 'white',
+        color: 'black',
         fontSize: 13,
         fontWeight: 'bold',
         textAlign: 'center',

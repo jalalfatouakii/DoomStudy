@@ -67,8 +67,8 @@ Transform your study materials into an engaging, scrollable learning experience.
 
 1. Clone the repository
    ```bash
-   git clone https://github.com/yourusername/doomstudy.git
-   cd doomstudy
+   git clone https://github.com/jalalfatouakii/DoomStudy.git
+   cd DoomStudy
    ```
 
 2. Install dependencies
