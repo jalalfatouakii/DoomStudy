@@ -285,8 +285,6 @@ export default function AddCourse() {
     const handleTermsDeclined = () => {
         setShowTermsModal(false);
         setPendingGeneration(null);
-        // Proceed without AI generation
-        finalizeCourseCreation([]);
     };
 
     const filepicker = async () => {
