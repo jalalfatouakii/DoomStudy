@@ -85,13 +85,14 @@ export default function SnippetCard({ snippet, height }: SnippetCardProps) {
 
     return (
         <View style={[styles.card, { height: height || "auto" }, getCardStyle()]}>
+            {/*
             <View style={styles.header}>
                 <View style={styles.iconContainer}>
                     {renderIcon()}
                 </View>
                 <Text style={styles.label}>{renderLabel()}</Text>
             </View>
-
+            */}
             <View style={styles.contentContainer}>
                 <Text style={[styles.mainText, snippet.type === 'concept' && styles.conceptText]}>
                     {cleanContent(snippet.content)}
@@ -117,7 +118,7 @@ export default function SnippetCard({ snippet, height }: SnippetCardProps) {
                     </View>
                 )}
             </View>
-
+            {/*
             <View style={styles.footer}>
                 <Text style={styles.metaText} numberOfLines={1}>📄 {snippet.fileName}</Text>
                 <View style={styles.tagsRow}>
@@ -128,14 +129,15 @@ export default function SnippetCard({ snippet, height }: SnippetCardProps) {
                     ))}
                 </View>
             </View>
+            */}
         </View>
     );
 }
 
 const styles = StyleSheet.create({
     card: {
-        backgroundColor: 'rgba(0, 0, 0, 0.4)', // More transparent for TikTok-style immersion
-        borderRadius: 24,
+        //backgroundColor: 'rgba(0, 0, 0, 0.4)', // More transparent for TikTok-style immersion
+        //borderRadius: 24,
         padding: 24,
         width: "100%",
         justifyContent: "space-between",
@@ -144,8 +146,8 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.6,
         shadowRadius: 20,
         elevation: 8,
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.15)',
+        //borderWidth: 1,
+        //borderColor: 'rgba(255, 255, 255, 0.15)',
         backdropFilter: 'blur(10px)', // Glass effect (may not work on all platforms)
     },
     header: {
