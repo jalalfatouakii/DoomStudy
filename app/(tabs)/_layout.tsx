@@ -14,14 +14,11 @@ function AnimatedAddButton() {
     const isFocused = pathname === "/add";
 
     const router = useRouter();
-    const [isOnboarded, setIsOnboarded] = useState(false);
     const checkOnboarding = async () => {
         try {
             const hasOnboarded = await AsyncStorage.getItem("hasOnboarded");
             if (hasOnboarded !== "true") {
-                setIsOnboarded(true);
                 router.replace("/(onboarding)/onboard");
-                AsyncStorage.setItem("hasOnboarded", "true");
             }
         } catch (error) {
             console.error("Error checking onboarding status:", error);

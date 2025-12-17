@@ -237,7 +237,7 @@ const styles = StyleSheet.create({
         gap: 8,
     },
     tagBadge: {
-        backgroundColor: Colors.tint + '15',
+        backgroundColor: Colors.backgroundSecondary,
         paddingHorizontal: 10,
         paddingVertical: 5,
         borderRadius: 8,

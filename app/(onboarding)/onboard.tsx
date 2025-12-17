@@ -1,4 +1,6 @@
+import SnippetCard from "@/components/SnippetCard";
 import { Colors } from "@/constants/colors";
+import { ContentSnippet } from "@/utils/contentExtractor";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
@@ -7,17 +9,15 @@ import {
     Dimensions,
     FlatList,
     Keyboard,
-    KeyboardAvoidingView,
-    Platform,
+    ScrollView,
     StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
-    TouchableWithoutFeedback,
     View,
     ViewToken
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const { width } = Dimensions.get("window");
 
@@ -30,37 +30,77 @@ const GOALS = [
 ];
 
 const SNIPPET_TYPES = [
-    { id: 'fact', label: 'Fact', description: 'Interesting facts and insights' },
-    { id: 'concept', label: 'Concept', description: 'Key concepts explained simply' },
-    { id: 'qna', label: 'Q&A', description: 'Question and answer format' },
-    { id: 'true_false', label: 'True/False', description: 'True or false statements' },
+    { id: 'fact', label: 'Key Facts', description: 'Important facts and insights' },
+    { id: 'concept', label: 'Core Concepts', description: 'Key concepts explained simply' },
+    { id: 'qna', label: 'Practice Questions', description: 'Question and answer format' },
+    { id: 'true_false', label: 'Quick Checks', description: 'True or false statements' },
 ];
 
-const FEATURES = [
+// Mock snippet for welcome preview
+const WELCOME_SNIPPET: ContentSnippet = {
+    id: 'welcome-preview',
+    type: 'concept',
+    content: 'Active recall is a study technique where you actively retrieve information from memory, rather than passively reviewing notes. Research shows it significantly improves long-term retention.',
+    courseId: 'demo',
+    courseName: 'Study Methods',
+    fileName: 'Introduction.pdf',
+    tags: ['learning', 'memory'],
+    label: 'Key Concept'
+};
+
+const HOW_IT_WORKS_STEPS = [
     {
-        title: "Upload Content",
-        description: "Upload your lecture notes or slides",
+        step: 1,
+        title: "Upload Material",
+        description: "Add PDFs, notes, or slides from your courses",
         icon: "cloud-upload-outline" as const,
     },
     {
-        title: "Doomscroll",
-        description: "Learn through endless feed",
+        step: 2,
+        title: "Generate Snippets",
+        description: "AI transforms content into bite-sized learning cards",
+        icon: "sparkles-outline" as const,
+    },
+    {
+        step: 3,
+        title: "Learn in Feed",
+        description: "Scroll through personalized content anytime",
         icon: "phone-portrait-outline" as const,
     },
     {
+        step: 4,
         title: "Track Progress",
-        description: "Monitor your learning journey",
+        description: "Monitor streaks, time saved, and weekly activity",
         icon: "bar-chart-outline" as const,
     },
+];
+
+const POWER_FEATURES = [
     {
-        title: "100% Free",
-        description: "No hidden fees or commitments",
-        icon: "cash-outline" as const,
-    }
+        title: "Customizable",
+        description: "Choose snippet types, models, and preferences",
+        icon: "settings-outline" as const,
+    },
+    {
+        title: "Offline Ready",
+        description: "Use on-device AI or cloud models",
+        icon: "phone-portrait-outline" as const,
+    },
+    {
+        title: "Widgets",
+        description: "Quick access from your home screen",
+        icon: "grid-outline" as const,
+    },
+    {
+        title: "Stats & Insights",
+        description: "Track your learning journey",
+        icon: "analytics-outline" as const,
+    },
 ];
 
 export default function Onboarding() {
     const router = useRouter();
+    const insets = useSafeAreaInsets();
     const [currentIndex, setCurrentIndex] = useState(0);
     const flatListRef = useRef<FlatList>(null);
 
@@ -70,6 +110,7 @@ export default function Onboarding() {
     const [selectedSnippetTypes, setSelectedSnippetTypes] = useState<string[]>(['fact', 'concept', 'qna', 'true_false']);
 
     const slides = [
+        { id: "welcome", type: "welcome" },
         { id: "name", type: "input" },
         { id: "goals", type: "selection" },
         { id: "snippets", type: "snippets" },
@@ -86,25 +127,63 @@ export default function Onboarding() {
         itemVisiblePercentThreshold: 50,
     }).current;
 
+    // Provide fixed layout for FlatList to prevent height recalculation
+    const getItemLayout = (_: any, index: number) => ({
+        length: width,
+        offset: width * index,
+        index,
+    });
+
     const handleNext = async () => {
         // Hide keyboard if we're on the name input slide
-        if (currentIndex === 0) {
+        if (currentIndex === 1) {
             Keyboard.dismiss();
         }
 
         if (currentIndex < slides.length - 1) {
-            flatListRef.current?.scrollToIndex({
-                index: currentIndex + 1,
-                animated: true,
-            });
+            try {
+                flatListRef.current?.scrollToIndex({
+                    index: currentIndex + 1,
+                    animated: true,
+                });
+            } catch (error) {
+                // Fallback to scrollToOffset if scrollToIndex fails
+                flatListRef.current?.scrollToOffset({
+                    offset: (currentIndex + 1) * width,
+                    animated: true,
+                });
+            }
         } else {
             await completeOnboarding();
         }
     };
 
+    const handleBack = () => {
+        if (currentIndex > 0) {
+            Keyboard.dismiss();
+            try {
+                flatListRef.current?.scrollToIndex({
+                    index: currentIndex - 1,
+                    animated: true,
+                });
+            } catch (error) {
+                // Fallback to scrollToOffset if scrollToIndex fails
+                flatListRef.current?.scrollToOffset({
+                    offset: (currentIndex - 1) * width,
+                    animated: true,
+                });
+            }
+        }
+    };
+
+    const handleSkip = async () => {
+        Keyboard.dismiss();
+        await completeOnboarding();
+    };
+
     const completeOnboarding = async () => {
         try {
-            await AsyncStorage.setItem("userName", name);
+            await AsyncStorage.setItem("userName", name || "there");
             await AsyncStorage.setItem("userGoals", JSON.stringify(selectedGoals));
             await AsyncStorage.setItem("snippetTypePreferences", JSON.stringify(selectedSnippetTypes));
             await AsyncStorage.setItem("hasOnboarded", "true");
@@ -134,26 +213,59 @@ export default function Onboarding() {
     };
 
     const isNextDisabled = () => {
-        if (currentIndex === 0) return name.trim().length === 0;
-        if (currentIndex === 1) return selectedGoals.length === 0;
-        if (currentIndex === 2) return selectedSnippetTypes.length === 0;
+        if (currentIndex === 0) return false; // Welcome screen
+        if (currentIndex === 1) return name.trim().length === 0;
+        if (currentIndex === 2) return selectedGoals.length === 0;
+        if (currentIndex === 3) return selectedSnippetTypes.length === 0;
         return false;
     };
 
     const renderSlide = ({ item }: { item: any }) => {
+        if (item.type === "welcome") {
+            return (
+                <View style={styles.slide}>
+                    <ScrollView
+                        contentContainerStyle={styles.welcomeContent}
+                        showsVerticalScrollIndicator={false}
+                        style={{ flex: 1 }}
+                        bounces={true}
+                        scrollEnabled={true}
+                        keyboardShouldPersistTaps="handled"
+                    >
+                        <View style={styles.welcomeHeader}>
+                            <Text style={styles.welcomeTitle}>Study better in the moments you usually scroll.</Text>
+                            <Text style={styles.welcomeSubtitle}>Turn PDFs and notes into quick, high-signal review.</Text>
+                        </View>
+
+                        <View style={styles.previewContainer}>
+                            <Text style={styles.previewLabel}>Preview</Text>
+                            <View style={styles.snippetCardWrapper}>
+                                <SnippetCard snippet={WELCOME_SNIPPET} />
+                            </View>
+                        </View>
+
+                        <View style={styles.trustNote}>
+                            <Ionicons name="lock-closed-outline" size={16} color={Colors.tabIconDefault} />
+                            <Text style={styles.trustText}>Your files stay on your device and are not uploaded to any servers.</Text>
+                        </View>
+                    </ScrollView>
+                </View>
+            );
+        }
+
         if (item.type === "input") {
             return (
                 <View style={styles.slide}>
                     <View style={styles.contentContainer}>
                         <Text style={styles.title}>What's your name?</Text>
-                        <Text style={styles.description}>Let's personalize your experience.</Text>
+                        <Text style={styles.description}>We'll use this to personalize your experience and track your progress.</Text>
                         <TextInput
                             style={styles.input}
                             placeholder="Enter your name"
                             placeholderTextColor={Colors.tabIconDefault}
                             value={name}
                             onChangeText={setName}
-                            autoFocus={false} // Avoid auto-focus issues in carousel
+                            autoFocus={false}
                         />
                     </View>
                 </View>
@@ -165,7 +277,7 @@ export default function Onboarding() {
                 <View style={styles.slide}>
                     <View style={styles.contentContainer}>
                         <Text style={styles.title}>Why are you here?</Text>
-                        <Text style={styles.description}>Select all that apply.</Text>
+                        <Text style={styles.description}>We'll tailor your feed to match your intent. Select all that apply.</Text>
                         <View style={styles.goalsContainer}>
                             {GOALS.map((goal) => (
                                 <TouchableOpacity
@@ -195,8 +307,8 @@ export default function Onboarding() {
             return (
                 <View style={styles.slide}>
                     <View style={styles.contentContainer}>
-                        <Text style={styles.title}>What snippets do you want?</Text>
-                        <Text style={styles.description}>Choose the types of learning content you prefer.</Text>
+                        <Text style={styles.title}>Choose your study formats</Text>
+                        <Text style={styles.description}>Select how you want to practice. You can change this anytime.</Text>
                         <View style={styles.goalsContainer}>
                             {SNIPPET_TYPES.map((type) => (
                                 <TouchableOpacity
@@ -223,8 +335,7 @@ export default function Onboarding() {
                                 </TouchableOpacity>
                             ))}
                         </View>
-                        <Text style={styles.subDescription}>You can always change your preferences later.</Text>
-
+                        <Text style={styles.subDescription}>Preferences can be updated anytime in Settings.</Text>
                     </View>
                 </View>
             );
@@ -233,88 +344,128 @@ export default function Onboarding() {
         if (item.type === "features") {
             return (
                 <View style={styles.slide}>
-                    <View style={styles.featuresContent}>
-                        <Text style={styles.title}>Everything you need</Text>
-                        <Text style={styles.description}>Your all-in-one learning companion</Text>
-                        <View style={styles.featuresGrid}>
-                            {FEATURES.map((feature, index) => (
-                                <View key={index} style={styles.featureCard}>
-                                    <View style={styles.featureIconContainer}>
-                                        <Ionicons name={feature.icon} size={32} color={Colors.tint} />
+                    <ScrollView
+                        contentContainerStyle={styles.featuresContent}
+                        showsVerticalScrollIndicator={false}
+                        style={{ flex: 1 }}
+                        bounces={true}
+                        scrollEnabled={true}
+                        keyboardShouldPersistTaps="handled"
+                    >
+                        <View style={styles.howItWorksSection}>
+                            <Text style={styles.title}>How it works</Text>
+                            <Text style={styles.description}>A simple, structured approach to learning</Text>
+
+                            <View style={styles.stepsContainer}>
+                                {HOW_IT_WORKS_STEPS.map((step) => (
+                                    <View key={step.step} style={styles.stepItem}>
+                                        <View style={styles.stepNumber}>
+                                            <Text style={styles.stepNumberText}>{step.step}</Text>
+                                        </View>
+                                        <View style={styles.stepContent}>
+                                            <View style={styles.stepHeader}>
+                                                <Text style={styles.stepTitle}>{step.title}</Text>
+                                            </View>
+                                            <Text style={styles.stepDescription}>{step.description}</Text>
+                                        </View>
                                     </View>
-                                    <Text style={styles.featureTitle}>{feature.title}</Text>
-                                    <Text style={styles.featureDescription}>{feature.description}</Text>
-                                </View>
-                            ))}
+                                ))}
+                            </View>
                         </View>
-                    </View>
+
+                        <View style={styles.powerFeaturesSection}>
+                            <Text style={styles.powerFeaturesTitle}>Powerful features</Text>
+                            <View style={styles.powerFeaturesGrid}>
+                                {POWER_FEATURES.map((feature, index) => (
+                                    <View key={index} style={styles.powerFeatureCard}>
+                                        <Ionicons name={feature.icon} size={24} color={Colors.tint} />
+                                        <Text style={styles.powerFeatureTitle}>{feature.title}</Text>
+                                        <Text style={styles.powerFeatureDescription}>{feature.description}</Text>
+                                    </View>
+                                ))}
+                            </View>
+                        </View>
+
+                        <Text style={styles.finalReassurance}>You're all set! Preferences can be updated anytime in Settings.</Text>
+                    </ScrollView>
                 </View>
             );
         }
 
-        return null; // Should not happen with defined types
+        return null;
     };
 
     return (
-        <SafeAreaView style={styles.container}>
-            <KeyboardAvoidingView
-                behavior={Platform.OS === "ios" ? "padding" : "height"}
-                style={{ flex: 1 }}
-            >
-                <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-                    <View style={{ flex: 1 }}>
-                        <View style={styles.header}>
-                            {/* Only show Skip on feature slides */}
-                            {currentIndex >= 3 && (
-                                <TouchableOpacity onPress={completeOnboarding} style={styles.skipButton}>
-                                    <Text style={styles.skipText}>Skip</Text>
-                                </TouchableOpacity>
-                            )}
-                        </View>
+        <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+            <View style={styles.mainContainer}>
+                <View style={styles.header}>
+                    {currentIndex > 0 ? (
+                        <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+                            <Ionicons name="chevron-back" size={24} color={Colors.text} />
+                        </TouchableOpacity>
+                    ) : (
+                        <View style={{ width: 44 }} />
+                    )}
+                    <View style={{ flex: 1 }} />
+                    {currentIndex > 1 && currentIndex < slides.length - 1 ? (
+                        <TouchableOpacity onPress={handleSkip} style={styles.skipButton}>
+                            <Text style={styles.skipText}>Skip</Text>
+                        </TouchableOpacity>
+                    ) : (
+                        <View style={{ width: 60 }} />
+                    )}
+                </View>
 
-                        <FlatList
-                            ref={flatListRef}
-                            data={slides}
-                            renderItem={renderSlide}
-                            horizontal
-                            pagingEnabled
-                            showsHorizontalScrollIndicator={false}
-                            bounces={false}
-                            scrollEnabled={false}
-                            keyExtractor={(item) => item.id}
-                            onViewableItemsChanged={onViewableItemsChanged}
-                            viewabilityConfig={viewabilityConfig}
-                            scrollEventThrottle={32}
-                            keyboardShouldPersistTaps="handled"
+                {/* Progress Bar */}
+                <View style={styles.progressContainer}>
+                    <View style={styles.progressBar}>
+                        <View
+                            style={[
+                                styles.progressFill,
+                                { width: `${((currentIndex + 1) / slides.length) * 100}%` }
+                            ]}
                         />
-
-                        <View style={styles.footer}>
-                            <View style={styles.pagination}>
-                                {slides.map((_, index) => (
-                                    <View
-                                        key={index}
-                                        style={[
-                                            styles.dot,
-                                            currentIndex === index && styles.activeDot,
-                                        ]}
-                                    />
-                                ))}
-                            </View>
-
-                            <TouchableOpacity
-                                style={[styles.button, isNextDisabled() && styles.buttonDisabled]}
-                                onPress={handleNext}
-                                disabled={isNextDisabled()}
-                            >
-                                <Text style={[styles.buttonText, isNextDisabled() && styles.buttonTextDisabled]}>
-                                    {currentIndex === slides.length - 1 ? "Get Started" : "Next"}
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
                     </View>
-                </TouchableWithoutFeedback>
-            </KeyboardAvoidingView>
-        </SafeAreaView>
+                    <Text style={styles.progressText}>{currentIndex + 1} / {slides.length}</Text>
+                </View>
+
+                <View style={styles.slidesContainer}>
+                    <FlatList
+                        ref={flatListRef}
+                        data={slides}
+                        renderItem={renderSlide}
+                        horizontal
+                        pagingEnabled
+                        showsHorizontalScrollIndicator={false}
+                        bounces={false}
+                        scrollEnabled={false}
+                        keyExtractor={(item) => item.id}
+                        onViewableItemsChanged={onViewableItemsChanged}
+                        viewabilityConfig={viewabilityConfig}
+                        scrollEventThrottle={32}
+                        keyboardShouldPersistTaps="handled"
+                        getItemLayout={getItemLayout}
+                        removeClippedSubviews={false}
+                        initialNumToRender={slides.length}
+                        maxToRenderPerBatch={slides.length}
+                        windowSize={1}
+                        style={{ flex: 1 }}
+                    />
+                </View>
+
+                <View style={styles.footer}>
+                    <TouchableOpacity
+                        style={[styles.button, isNextDisabled() && styles.buttonDisabled]}
+                        onPress={handleNext}
+                        disabled={isNextDisabled()}
+                    >
+                        <Text style={[styles.buttonText, isNextDisabled() && styles.buttonTextDisabled]}>
+                            {currentIndex === slides.length - 1 ? "Start Learning" : "Next"}
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        </View>
     );
 }
 
@@ -323,20 +474,62 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: Colors.background,
     },
+    mainContainer: {
+        flex: 1,
+    },
     header: {
         flexDirection: "row",
-        justifyContent: "flex-end",
-        padding: 20,
-        height: 60,
+        alignItems: "center",
+        justifyContent: "space-between",
+        paddingHorizontal: 20,
+        paddingBottom: 10,
+        height: 70,
+    },
+    backButton: {
+        padding: 16,
+        minWidth: 44,
+        minHeight: 44,
+        justifyContent: "center",
+        alignItems: "center",
     },
     skipButton: {
-        padding: 8,
-        height: 60,
+        padding: 16,
+        minWidth: 60,
+        minHeight: 44,
+        justifyContent: "center",
+        alignItems: "center",
     },
     skipText: {
         color: Colors.tabIconDefault,
         fontSize: 16,
         fontWeight: "500",
+    },
+    progressContainer: {
+        paddingHorizontal: 20,
+        paddingBottom: 20,
+        gap: 8,
+        height: 40,
+    },
+    progressBar: {
+        height: 4,
+        backgroundColor: Colors.backgroundLighter,
+        borderRadius: 2,
+        overflow: "hidden",
+    },
+    progressFill: {
+        height: "100%",
+        backgroundColor: Colors.tint,
+        borderRadius: 2,
+    },
+    progressText: {
+        fontSize: 12,
+        color: Colors.tabIconDefault,
+        textAlign: "center",
+        fontWeight: "500",
+    },
+    slidesContainer: {
+        flex: 1,
+        width: '100%',
     },
     slide: {
         width: width,
@@ -344,39 +537,20 @@ const styles = StyleSheet.create({
         alignItems: "center",
         paddingHorizontal: 30,
     },
+    scrollView: {
+        flex: 1,
+        width: '100%',
+    },
     contentContainer: {
         width: '100%',
         flex: 1,
         justifyContent: 'center',
     },
-    iconContainer: {
-        flex: 0.5,
-        justifyContent: "center",
-        alignItems: "center",
-        marginBottom: 40,
-    },
-    iconCircle: {
-        width: 160,
-        height: 160,
-        justifyContent: "center",
-        alignItems: "center",
-        shadowColor: Colors.tint,
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.3,
-        shadowRadius: 20,
-        elevation: 10,
-        backgroundColor: `${Colors.tint}10`,
-        borderRadius: 80,
-    },
-    textContainer: {
-        flex: 0.3,
-        alignItems: "center",
-    },
     title: {
-        fontSize: 32,
+        fontSize: 28,
         fontWeight: "bold",
         color: Colors.text,
-        marginBottom: 16,
+        marginBottom: 12,
         textAlign: "center",
     },
     description: {
@@ -385,6 +559,63 @@ const styles = StyleSheet.create({
         textAlign: "center",
         lineHeight: 24,
         marginBottom: 30,
+    },
+    welcomeContent: {
+        paddingVertical: 20,
+        paddingBottom: 40,
+        flexGrow: 1,
+    },
+    welcomeHeader: {
+        marginBottom: 32,
+    },
+    welcomeTitle: {
+        fontSize: 28,
+        fontWeight: "bold",
+        color: Colors.text,
+        marginBottom: 12,
+        textAlign: "center",
+        lineHeight: 36,
+    },
+    welcomeSubtitle: {
+        fontSize: 16,
+        color: Colors.tabIconDefault,
+        textAlign: "center",
+        lineHeight: 24,
+    },
+    previewContainer: {
+        marginBottom: 24,
+        width: '100%',
+    },
+    snippetCardWrapper: {
+        width: '100%',
+    },
+    previewLabel: {
+        fontSize: 12,
+        fontWeight: "600",
+        color: Colors.tabIconDefault,
+        textTransform: "uppercase",
+        letterSpacing: 1,
+        marginBottom: 12,
+        textAlign: "center",
+    },
+    trustNote: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 8,
+        paddingHorizontal: 20,
+    },
+    trustText: {
+        fontSize: 12,
+        color: Colors.tabIconDefault,
+        textAlign: "center",
+        flex: 1,
+    },
+    helperText: {
+        fontSize: 13,
+        color: Colors.tabIconDefault,
+        textAlign: "center",
+        marginTop: 12,
     },
     input: {
         backgroundColor: Colors.backgroundSecondary,
@@ -423,32 +654,21 @@ const styles = StyleSheet.create({
         fontWeight: "bold",
     },
     footer: {
-        padding: 40,
-        gap: 30,
-    },
-    pagination: {
-        flexDirection: "row",
-        justifyContent: "center",
-        gap: 8,
-    },
-    dot: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-        backgroundColor: Colors.backgroundLighter,
-    },
-    activeDot: {
-        width: 24,
-        backgroundColor: Colors.tint,
+        paddingHorizontal: 20,
+        paddingTop: 20,
+        paddingBottom: 20,
+        minHeight: 100,
     },
     button: {
         backgroundColor: Colors.tint,
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
-        paddingVertical: 16,
+        paddingVertical: 20,
+        paddingHorizontal: 24,
         borderRadius: 16,
         gap: 8,
+        minHeight: 60,
         shadowColor: Colors.tint,
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,
@@ -463,6 +683,7 @@ const styles = StyleSheet.create({
         color: Colors.background,
         fontSize: 18,
         fontWeight: "bold",
+        lineHeight: 22,
     },
     buttonTextDisabled: {
         color: Colors.tabIconDefault,
@@ -479,46 +700,86 @@ const styles = StyleSheet.create({
         color: `${Colors.background}CC`,
     },
     featuresContent: {
-        flex: 1,
-        width: '100%',
-        justifyContent: 'center',
         paddingVertical: 20,
+        paddingBottom: 40,
     },
-    featuresGrid: {
+    howItWorksSection: {
+        marginBottom: 40,
+    },
+    stepsContainer: {
+        gap: 20,
+        marginTop: 24,
+    },
+    stepItem: {
         flexDirection: 'row',
-        flexWrap: 'wrap',
         gap: 16,
-        marginTop: 30,
     },
-    featureCard: {
-        width: '47%',
-        backgroundColor: Colors.backgroundSecondary,
-        padding: 20,
-        borderRadius: 16,
-        borderWidth: 1,
-        borderColor: Colors.backgroundLighter,
-        alignItems: 'center',
-    },
-    featureIconContainer: {
-        width: 64,
-        height: 64,
-        borderRadius: 32,
-        backgroundColor: `${Colors.tint}15`,
+    stepNumber: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: Colors.tint,
         alignItems: 'center',
         justifyContent: 'center',
-        marginBottom: 12,
+        flexShrink: 0,
     },
-    featureTitle: {
-        fontSize: 16,
+    stepNumberText: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: Colors.background,
+    },
+    stepContent: {
+        flex: 1,
+        paddingTop: 2,
+    },
+    stepHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        marginBottom: 6,
+    },
+    stepTitle: {
+        fontSize: 18,
         fontWeight: '600',
         color: Colors.text,
-        marginBottom: 6,
+    },
+    stepDescription: {
+        fontSize: 14,
+        color: Colors.tabIconDefault,
+        lineHeight: 20,
+    },
+    powerFeaturesSection: {
+        marginBottom: 32,
+    },
+    powerFeaturesTitle: {
+        fontSize: 20,
+        fontWeight: '600',
+        color: Colors.text,
+        marginBottom: 16,
         textAlign: 'center',
     },
-    featureDescription: {
+    powerFeaturesGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 12,
+    },
+    powerFeatureCard: {
+        width: '47%',
+        backgroundColor: Colors.backgroundSecondary,
+        padding: 16,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: Colors.backgroundLighter,
+        gap: 8,
+    },
+    powerFeatureTitle: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: Colors.text,
+    },
+    powerFeatureDescription: {
         fontSize: 12,
         color: Colors.tabIconDefault,
-        textAlign: 'center',
         lineHeight: 16,
     },
     subDescription: {
@@ -526,5 +787,12 @@ const styles = StyleSheet.create({
         color: Colors.tabIconDefault,
         textAlign: 'center',
         marginTop: 8,
+    },
+    finalReassurance: {
+        fontSize: 13,
+        color: Colors.tabIconDefault,
+        textAlign: 'center',
+        marginTop: 8,
+        fontStyle: 'italic',
     },
 });
