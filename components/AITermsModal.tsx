@@ -82,9 +82,7 @@ export default function AITermsModal({ visible, onAccept, onDecline }: AITermsMo
                 <View style={styles.overlay}>
                     <TouchableWithoutFeedback onPress={() => { }}>
                         <Animated.View style={[styles.content, { opacity: fadeAnim, transform: [{ scale: fadeAnim.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] }) }] }]}>
-                            <View style={styles.iconContainer}>
-                                <Ionicons name="shield-checkmark" size={32} color={Colors.tint} />
-                            </View>
+
 
                             <Text style={styles.title}>AI Content Generation</Text>
 
@@ -189,7 +187,7 @@ const styles = StyleSheet.create({
     content: {
         backgroundColor: Colors.backgroundSecondary,
         borderRadius: 24,
-        padding: 24,
+        padding: 30,
         width: "100%",
         maxWidth: 400,
         maxHeight: "85%",
@@ -217,7 +215,7 @@ const styles = StyleSheet.create({
         textAlign: "center",
     },
     scrollView: {
-        maxHeight: 300,
+        maxHeight: 320,
         marginBottom: 16,
     },
     warningContainer: {
@@ -309,6 +307,7 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         alignItems: "center",
         backgroundColor: Colors.backgroundLighter,
+        maxWidth: 100,
     },
     declineText: {
         color: Colors.text,

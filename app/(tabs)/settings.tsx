@@ -536,7 +536,7 @@ const ModelPreferencesModal = ({ visible, onClose, geminiKey, selectedModel, sel
     const [mode, setMode] = useState<'online' | 'offline'>('online');
     const [tempGeminiKey, setTempGeminiKey] = useState(geminiKey);
     const [showModelList, setShowModelList] = useState(false);
-    const [snippetCount, setSnippetCount] = useState(3);
+    const [snippetCount, setSnippetCount] = useState(10);
     const [chunkSize, setChunkSize] = useState(mode === 'offline' ? 2000 : 30000);
 
     useEffect(() => {
