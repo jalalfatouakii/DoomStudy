@@ -11,6 +11,7 @@ import {
     Pressable,
     ScrollView,
     StyleSheet,
+    Switch,
     Text,
     TextInput,
     TouchableOpacity,
@@ -20,6 +21,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useCourses } from "@/context/CourseContext";
+import { usePreferences } from "@/context/PreferencesContext";
 import { useStats } from "@/context/StatsContext";
 import { apple } from "@react-native-ai/apple";
 import { mlc } from "@react-native-ai/mlc";
@@ -1026,6 +1028,7 @@ export default function Settings() {
     const router = useRouter();
     const { courses } = useCourses();
     const { streak, timeSaved, weeklyData, weeklyLabels, resetStats } = useStats();
+    const { videoBackgroundEnabled, setVideoBackgroundEnabled } = usePreferences();
 
 
 
@@ -1320,6 +1323,21 @@ export default function Settings() {
                             title="Manage Model Preferences"
                             onPress={() => setModelPreferencesModalVisible(true)}
                         />
+                        <View style={styles.separator} />
+                        <View style={styles.settingItem}>
+                            <View style={styles.settingLeft}>
+                                <View style={styles.iconContainer}>
+                                    <Ionicons name="videocam" size={20} color={Colors.text} />
+                                </View>
+                                <Text style={styles.settingTitle}>Video Backgrounds</Text>
+                            </View>
+                            <Switch
+                                value={videoBackgroundEnabled}
+                                onValueChange={setVideoBackgroundEnabled}
+                                trackColor={{ false: Colors.backgroundLighter, true: Colors.tint + '80' }}
+                                thumbColor={videoBackgroundEnabled ? Colors.tint : Colors.tabIconDefault}
+                            />
+                        </View>
                     </View>
                 </View>
 

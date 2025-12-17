@@ -1,6 +1,8 @@
+import FeedBackgroundVideo from "@/components/FeedBackgroundVideo";
 import SnippetCard from "@/components/SnippetCard";
 import { Colors } from "@/constants/colors";
 import { ContentSnippet, Course, useCourses } from "@/context/CourseContext";
+import { usePreferences } from "@/context/PreferencesContext";
 import { useRefresh } from "@/context/RefreshContext";
 import { useTabPress } from "@/hooks/useTabPress";
 import { SnippetType } from "@/utils/contentExtractor";
@@ -62,8 +64,10 @@ export default function Index() {
   const router = useRouter();
   const { courses, allTags, getRandomSnippets } = useCourses();
   const { setRefreshing: setGlobalRefreshing } = useRefresh();
+  const { videoBackgroundEnabled } = usePreferences();
   const [activeIndex, setActiveIndex] = useState(0);
   const [itemHeight, setItemHeight] = useState(0);
+  const [activeIndexByCategory, setActiveIndexByCategory] = useState<Record<string, number>>({});
   const mainListRef = useRef<FlatList>(null);
   const headerListRef = useRef<FlatList>(null);
   const verticalListRefs = useRef<Record<string, FlatList | null>>({});
@@ -426,34 +430,37 @@ export default function Index() {
     });
   };
 
-  const onViewableItemsChanged = useCallback(({ viewableItems, changed }: { viewableItems: ViewToken[], changed: ViewToken[] }) => {
-    if (viewableItems.length > 0) {
-      const lastItem = viewableItems[viewableItems.length - 1];
-      if (lastItem.index !== null) {
-        // Check if we passed a multiple of 10 (e.g., 10, 20, 30...)
-        // Actually, simpler: if index is high enough relative to list length, or just every 10 items
-        // The user said "if the user is at the index 10 for example"
-
-        // Let's check if we are near the end, OR if we hit a specific index
-        // To avoid spamming, we can check if index % 10 === 0
-
-        // However, viewableItems fires often.
-        // Better approach: Check if (index + threshold) >= currentLength, then load more.
-        // AND specifically for AI, if we have a key, we trigger generation.
-
-        // Let's stick to the user's request: "generate 20 new if the user is at the index 10"
-        // This implies a trigger point.
-
-        // We need the category ID. But this callback doesn't have it directly if defined outside.
-        // We can define it inside renderCategoryPage or use a curried function.
+  // Create viewable items changed handler for each category
+  const createOnViewableItemsChanged = useCallback((categoryId: string) => {
+    return ({ viewableItems }: { viewableItems: ViewToken[] }) => {
+      if (viewableItems.length > 0) {
+        // Find the first viewable item (should be the centered one with pagingEnabled)
+        for (const item of viewableItems) {
+          if (item.isViewable && typeof item.index === 'number') {
+            const newIndex: number = item.index;
+            setActiveIndexByCategory(prev => {
+              if (prev[categoryId] !== newIndex) {
+                return { ...prev, [categoryId]: newIndex };
+              }
+              return prev;
+            });
+            break;
+          }
+        }
       }
-    }
+    };
   }, []);
 
   const renderSnippetItem = useCallback(({ item }: { item: ContentSnippet }) => {
+    const itemStyle = [
+      styles.verticalItem,
+      { height: itemHeight },
+      videoBackgroundEnabled && { backgroundColor: 'transparent' }
+    ];
+
     if (item.type === 'ad') {
       return (
-        <View style={[styles.verticalItem, { height: itemHeight }]}>
+        <View style={itemStyle}>
           <NativeAdCard height={itemHeight ? itemHeight * 0.5 : undefined} />
         </View>
       );
@@ -461,7 +468,7 @@ export default function Index() {
 
     return (
       <TouchableOpacity
-        style={[styles.verticalItem, { height: itemHeight }]}
+        style={itemStyle}
         onPress={() => router.push({
           pathname: "/course/[id]",
           params: {
@@ -475,7 +482,7 @@ export default function Index() {
         <SnippetCard snippet={item} height={itemHeight ? itemHeight * 0.85 : undefined} />
       </TouchableOpacity>
     );
-  }, [itemHeight, router]);
+  }, [itemHeight, router, videoBackgroundEnabled]);
 
   const renderCourseItem = ({ item }: { item: Course }) => (
     <TouchableOpacity
@@ -551,44 +558,79 @@ export default function Index() {
       );
     }
 
+    const isCategoryActive = activeIndex === categories.findIndex(c => c.id === category.id);
+    const activeVerticalIndex = activeIndexByCategory[category.id] ?? 0;
+    const activeSnippet = snippets[activeVerticalIndex] || null;
+
+    const categoryContent = (
+      <FlatList
+        key={`${category.id}-${listKeys[category.id] || 0}`}
+        ref={(ref) => { verticalListRefs.current[category.id] = ref; }}
+        data={snippets}
+        keyExtractor={(item) => item.id}
+        renderItem={renderSnippetItem}
+        pagingEnabled
+        showsVerticalScrollIndicator={false}
+        onLayout={(e) => setItemHeight(e.nativeEvent.layout.height)}
+        onEndReached={() => {
+          loadMoreSnippets(category.id);
+          generateMoreAiContent(category.id);
+        }}
+        onEndReachedThreshold={0.5}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing[category.id] || false}
+            onRefresh={() => refreshSnippets(category.id)}
+            tintColor={Colors.tint}
+            title="Pull to refresh"
+            titleColor={Colors.tint}
+          />
+        }
+        ListFooterComponent={
+          isGeneratingMore[category.id] ? (
+            <View style={{ padding: 20, alignItems: 'center' }}>
+              <ActivityIndicator size="small" color={Colors.tint} />
+              <Text style={{ color: Colors.tabIconDefault, marginTop: 8, fontSize: 12 }}>Generating new snippets...</Text>
+            </View>
+          ) : null
+        }
+        onViewableItemsChanged={createOnViewableItemsChanged(category.id)}
+        viewabilityConfig={{
+          itemVisiblePercentThreshold: 80,
+        }}
+        windowSize={5}
+        initialNumToRender={2}
+        maxToRenderPerBatch={3}
+        removeClippedSubviews={true}
+        getItemLayout={itemHeight > 0 ? (data, index) => ({
+          length: itemHeight,
+          offset: itemHeight * index,
+          index,
+        }) : undefined}
+      />
+    );
+
+    // If video backgrounds are enabled, wrap with video background component
+    if (videoBackgroundEnabled) {
+      return (
+        <View style={{ width, height: "100%" }}>
+          <FeedBackgroundVideo
+            enabled={videoBackgroundEnabled}
+            isPageActive={isCategoryActive}
+            activeSnippet={activeSnippet}
+            activeIndex={activeVerticalIndex}
+            snippets={snippets}
+            itemHeight={itemHeight}
+          />
+          {categoryContent}
+        </View>
+      );
+    }
+
+    // Default: no video background
     return (
       <View style={{ width, height: "100%" }}>
-        <FlatList
-          key={`${category.id}-${listKeys[category.id] || 0}`}
-          ref={(ref) => { verticalListRefs.current[category.id] = ref; }}
-          data={snippets}
-          keyExtractor={(item) => item.id}
-          renderItem={renderSnippetItem}
-          pagingEnabled
-          showsVerticalScrollIndicator={false}
-          onLayout={(e) => setItemHeight(e.nativeEvent.layout.height)}
-          onEndReached={() => {
-            loadMoreSnippets(category.id);
-            // Also try to generate AI content if we are running low or just periodically
-            // But onEndReached is good for "infinite scroll"
-            // Let's also trigger AI generation here if not already generating
-            generateMoreAiContent(category.id);
-          }}
-          onEndReachedThreshold={0.5}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing[category.id] || false}
-              onRefresh={() => refreshSnippets(category.id)}
-              tintColor={Colors.tint}
-              title="Pull to refresh"
-              titleColor={Colors.tint}
-            />
-          }
-          ListFooterComponent={
-            isGeneratingMore[category.id] ? (
-              <View style={{ padding: 20, alignItems: 'center' }}>
-                <ActivityIndicator size="small" color={Colors.tint} />
-                <Text style={{ color: Colors.tabIconDefault, marginTop: 8, fontSize: 12 }}>Generating new snippets...</Text>
-              </View>
-            ) : null
-          }
-        // onViewableItemsChanged removed to optimize AI generation triggers
-        />
+        {categoryContent}
       </View>
     );
   };

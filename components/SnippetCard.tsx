@@ -1,4 +1,5 @@
 import { Colors } from "@/constants/colors";
+import { usePreferences } from "@/context/PreferencesContext";
 import { ContentSnippet } from "@/utils/contentExtractor";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useRef, useState } from "react";
@@ -20,6 +21,8 @@ if (
     UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
+
+
 type SnippetCardProps = {
     snippet: ContentSnippet;
     height?: number;
@@ -28,6 +31,8 @@ type SnippetCardProps = {
 export default function SnippetCard({ snippet, height }: SnippetCardProps) {
     const [isRevealed, setIsRevealed] = useState(false);
     const fadeAnim = useRef(new Animated.Value(1)).current;
+
+    const { videoBackgroundEnabled: isVideoBackgroundEnabled } = usePreferences();
 
     const handleReveal = () => {
         Animated.timing(fadeAnim, {
@@ -84,16 +89,26 @@ export default function SnippetCard({ snippet, height }: SnippetCardProps) {
     };
 
     return (
-        <View style={[styles.card, { height: height || "auto" }, getCardStyle()]}>
-            <View style={styles.header}>
-                <View style={styles.iconContainer}>
-                    {renderIcon()}
+        <View style={[
+            styles.card,
+            { height: height || "auto" },
+            isVideoBackgroundEnabled && { backgroundColor: 'transparent' },
+            getCardStyle()
+        ]}>
+            {!isVideoBackgroundEnabled && (
+                <View style={styles.header}>
+                    <View style={styles.iconContainer}>
+                        {renderIcon()}
+                    </View>
+                    <Text style={styles.label}>{renderLabel()}</Text>
                 </View>
-                <Text style={styles.label}>{renderLabel()}</Text>
-            </View>
-
+            )}
             <View style={styles.contentContainer}>
-                <Text style={[styles.mainText, snippet.type === 'concept' && styles.conceptText]}>
+                <Text style={[
+                    styles.mainText,
+                    snippet.type === 'concept' && styles.conceptText,
+                    isVideoBackgroundEnabled && styles.mainTextWithShadow
+                ]}>
                     {cleanContent(snippet.content)}
                 </Text>
 
@@ -102,7 +117,11 @@ export default function SnippetCard({ snippet, height }: SnippetCardProps) {
                         {!isRevealed ? (
                             <Animated.View style={{ opacity: fadeAnim }}>
                                 <TouchableOpacity style={styles.revealButton} onPress={handleReveal}>
-                                    <Text style={styles.revealButtonText}>Reveal Answer</Text>
+                                    <Text style={[
+                                        styles.revealButtonText,
+                                    ]}>
+                                        Reveal Answer
+                                    </Text>
                                 </TouchableOpacity>
                             </Animated.View>
                         ) : (
@@ -118,16 +137,18 @@ export default function SnippetCard({ snippet, height }: SnippetCardProps) {
                 )}
             </View>
 
-            <View style={styles.footer}>
-                <Text style={styles.metaText} numberOfLines={1}>📄 {snippet.fileName}</Text>
-                <View style={styles.tagsRow}>
-                    {snippet.tags.slice(0, 3).map((tag, idx) => (
-                        <View key={idx} style={styles.tagBadge}>
-                            <Text style={styles.tagText}>{tag}</Text>
-                        </View>
-                    ))}
+            {!isVideoBackgroundEnabled && (
+                <View style={styles.footer}>
+                    <Text style={styles.metaText} numberOfLines={1}>📄 {snippet.fileName}</Text>
+                    <View style={styles.tagsRow}>
+                        {snippet.tags.slice(0, 3).map((tag, idx) => (
+                            <View key={idx} style={styles.tagBadge}>
+                                <Text style={styles.tagText}>{tag}</Text>
+                            </View>
+                        ))}
+                    </View>
                 </View>
-            </View>
+            )}
         </View>
     );
 }
@@ -178,6 +199,11 @@ const styles = StyleSheet.create({
         lineHeight: 32,
         marginBottom: 24,
     },
+    mainTextWithShadow: {
+        textShadowColor: 'rgba(0, 0, 0, 0.75)',
+        textShadowOffset: { width: 0, height: 2 },
+        textShadowRadius: 4,
+    },
     conceptText: {
         fontWeight: "700",
         fontStyle: "italic",
@@ -199,6 +225,11 @@ const styles = StyleSheet.create({
         color: Colors.background,
         fontSize: 16,
         fontWeight: "600",
+    },
+    revealButtonTextWithShadow: {
+        textShadowColor: 'rgba(0, 0, 0, 0.5)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 2,
     },
     answerContainer: {
         backgroundColor: Colors.backgroundSecondary,
@@ -222,6 +253,11 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: Colors.text,
         lineHeight: 24,
+    },
+    answerTextWithShadow: {
+        textShadowColor: 'rgba(0, 0, 0, 0.75)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 3,
     },
     footer: {
         marginTop: 24,

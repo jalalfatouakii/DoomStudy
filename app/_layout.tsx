@@ -1,5 +1,6 @@
 import { Colors } from "@/constants/colors";
 import { CourseProvider } from "@/context/CourseContext";
+import { PreferencesProvider } from "@/context/PreferencesContext";
 import { RefreshProvider } from "@/context/RefreshContext";
 import { StatsProvider } from "@/context/StatsContext";
 import { Stack } from "expo-router";
@@ -30,14 +31,16 @@ export default function RootLayout() {
   return (
     <StatsProvider>
       <CourseProvider>
-        <RefreshProvider>
-          <Stack screenOptions={{ contentStyle: { backgroundColor: Colors.background }, headerShown: false }}>
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="(modal)/edit" options={{ presentation: "modal" }} />
-            <Stack.Screen name="(modal)/about" options={{ presentation: "modal" }} />
-          </Stack>
-          <StatusBar style="light" />
-        </RefreshProvider>
+        <PreferencesProvider>
+          <RefreshProvider>
+            <Stack screenOptions={{ contentStyle: { backgroundColor: Colors.background }, headerShown: false }}>
+              <Stack.Screen name="(tabs)" />
+              <Stack.Screen name="(modal)/edit" options={{ presentation: "modal" }} />
+              <Stack.Screen name="(modal)/about" options={{ presentation: "modal" }} />
+            </Stack>
+            <StatusBar style="light" />
+          </RefreshProvider>
+        </PreferencesProvider>
       </CourseProvider>
     </StatsProvider>
   );
