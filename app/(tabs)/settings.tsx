@@ -21,8 +21,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useCourses } from "@/context/CourseContext";
-import { usePreferences } from "@/context/PreferencesContext";
+import { BuiltInVideoCategoryId, usePreferences, UserVideo, UserVideoCategory } from "@/context/PreferencesContext";
 import { useStats } from "@/context/StatsContext";
+import { pickVideoSource } from "@/utils/videoImport";
 import { apple } from "@react-native-ai/apple";
 import { mlc } from "@react-native-ai/mlc";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -1023,12 +1024,489 @@ const SnippetTypesModal = ({ visible, onClose, onSave, selectedTypes }: {
     );
 };
 
+// Video Categories Management Modal
+const VideoCategoriesModal = ({ visible, onClose }: { visible: boolean; onClose: () => void }) => {
+    const {
+        enabledVideoCategoryIds,
+        setEnabledVideoCategoryIds,
+        userVideoCategories,
+        userVideos,
+        addUserVideo,
+        updateUserVideoMeta,
+        replaceUserVideoFile,
+        deleteUserVideo,
+        createUserCategory,
+        renameUserCategory,
+        deleteUserCategory,
+    } = usePreferences();
+
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+    const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
+    const [editingVideo, setEditingVideo] = useState<UserVideo | null>(null);
+    const [editingCategory, setEditingCategory] = useState<UserVideoCategory | null>(null);
+    const [newCategoryName, setNewCategoryName] = useState('');
+    const [showCreateCategory, setShowCreateCategory] = useState(false);
+
+    const builtInCategories: { id: BuiltInVideoCategoryId; name: string }[] = [
+        { id: 'gameplay', name: 'Gameplay' },
+        { id: 'satisfying', name: 'Satisfying' },
+        { id: 'narrated', name: 'Narrated Movies' },
+        { id: 'ambient', name: 'Ambient' },
+        { id: 'nature', name: 'Nature' },
+    ];
+
+    const allCategories: Array<{ id: string; name: string; isBuiltIn: boolean }> = [
+        ...builtInCategories.map((cat) => ({ id: cat.id, name: cat.name, isBuiltIn: true })),
+        ...userVideoCategories.map((cat) => ({ id: cat.id, name: cat.name, isBuiltIn: false })),
+    ];
+
+    useEffect(() => {
+        if (visible) {
+            fadeAnim.setValue(0);
+            Animated.timing(fadeAnim, {
+                toValue: 1,
+                duration: 200,
+                useNativeDriver: true,
+            }).start();
+        }
+    }, [visible]);
+
+    const animateClose = () => {
+        Animated.timing(fadeAnim, {
+            toValue: 0,
+            duration: 150,
+            useNativeDriver: true,
+        }).start(() => {
+            setExpandedCategory(null);
+            setEditingVideo(null);
+            setEditingCategory(null);
+            setShowCreateCategory(false);
+            setNewCategoryName('');
+            onClose();
+        });
+    };
+
+    const toggleCategoryEnabled = async (categoryId: string) => {
+        const isEnabled = enabledVideoCategoryIds.includes(categoryId);
+        if (isEnabled) {
+            await setEnabledVideoCategoryIds(enabledVideoCategoryIds.filter((id) => id !== categoryId));
+        } else {
+            await setEnabledVideoCategoryIds([...enabledVideoCategoryIds, categoryId]);
+        }
+    };
+
+    const getVideosForCategory = (categoryId: string): UserVideo[] => {
+        return userVideos.filter((v) => v.categoryId === categoryId);
+    };
+
+    const getBundledCount = (categoryId: string): number => {
+        // Built-in categories have 1 bundled video each (for now)
+        return builtInCategories.some((cat) => cat.id === categoryId) ? 1 : 0;
+    };
+
+    const handleAddVideo = async (categoryId: string) => {
+        const result = await pickVideoSource();
+        if (!result) return;
+
+        try {
+            await addUserVideo(categoryId, result.uri, result.name);
+            Alert.alert('Success', 'Video added successfully!');
+        } catch (error) {
+            Alert.alert('Error', 'Failed to add video.');
+            console.error(error);
+        }
+    };
+
+    const handleCreateCategory = async () => {
+        if (!newCategoryName.trim()) {
+            Alert.alert('Error', 'Please enter a category name.');
+            return;
+        }
+
+        try {
+            await createUserCategory(newCategoryName.trim());
+            setNewCategoryName('');
+            setShowCreateCategory(false);
+            Alert.alert('Success', 'Category created successfully!');
+        } catch (error) {
+            Alert.alert('Error', 'Failed to create category.');
+            console.error(error);
+        }
+    };
+
+    const handleRenameVideo = async (video: UserVideo, newName: string) => {
+        if (!newName.trim()) {
+            Alert.alert('Error', 'Please enter a video name.');
+            return;
+        }
+
+        try {
+            await updateUserVideoMeta(video.id, { displayName: newName.trim() });
+            setEditingVideo(null);
+            Alert.alert('Success', 'Video renamed successfully!');
+        } catch (error) {
+            Alert.alert('Error', 'Failed to rename video.');
+            console.error(error);
+        }
+    };
+
+    const handleMoveVideo = async (video: UserVideo, newCategoryId: string) => {
+        try {
+            await updateUserVideoMeta(video.id, { categoryId: newCategoryId });
+            Alert.alert('Success', 'Video moved successfully!');
+        } catch (error) {
+            Alert.alert('Error', 'Failed to move video.');
+            console.error(error);
+        }
+    };
+
+    const handleReplaceVideo = async (video: UserVideo) => {
+        const result = await pickVideoSource();
+        if (!result) return;
+
+        try {
+            await replaceUserVideoFile(video.id, result.uri, result.name);
+            Alert.alert('Success', 'Video replaced successfully!');
+        } catch (error) {
+            Alert.alert('Error', 'Failed to replace video.');
+            console.error(error);
+        }
+    };
+
+    const handleDeleteVideo = async (video: UserVideo) => {
+        Alert.alert(
+            'Delete Video',
+            `Are you sure you want to delete "${video.displayName}"?`,
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Delete',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            await deleteUserVideo(video.id);
+                            Alert.alert('Success', 'Video deleted successfully!');
+                        } catch (error) {
+                            Alert.alert('Error', 'Failed to delete video.');
+                            console.error(error);
+                        }
+                    },
+                },
+            ]
+        );
+    };
+
+    const handleRenameCategory = async (category: UserVideoCategory, newName: string) => {
+        if (!newName.trim()) {
+            Alert.alert('Error', 'Please enter a category name.');
+            return;
+        }
+
+        try {
+            await renameUserCategory(category.id, newName.trim());
+            setEditingCategory(null);
+            Alert.alert('Success', 'Category renamed successfully!');
+        } catch (error) {
+            Alert.alert('Error', 'Failed to rename category.');
+            console.error(error);
+        }
+    };
+
+    const handleDeleteCategory = async (category: UserVideoCategory) => {
+        const videosInCategory = getVideosForCategory(category.id);
+        if (videosInCategory.length > 0) {
+            Alert.alert(
+                'Cannot Delete Category',
+                `This category has ${videosInCategory.length} video(s). Please move or delete them first.`,
+                [{ text: 'OK' }]
+            );
+            return;
+        }
+
+        Alert.alert(
+            'Delete Category',
+            `Are you sure you want to delete "${category.name}"?`,
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Delete',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            await deleteUserCategory(category.id);
+                            Alert.alert('Success', 'Category deleted successfully!');
+                        } catch (error) {
+                            Alert.alert('Error', 'Failed to delete category.');
+                            console.error(error);
+                        }
+                    },
+                },
+            ]
+        );
+    };
+
+    if (!visible) return null;
+
+    return (
+        <Modal transparent visible={visible} onRequestClose={animateClose} animationType="none">
+            <TouchableWithoutFeedback onPress={animateClose}>
+                <View style={styles.modalOverlay}>
+                    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                        <Animated.View
+                            style={[
+                                styles.modalContent,
+                                {
+                                    opacity: fadeAnim,
+                                    transform: [
+                                        {
+                                            scale: fadeAnim.interpolate({
+                                                inputRange: [0, 1],
+                                                outputRange: [0.95, 1],
+                                            }),
+                                        },
+                                    ],
+                                },
+                            ]}
+                        >
+                            <Text style={styles.modalTitle}>Video Categories</Text>
+                            <Text style={styles.modalSubtitle}>Manage video backgrounds for your feed</Text>
+
+                            <ScrollView style={{ maxHeight: 500 }} showsVerticalScrollIndicator={false}>
+                                {allCategories.map((category) => {
+                                    const isEnabled = enabledVideoCategoryIds.includes(category.id);
+                                    const videos = getVideosForCategory(category.id);
+                                    const bundledCount = getBundledCount(category.id);
+                                    const isExpanded = expandedCategory === category.id;
+
+                                    return (
+                                        <View key={category.id} style={styles.categoryItem}>
+                                            <View style={styles.categoryHeader}>
+                                                <TouchableOpacity
+                                                    style={styles.categoryHeaderLeft}
+                                                    onPress={() =>
+                                                        setExpandedCategory(isExpanded ? null : category.id)
+                                                    }
+                                                >
+                                                    <Ionicons
+                                                        name={isExpanded ? 'chevron-down' : 'chevron-forward'}
+                                                        size={20}
+                                                        color={Colors.text}
+                                                    />
+                                                    <Text style={styles.categoryName}>{category.name}</Text>
+                                                    <Text style={styles.categoryCount}>
+                                                        ({bundledCount} bundled, {videos.length} user)
+                                                    </Text>
+                                                </TouchableOpacity>
+                                                <Switch
+                                                    value={isEnabled}
+                                                    onValueChange={() => toggleCategoryEnabled(category.id)}
+                                                    trackColor={{
+                                                        false: Colors.backgroundLighter,
+                                                        true: Colors.tint + '80',
+                                                    }}
+                                                    thumbColor={isEnabled ? Colors.tint : Colors.tabIconDefault}
+                                                />
+                                            </View>
+
+                                            {isExpanded && (
+                                                <View style={styles.categoryContent}>
+                                                    {!category.isBuiltIn && (
+                                                        <View style={styles.categoryActions}>
+                                                            {!category.isBuiltIn && (
+                                                                <>
+                                                                    <TouchableOpacity
+                                                                        style={styles.actionButton}
+                                                                        onPress={() => {
+                                                                            const userCat = userVideoCategories.find(
+                                                                                (c) => c.id === category.id
+                                                                            );
+                                                                            if (userCat) setEditingCategory(userCat);
+                                                                        }}
+                                                                    >
+                                                                        <Ionicons name="pencil" size={16} color={Colors.tint} />
+                                                                        <Text style={styles.actionButtonText}>Rename</Text>
+                                                                    </TouchableOpacity>
+                                                                    <TouchableOpacity
+                                                                        style={styles.actionButton}
+                                                                        onPress={() => {
+                                                                            const userCat = userVideoCategories.find(
+                                                                                (c) => c.id === category.id
+                                                                            );
+                                                                            if (userCat) handleDeleteCategory(userCat);
+                                                                        }}
+                                                                    >
+                                                                        <Ionicons name="trash" size={16} color="#ff4444" />
+                                                                        <Text style={[styles.actionButtonText, { color: '#ff4444' }]}>
+                                                                            Delete
+                                                                        </Text>
+                                                                    </TouchableOpacity>
+                                                                </>
+                                                            )}
+                                                        </View>
+                                                    )}
+
+                                                    <TouchableOpacity
+                                                        style={styles.addVideoButton}
+                                                        onPress={() => handleAddVideo(category.id)}
+                                                    >
+                                                        <Ionicons name="add-circle" size={20} color={Colors.tint} />
+                                                        <Text style={styles.addVideoButtonText}>Add Video</Text>
+                                                    </TouchableOpacity>
+
+                                                    {videos.map((video) => (
+                                                        <View key={video.id} style={styles.videoItem}>
+                                                            <View style={styles.videoItemLeft}>
+                                                                <Ionicons name="videocam" size={16} color={Colors.text} />
+                                                                <Text style={styles.videoName}>{video.displayName}</Text>
+                                                            </View>
+                                                            <View style={styles.videoActions}>
+                                                                <TouchableOpacity
+                                                                    onPress={() => {
+                                                                        Alert.prompt(
+                                                                            'Rename Video',
+                                                                            'Enter new name:',
+                                                                            [
+                                                                                { text: 'Cancel', style: 'cancel' },
+                                                                                {
+                                                                                    text: 'Save',
+                                                                                    onPress: (newName?: string) => {
+                                                                                        if (newName) {
+                                                                                            handleRenameVideo(video, newName);
+                                                                                        }
+                                                                                    },
+                                                                                },
+                                                                            ],
+                                                                            'plain-text',
+                                                                            video.displayName
+                                                                        );
+                                                                    }}
+                                                                >
+                                                                    <Ionicons name="pencil" size={18} color={Colors.tint} />
+                                                                </TouchableOpacity>
+                                                                <TouchableOpacity
+                                                                    onPress={() => {
+                                                                        Alert.alert(
+                                                                            'Move Video',
+                                                                            'Select new category:',
+                                                                            [
+                                                                                ...allCategories
+                                                                                    .filter((cat) => cat.id !== video.categoryId)
+                                                                                    .map((cat) => ({
+                                                                                        text: cat.name,
+                                                                                        onPress: () => handleMoveVideo(video, cat.id),
+                                                                                    })),
+                                                                                { text: 'Cancel', style: 'cancel' },
+                                                                            ]
+                                                                        );
+                                                                    }}
+                                                                >
+                                                                    <Ionicons name="folder" size={18} color={Colors.tint} />
+                                                                </TouchableOpacity>
+                                                                <TouchableOpacity onPress={() => handleReplaceVideo(video)}>
+                                                                    <Ionicons name="refresh" size={18} color={Colors.tint} />
+                                                                </TouchableOpacity>
+                                                                <TouchableOpacity onPress={() => handleDeleteVideo(video)}>
+                                                                    <Ionicons name="trash" size={18} color="#ff4444" />
+                                                                </TouchableOpacity>
+                                                            </View>
+                                                        </View>
+                                                    ))}
+                                                </View>
+                                            )}
+                                        </View>
+                                    );
+                                })}
+
+                                {showCreateCategory ? (
+                                    <View style={styles.createCategoryContainer}>
+                                        <TextInput
+                                            style={styles.input}
+                                            value={newCategoryName}
+                                            onChangeText={setNewCategoryName}
+                                            placeholder="Category name"
+                                            placeholderTextColor={Colors.tabIconDefault}
+                                            autoFocus
+                                            selectionColor={Colors.tint}
+                                        />
+                                        <View style={styles.createCategoryActions}>
+                                            <Pressable
+                                                style={[styles.modalButton, styles.cancelButton]}
+                                                onPress={() => {
+                                                    setShowCreateCategory(false);
+                                                    setNewCategoryName('');
+                                                }}
+                                            >
+                                                <Text style={styles.cancelButtonText}>Cancel</Text>
+                                            </Pressable>
+                                            <Pressable
+                                                style={[styles.modalButton, styles.saveButton]}
+                                                onPress={handleCreateCategory}
+                                            >
+                                                <Text style={styles.saveButtonText}>Create</Text>
+                                            </Pressable>
+                                        </View>
+                                    </View>
+                                ) : (
+                                    <TouchableOpacity
+                                        style={styles.createCategoryButton}
+                                        onPress={() => setShowCreateCategory(true)}
+                                    >
+                                        <Ionicons name="add-circle-outline" size={20} color={Colors.tint} />
+                                        <Text style={styles.createCategoryButtonText}>Create New Category</Text>
+                                    </TouchableOpacity>
+                                )}
+                            </ScrollView>
+
+                            {editingCategory && (
+                                <View style={styles.editModal}>
+                                    <Text style={styles.modalSubtitle}>Rename Category</Text>
+                                    <TextInput
+                                        style={styles.input}
+                                        value={editingCategory.name}
+                                        onChangeText={(text) =>
+                                            setEditingCategory({ ...editingCategory, name: text })
+                                        }
+                                        placeholder="Category name"
+                                        placeholderTextColor={Colors.tabIconDefault}
+                                        autoFocus
+                                        selectionColor={Colors.tint}
+                                    />
+                                    <View style={styles.modalButtons}>
+                                        <Pressable
+                                            style={[styles.modalButton, styles.cancelButton]}
+                                            onPress={() => setEditingCategory(null)}
+                                        >
+                                            <Text style={styles.cancelButtonText}>Cancel</Text>
+                                        </Pressable>
+                                        <Pressable
+                                            style={[styles.modalButton, styles.saveButton]}
+                                            onPress={() => handleRenameCategory(editingCategory, editingCategory.name)}
+                                        >
+                                            <Text style={styles.saveButtonText}>Save</Text>
+                                        </Pressable>
+                                    </View>
+                                </View>
+                            )}
+
+                            <View style={styles.modalButtons}>
+                                <Pressable style={[styles.modalButton, styles.cancelButton]} onPress={animateClose}>
+                                    <Text style={styles.cancelButtonText}>Close</Text>
+                                </Pressable>
+                            </View>
+                        </Animated.View>
+                    </TouchableWithoutFeedback>
+                </View>
+            </TouchableWithoutFeedback>
+        </Modal>
+    );
+};
 
 export default function Settings() {
     const router = useRouter();
     const { courses } = useCourses();
     const { streak, timeSaved, weeklyData, weeklyLabels, resetStats } = useStats();
     const { videoBackgroundEnabled, setVideoBackgroundEnabled } = usePreferences();
+    const [videoCategoriesModalVisible, setVideoCategoriesModalVisible] = useState(false);
 
 
 
@@ -1338,6 +1816,12 @@ export default function Settings() {
                                 thumbColor={videoBackgroundEnabled ? Colors.tint : Colors.tabIconDefault}
                             />
                         </View>
+                        <View style={styles.separator} />
+                        <ActionItem
+                            icon="film"
+                            title="Manage Video Categories"
+                            onPress={() => setVideoCategoriesModalVisible(true)}
+                        />
                     </View>
                 </View>
 
@@ -1475,6 +1959,11 @@ export default function Settings() {
                 onOfflineModelSelect={handleOfflineModelSelect}
                 onOfflineModelsUpdate={handleOfflineModelsUpdate}
                 onModelModeSave={handleModelModeSave}
+            />
+
+            <VideoCategoriesModal
+                visible={videoCategoriesModalVisible}
+                onClose={() => setVideoCategoriesModalVisible(false)}
             />
 
             <OfflineModelTestModal
@@ -2267,6 +2756,133 @@ const styles = StyleSheet.create({
         fontSize: 11,
         color: Colors.tabIconDefault,
         textAlign: 'right',
+    },
+    categoryItem: {
+        marginBottom: 12,
+        backgroundColor: Colors.backgroundLighter,
+        borderRadius: 12,
+        overflow: 'hidden',
+    },
+    categoryHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: 16,
+    },
+    categoryHeaderLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flex: 1,
+        gap: 8,
+    },
+    categoryName: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: Colors.text,
+    },
+    categoryCount: {
+        fontSize: 12,
+        color: Colors.tabIconDefault,
+    },
+    categoryContent: {
+        padding: 16,
+        paddingTop: 0,
+    },
+    categoryActions: {
+        flexDirection: 'row',
+        gap: 12,
+        marginBottom: 12,
+    },
+    actionButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        padding: 8,
+        backgroundColor: Colors.backgroundSecondary,
+        borderRadius: 8,
+    },
+    actionButtonText: {
+        fontSize: 14,
+        color: Colors.tint,
+        fontWeight: '500',
+    },
+    addVideoButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        padding: 12,
+        backgroundColor: Colors.backgroundSecondary,
+        borderRadius: 8,
+        marginBottom: 12,
+        borderWidth: 1,
+        borderColor: Colors.tint + '40',
+        borderStyle: 'dashed',
+    },
+    addVideoButtonText: {
+        fontSize: 14,
+        color: Colors.tint,
+        fontWeight: '600',
+    },
+    videoItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: 12,
+        backgroundColor: Colors.backgroundSecondary,
+        borderRadius: 8,
+        marginBottom: 8,
+    },
+    videoItemLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        flex: 1,
+    },
+    videoName: {
+        fontSize: 14,
+        color: Colors.text,
+        flex: 1,
+    },
+    videoActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    createCategoryContainer: {
+        marginTop: 12,
+        padding: 16,
+        backgroundColor: Colors.backgroundLighter,
+        borderRadius: 12,
+    },
+    createCategoryActions: {
+        flexDirection: 'row',
+        gap: 12,
+        marginTop: 12,
+    },
+    createCategoryButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        padding: 16,
+        backgroundColor: Colors.backgroundLighter,
+        borderRadius: 12,
+        marginTop: 12,
+        borderWidth: 1,
+        borderColor: Colors.tint + '40',
+        borderStyle: 'dashed',
+    },
+    createCategoryButtonText: {
+        fontSize: 14,
+        color: Colors.tint,
+        fontWeight: '600',
+    },
+    editModal: {
+        marginTop: 16,
+        padding: 16,
+        backgroundColor: Colors.backgroundLighter,
+        borderRadius: 12,
     },
 });
 

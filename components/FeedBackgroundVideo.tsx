@@ -1,5 +1,6 @@
+import { usePreferences } from "@/context/PreferencesContext";
 import { ContentSnippet } from "@/utils/contentExtractor";
-import { getVideoSourceForSnippet } from "@/utils/videoSources";
+import { getVideoSourceForSnippet, VideoSource } from "@/utils/videoSources";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
@@ -21,13 +22,23 @@ export default function FeedBackgroundVideo({
   snippets,
   itemHeight,
 }: FeedBackgroundVideoProps) {
-  const [activeVideoSource, setActiveVideoSource] = useState<{ uri: string } | null>(null);
-  const [prevVideoSource, setPrevVideoSource] = useState<{ uri: string } | null>(null);
-  const [nextVideoSource, setNextVideoSource] = useState<{ uri: string } | null>(null);
+  const { enabledVideoCategoryIds, userVideos } = usePreferences();
+  const [activeVideoSource, setActiveVideoSource] = useState<VideoSource | null>(null);
+  const [prevVideoSource, setPrevVideoSource] = useState<VideoSource | null>(null);
+  const [nextVideoSource, setNextVideoSource] = useState<VideoSource | null>(null);
+
+  // Helper to convert VideoSource to expo-video compatible format
+  const toVideoPlayerSource = (source: VideoSource | null): { uri: string } | number => {
+    if (!source) {
+      // Fallback placeholder
+      return { uri: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4' };
+    }
+    return source;
+  };
 
   // Main active player - only create if we have a source
   const activePlayer = useVideoPlayer(
-    activeVideoSource || { uri: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4' },
+    toVideoPlayerSource(activeVideoSource),
     (player) => {
       player.loop = true;
       player.muted = true;
@@ -36,7 +47,7 @@ export default function FeedBackgroundVideo({
 
   // Preload players for adjacent items - create with placeholder, will be replaced
   const prevPlayer = useVideoPlayer(
-    prevVideoSource || { uri: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4' },
+    toVideoPlayerSource(prevVideoSource),
     (player) => {
       player.loop = true;
       player.muted = true;
@@ -45,7 +56,7 @@ export default function FeedBackgroundVideo({
   );
 
   const nextPlayer = useVideoPlayer(
-    nextVideoSource || { uri: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4' },
+    toVideoPlayerSource(nextVideoSource),
     (player) => {
       player.loop = true;
       player.muted = true;
@@ -55,7 +66,7 @@ export default function FeedBackgroundVideo({
 
   // Update video sources when activeIndex changes
   useEffect(() => {
-    if (!enabled || snippets.length === 0) {
+    if (!enabled || snippets.length === 0 || enabledVideoCategoryIds.length === 0) {
       setActiveVideoSource(null);
       setPrevVideoSource(null);
       setNextVideoSource(null);
@@ -64,13 +75,17 @@ export default function FeedBackgroundVideo({
 
     // Get current snippet's video
     const currentSnippet = snippets[activeIndex];
-    const currentVideo = currentSnippet ? getVideoSourceForSnippet(currentSnippet) : null;
+    const currentVideo = currentSnippet
+      ? getVideoSourceForSnippet(currentSnippet, enabledVideoCategoryIds, userVideos)
+      : null;
     setActiveVideoSource(currentVideo);
 
     // Preload previous snippet's video
     if (activeIndex > 0) {
       const prevSnippet = snippets[activeIndex - 1];
-      const prevVideo = prevSnippet ? getVideoSourceForSnippet(prevSnippet) : null;
+      const prevVideo = prevSnippet
+        ? getVideoSourceForSnippet(prevSnippet, enabledVideoCategoryIds, userVideos)
+        : null;
       setPrevVideoSource(prevVideo);
     } else {
       setPrevVideoSource(null);
@@ -79,17 +94,20 @@ export default function FeedBackgroundVideo({
     // Preload next snippet's video
     if (activeIndex < snippets.length - 1) {
       const nextSnippet = snippets[activeIndex + 1];
-      const nextVideo = nextSnippet ? getVideoSourceForSnippet(nextSnippet) : null;
+      const nextVideo = nextSnippet
+        ? getVideoSourceForSnippet(nextSnippet, enabledVideoCategoryIds, userVideos)
+        : null;
       setNextVideoSource(nextVideo);
     } else {
       setNextVideoSource(null);
     }
-  }, [enabled, activeIndex, snippets]);
+  }, [enabled, activeIndex, snippets, enabledVideoCategoryIds, userVideos]);
 
   // Update active player source when activeVideoSource changes
   useEffect(() => {
     if (activeVideoSource && activePlayer) {
-      activePlayer.replaceAsync(activeVideoSource).catch((err) => {
+      const source = toVideoPlayerSource(activeVideoSource);
+      activePlayer.replaceAsync(source).catch((err) => {
         console.error('Error replacing active video source:', err);
       });
     }
@@ -98,7 +116,8 @@ export default function FeedBackgroundVideo({
   // Update prev player source
   useEffect(() => {
     if (prevVideoSource && prevPlayer) {
-      prevPlayer.replaceAsync(prevVideoSource).then(() => {
+      const source = toVideoPlayerSource(prevVideoSource);
+      prevPlayer.replaceAsync(source).then(() => {
         try {
           prevPlayer.pause();
           prevPlayer.muted = true;
@@ -115,7 +134,8 @@ export default function FeedBackgroundVideo({
   // Update next player source
   useEffect(() => {
     if (nextVideoSource && nextPlayer) {
-      nextPlayer.replaceAsync(nextVideoSource).then(() => {
+      const source = toVideoPlayerSource(nextVideoSource);
+      nextPlayer.replaceAsync(source).then(() => {
         try {
           nextPlayer.pause();
           nextPlayer.muted = true;
