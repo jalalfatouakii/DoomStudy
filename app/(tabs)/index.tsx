@@ -9,7 +9,7 @@ import { SnippetType } from "@/utils/contentExtractor";
 import { generateSnippets } from "@/utils/gemini";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -68,9 +68,20 @@ export default function Index() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [itemHeight, setItemHeight] = useState(0);
   const [activeIndexByCategory, setActiveIndexByCategory] = useState<Record<string, number>>({});
+  const [isTabFocused, setIsTabFocused] = useState(true);
   const mainListRef = useRef<FlatList>(null);
   const headerListRef = useRef<FlatList>(null);
   const verticalListRefs = useRef<Record<string, FlatList | null>>({});
+
+  // Track tab focus to pause videos when navigating away
+  useFocusEffect(
+    useCallback(() => {
+      setIsTabFocused(true);
+      return () => {
+        setIsTabFocused(false);
+      };
+    }, [])
+  );
 
   // Store snippets for each category
   const [categorySnippets, setCategorySnippets] = useState<Record<string, ContentSnippet[]>>({});
@@ -561,6 +572,8 @@ export default function Index() {
     const isCategoryActive = activeIndex === categories.findIndex(c => c.id === category.id);
     const activeVerticalIndex = activeIndexByCategory[category.id] ?? 0;
     const activeSnippet = snippets[activeVerticalIndex] || null;
+    // Page is active only if both the tab is focused AND this category is active
+    const isPageActive = isTabFocused && isCategoryActive;
 
     const categoryContent = (
       <FlatList
@@ -616,7 +629,7 @@ export default function Index() {
         <View style={{ width, height: "100%" }}>
           <FeedBackgroundVideo
             enabled={videoBackgroundEnabled}
-            isPageActive={isCategoryActive}
+            isPageActive={isPageActive}
             activeSnippet={activeSnippet}
             activeIndex={activeVerticalIndex}
             snippets={snippets}

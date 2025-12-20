@@ -1312,36 +1312,32 @@ const VideoCategoriesModal = ({ visible, onClose }: { visible: boolean; onClose:
                                                 <View style={styles.categoryContent}>
                                                     {!category.isBuiltIn && (
                                                         <View style={styles.categoryActions}>
-                                                            {!category.isBuiltIn && (
-                                                                <>
-                                                                    <TouchableOpacity
-                                                                        style={styles.actionButton}
-                                                                        onPress={() => {
-                                                                            const userCat = userVideoCategories.find(
-                                                                                (c) => c.id === category.id
-                                                                            );
-                                                                            if (userCat) setEditingCategory(userCat);
-                                                                        }}
-                                                                    >
-                                                                        <Ionicons name="pencil" size={16} color={Colors.tint} />
-                                                                        <Text style={styles.actionButtonText}>Rename</Text>
-                                                                    </TouchableOpacity>
-                                                                    <TouchableOpacity
-                                                                        style={styles.actionButton}
-                                                                        onPress={() => {
-                                                                            const userCat = userVideoCategories.find(
-                                                                                (c) => c.id === category.id
-                                                                            );
-                                                                            if (userCat) handleDeleteCategory(userCat);
-                                                                        }}
-                                                                    >
-                                                                        <Ionicons name="trash" size={16} color="#ff4444" />
-                                                                        <Text style={[styles.actionButtonText, { color: '#ff4444' }]}>
-                                                                            Delete
-                                                                        </Text>
-                                                                    </TouchableOpacity>
-                                                                </>
-                                                            )}
+                                                            <TouchableOpacity
+                                                                style={styles.actionButton}
+                                                                onPress={() => {
+                                                                    const userCat = userVideoCategories.find(
+                                                                        (c) => c.id === category.id
+                                                                    );
+                                                                    if (userCat) setEditingCategory(userCat);
+                                                                }}
+                                                            >
+                                                                <Ionicons name="pencil" size={16} color={Colors.tint} />
+                                                                <Text style={styles.actionButtonText}>Rename</Text>
+                                                            </TouchableOpacity>
+                                                            <TouchableOpacity
+                                                                style={styles.actionButton}
+                                                                onPress={() => {
+                                                                    const userCat = userVideoCategories.find(
+                                                                        (c) => c.id === category.id
+                                                                    );
+                                                                    if (userCat) handleDeleteCategory(userCat);
+                                                                }}
+                                                            >
+                                                                <Ionicons name="trash" size={16} color="#ff4444" />
+                                                                <Text style={[styles.actionButtonText, { color: '#ff4444' }]}>
+                                                                    Delete
+                                                                </Text>
+                                                            </TouchableOpacity>
                                                         </View>
                                                     )}
 
