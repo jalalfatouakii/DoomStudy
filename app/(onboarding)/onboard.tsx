@@ -1,9 +1,11 @@
 import SnippetCard from "@/components/SnippetCard";
 import { Colors } from "@/constants/colors";
+import { usePreferences } from "@/context/PreferencesContext";
 import { ContentSnippet } from "@/utils/contentExtractor";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
+import { useVideoPlayer, VideoView } from "expo-video";
 import { useRef, useState } from "react";
 import {
     Dimensions,
@@ -11,6 +13,7 @@ import {
     Keyboard,
     ScrollView,
     StyleSheet,
+    Switch,
     Text,
     TextInput,
     TouchableOpacity,
@@ -98,9 +101,13 @@ const POWER_FEATURES = [
     },
 ];
 
+// Single preview video (static, doesn't change)
+const PREVIEW_VIDEO = require('@/assets/videos/narrated.mp4');
+
 export default function Onboarding() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
+    const { setVideoBackgroundEnabled, setEnabledVideoCategoryIds } = usePreferences();
     const [currentIndex, setCurrentIndex] = useState(0);
     const flatListRef = useRef<FlatList>(null);
 
@@ -108,6 +115,7 @@ export default function Onboarding() {
     const [name, setName] = useState("");
     const [selectedGoals, setSelectedGoals] = useState<string[]>([]);
     const [selectedSnippetTypes, setSelectedSnippetTypes] = useState<string[]>(['fact', 'concept', 'qna', 'true_false']);
+    const [videoBackgroundEnabled, setVideoBackgroundEnabledLocal] = useState(false);
 
     const slides = [
         { id: "welcome", type: "welcome" },
@@ -186,6 +194,16 @@ export default function Onboarding() {
             await AsyncStorage.setItem("userName", name || "there");
             await AsyncStorage.setItem("userGoals", JSON.stringify(selectedGoals));
             await AsyncStorage.setItem("snippetTypePreferences", JSON.stringify(selectedSnippetTypes));
+
+            // Persist video background preferences
+            await setVideoBackgroundEnabled(videoBackgroundEnabled);
+            // Default to all categories enabled if video backgrounds are enabled
+            if (videoBackgroundEnabled) {
+                await setEnabledVideoCategoryIds(['gameplay', 'satisfying', 'narrated', 'ambient', 'nature']);
+            } else {
+                await setEnabledVideoCategoryIds([]);
+            }
+
             await AsyncStorage.setItem("hasOnboarded", "true");
             router.replace("/(tabs)");
         } catch (error) {
@@ -237,10 +255,40 @@ export default function Onboarding() {
                             <Text style={styles.welcomeSubtitle}>Turn PDFs and notes into quick, high-signal review.</Text>
                         </View>
 
+                        {/* Video Background Toggle */}
+                        <View style={styles.videoToggleSection}>
+                            <View style={styles.settingItem}>
+                                <View style={styles.settingLeft}>
+                                    <View style={styles.iconContainer}>
+                                        <Ionicons name="videocam" size={20} color={Colors.text} />
+                                    </View>
+                                    <View style={styles.settingTextContainer}>
+                                        <Text style={styles.settingTitle}>Video backgrounds</Text>
+                                        <Text style={styles.settingSubtitle}>Beautiful ambient videos behind your cards</Text>
+                                    </View>
+                                </View>
+                                <Switch
+                                    value={videoBackgroundEnabled}
+                                    onValueChange={setVideoBackgroundEnabledLocal}
+                                    trackColor={{ false: Colors.backgroundLighter, true: Colors.tint + '80' }}
+                                    thumbColor={videoBackgroundEnabled ? Colors.tint : Colors.tabIconDefault}
+                                />
+                            </View>
+                            {videoBackgroundEnabled && (
+                                <View style={styles.customizationNote}>
+                                    <Text style={styles.customizationNoteText}>You can turn this off and customize the appearance in Settings</Text>
+                                </View>
+                            )}
+                        </View>
+
                         <View style={styles.previewContainer}>
                             <Text style={styles.previewLabel}>Preview</Text>
                             <View style={styles.snippetCardWrapper}>
-                                <SnippetCard snippet={WELCOME_SNIPPET} />
+                                {videoBackgroundEnabled ? (
+                                    <VideoBackgroundPreview snippet={WELCOME_SNIPPET} />
+                                ) : (
+                                    <SnippetCard snippet={WELCOME_SNIPPET} />
+                                )}
                             </View>
                         </View>
 
@@ -385,8 +433,6 @@ export default function Onboarding() {
                                 ))}
                             </View>
                         </View>
-
-                        <Text style={styles.finalReassurance}>You're all set! Preferences can be updated anytime in Settings.</Text>
                     </ScrollView>
                 </View>
             );
@@ -793,6 +839,165 @@ const styles = StyleSheet.create({
         color: Colors.tabIconDefault,
         textAlign: 'center',
         marginTop: 8,
+        fontStyle: 'italic',
+    },
+    videoToggleSection: {
+        marginBottom: 24,
+        width: '100%',
+    },
+    settingItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: 16,
+        backgroundColor: Colors.backgroundSecondary,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: Colors.backgroundLighter,
+    },
+    settingLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        flex: 1,
+    },
+    iconContainer: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: Colors.backgroundLighter,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    settingTextContainer: {
+        flex: 1,
+    },
+    settingTitle: {
+        fontSize: 16,
+        fontWeight: '500',
+        color: Colors.text,
+        marginBottom: 2,
+    },
+    settingSubtitle: {
+        fontSize: 12,
+        color: Colors.tabIconDefault,
+    },
+    customizationNote: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginTop: 12,
+        gap: 6,
+        paddingHorizontal: 20,
+    },
+    customizationNoteText: {
+        fontSize: 12,
+        color: Colors.tabIconDefault,
+        textAlign: 'center',
+    },
+});
+
+// Video Background Preview Component - Simple card-like view over video background
+function VideoBackgroundPreview({ snippet }: { snippet: ContentSnippet }) {
+    const player = useVideoPlayer(PREVIEW_VIDEO, (player) => {
+        player.loop = true;
+        player.muted = false;
+        player.play();
+    });
+
+    // Default preferences values
+    const cardBackgroundColor = '#1E2022';
+    const cardBackgroundOpacity = 0.8;
+    const textColor = '#ECEDEE';
+
+    return (
+        <View style={previewStyles.videoWrapper}>
+            <VideoView
+                player={player}
+                style={previewStyles.video}
+                contentFit="cover"
+                nativeControls={false}
+            />
+            <View style={previewStyles.card}>
+                {/* Background overlay */}
+                <View style={[
+                    StyleSheet.absoluteFill,
+                    {
+                        backgroundColor: cardBackgroundColor,
+                        opacity: 0.2,
+                        borderRadius: 24,
+                    }
+                ]} />
+                {/* Header */}
+                <View style={previewStyles.header}>
+                    <View style={previewStyles.iconContainer}>
+                        <Ionicons name="key" size={24} color="#AF52DE" />
+                    </View>
+                    <Text style={[previewStyles.label, { color: textColor }]}>KEY CONCEPT</Text>
+                </View>
+                {/* Content */}
+                <View style={previewStyles.contentContainer}>
+                    <Text style={[previewStyles.mainText, { color: textColor }]}>
+                        {snippet.content}
+                    </Text>
+                </View>
+            </View>
+        </View>
+    );
+}
+
+const previewStyles = StyleSheet.create({
+    videoWrapper: {
+        width: '100%',
+        position: 'relative',
+        borderRadius: 24,
+        overflow: 'hidden',
+    },
+    video: {
+        ...StyleSheet.absoluteFillObject,
+    },
+    card: {
+        backgroundColor: 'transparent',
+        borderRadius: 24,
+        padding: 24,
+        width: "100%",
+        position: 'relative',
+        minHeight: 200,
+    },
+    header: {
+        flexDirection: "row",
+        alignItems: "center",
+        marginBottom: 16,
+    },
+    iconContainer: {
+        width: 40,
+        height: 40,
+        borderRadius: 12,
+        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        alignItems: "center",
+        justifyContent: "center",
+        marginRight: 12,
+    },
+    label: {
+        fontSize: 14,
+        fontWeight: "600",
+        textTransform: "uppercase",
+        letterSpacing: 1,
+    },
+    contentContainer: {
+        flex: 1,
+        justifyContent: "center",
+    },
+    mainText: {
+        fontSize: 23,
+        fontWeight: "600",
+        lineHeight: 32,
+
+        textShadowColor: 'rgba(0, 0, 0, 0.75)',
+        textShadowOffset: { width: 0, height: 2 },
+        textShadowRadius: 4,
+
+        // italic
         fontStyle: 'italic',
     },
 });
