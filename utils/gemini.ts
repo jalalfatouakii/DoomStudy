@@ -1,8 +1,25 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { apple } from "@react-native-ai/apple";
 import { mlc } from "@react-native-ai/mlc";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { generateText } from "ai";
+import { Platform } from "react-native";
+
+// Lazy import Apple AI only on iOS
+let apple: any = null;
+const getAppleAI = async () => {
+    if (Platform.OS !== 'ios') {
+        return null;
+    }
+    if (!apple) {
+        try {
+            apple = require("@react-native-ai/apple").apple;
+        } catch (e) {
+            console.warn("Apple AI not available:", e);
+            return null;
+        }
+    }
+    return apple;
+};
 
 /**
  * Selects a chunk using weighted random sampling.
@@ -51,9 +68,12 @@ async function generateSnippetsWithOfflineModel(
     // Check if using Apple AI
     const isAppleAI = modelId === 'apple-intelligence';
 
-    if (isAppleAI && !apple.isAvailable()) {
-        console.warn("Apple AI is not available on this device");
-        return [];
+    if (isAppleAI) {
+        const appleAI = await getAppleAI();
+        if (!appleAI || !appleAI.isAvailable()) {
+            console.warn("Apple AI is not available on this device");
+            return [];
+        }
     }
 
     try {
@@ -76,7 +96,12 @@ async function generateSnippetsWithOfflineModel(
                 console.log("Attempting to generate anyway...");
             }
         } else {
-            languageModel = apple.languageModel();
+            const appleAI = await getAppleAI();
+            if (!appleAI) {
+                console.warn("Apple AI not available, falling back to empty");
+                return [];
+            }
+            languageModel = appleAI.languageModel();
             console.log("Using Apple AI (no preparation needed)");
         }
 
@@ -481,9 +506,12 @@ export async function generateSnippets(
             const isAppleAI = selectedOfflineModel === 'apple-intelligence';
 
             if (selectedOfflineModel && (downloadedModels.includes(selectedOfflineModel) || isAppleAI)) {
-                if (isAppleAI && !apple.isAvailable()) {
-                    console.log("Apple AI selected but not available, falling back to Gemini");
-                    return await generateSnippetsWithGemini(text, apiKey, numberOfSnippets, fileId);
+                if (isAppleAI) {
+                    const appleAI = await getAppleAI();
+                    if (!appleAI || !appleAI.isAvailable()) {
+                        console.log("Apple AI selected but not available, falling back to Gemini");
+                        return await generateSnippetsWithGemini(text, apiKey, numberOfSnippets, fileId);
+                    }
                 }
                 console.log(`Using offline model: ${selectedOfflineModel}`);
                 return await generateSnippetsWithOfflineModel(text, selectedOfflineModel, numberOfSnippets, fileId);

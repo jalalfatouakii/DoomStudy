@@ -25,12 +25,28 @@ import { useCourses } from "@/context/CourseContext";
 import { BuiltInVideoCategoryId, usePreferences, UserVideo, UserVideoCategory } from "@/context/PreferencesContext";
 import { useStats } from "@/context/StatsContext";
 import { pickVideoSource } from "@/utils/videoImport";
-import { apple } from "@react-native-ai/apple";
 import { mlc } from "@react-native-ai/mlc";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { generateText } from "ai";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
+
+// Lazy import Apple AI only on iOS
+let apple: any = null;
+const getAppleAI = async () => {
+    if (Platform.OS !== 'ios') {
+        return null;
+    }
+    if (!apple) {
+        try {
+            apple = require("@react-native-ai/apple").apple;
+        } catch (e) {
+            console.warn("Apple AI not available:", e);
+            return null;
+        }
+    }
+    return apple;
+};
 
 const EditNameModal = ({ visible, onClose, onSave, initialName }: { visible: boolean, onClose: () => void, onSave: (name: string) => void, initialName: string }) => {
     const [name, setName] = useState(initialName);
@@ -123,15 +139,22 @@ const BASE_OFFLINE_MODELS = [
 const getOfflineModels = () => {
     const models = [...BASE_OFFLINE_MODELS];
 
-    // Add Apple AI if available
-    if (apple.isAvailable()) {
-        models.unshift({
-            id: 'apple-intelligence',
-            name: 'Apple Intelligence',
-            size: 'Built-in',
-            description: 'Native Apple AI (iOS 18+)',
-            provider: 'apple'
-        });
+    // Add Apple AI if available (only on iOS)
+    if (Platform.OS === 'ios') {
+        try {
+            const appleAI = require("@react-native-ai/apple").apple;
+            if (appleAI && appleAI.isAvailable && appleAI.isAvailable()) {
+                models.unshift({
+                    id: 'apple-intelligence',
+                    name: 'Apple Intelligence',
+                    size: 'Built-in',
+                    description: 'Native Apple AI (iOS 18+)',
+                    provider: 'apple'
+                });
+            }
+        } catch (e) {
+            // Apple AI not available, skip
+        }
     }
 
     return models;
@@ -230,7 +253,7 @@ const ModelListModal = ({ visible, onClose, mode, selectedModel, selectedOffline
             [modelId]: { status: 'downloading', progress: 0 }
         }));
 
-        let progressInterval: NodeJS.Timeout | null = null;
+        let progressInterval: ReturnType<typeof setInterval> | null = null;
         const downloadStartTime = Date.now();
         try {
             const languageModel = mlc.languageModel(modelId);
@@ -827,15 +850,19 @@ const OfflineModelTestModal = ({ visible, onClose, modelId }: {
         try {
             const isAppleAI = modelId === 'apple-intelligence';
 
-            if (isAppleAI && !apple.isAvailable()) {
-                setOutputText("Error: Apple Intelligence is not available on this device");
-                setIsGenerating(false);
-                return;
+            if (isAppleAI) {
+                const appleAI = await getAppleAI();
+                if (!appleAI || !appleAI.isAvailable()) {
+                    setOutputText("Error: Apple Intelligence is not available on this device");
+                    setIsGenerating(false);
+                    return;
+                }
             }
 
             let languageModel;
             if (isAppleAI) {
-                languageModel = apple.languageModel();
+                const appleAI = await getAppleAI();
+                languageModel = appleAI!.languageModel();
             } else {
                 languageModel = mlc.languageModel(modelId);
                 // Ensure model is prepared
