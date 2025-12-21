@@ -64,7 +64,7 @@ export default function Index() {
   const router = useRouter();
   const { courses, allTags, getRandomSnippets } = useCourses();
   const { setRefreshing: setGlobalRefreshing } = useRefresh();
-  const { videoBackgroundEnabled } = usePreferences();
+  const { videoBackgroundEnabled, videoBackgroundShowHeader } = usePreferences();
   const [activeIndex, setActiveIndex] = useState(0);
   const [itemHeight, setItemHeight] = useState(0);
   const [activeIndexByCategory, setActiveIndexByCategory] = useState<Record<string, number>>({});
@@ -651,31 +651,36 @@ export default function Index() {
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={styles.headerContainer}>
-        <FlatList
-          ref={headerListRef}
-          data={categories}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.headerContent}
-          renderItem={({ item, index }) => (
-            <TouchableOpacity
-              onPress={() => onHeaderPress(index)}
-              style={styles.headerItem}
-            >
-              <Text
-                style={[
-                  styles.headerText,
-                  activeIndex === index && styles.headerTextActive,
-                ]}
+      {videoBackgroundShowHeader && (
+        <View style={[
+          styles.headerContainer,
+          videoBackgroundEnabled && { zIndex: 100, backgroundColor: 'transparent' }
+        ]}>
+          <FlatList
+            ref={headerListRef}
+            data={categories}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.headerContent}
+            renderItem={({ item, index }) => (
+              <TouchableOpacity
+                onPress={() => onHeaderPress(index)}
+                style={styles.headerItem}
               >
-                {item.title}
-              </Text>
-            </TouchableOpacity>
-          )}
-        />
-      </View>
+                <Text
+                  style={[
+                    styles.headerText,
+                    activeIndex === index && styles.headerTextActive,
+                  ]}
+                >
+                  {item.title}
+                </Text>
+              </TouchableOpacity>
+            )}
+          />
+        </View>
+      )}
 
       {/* Main Horizontal Pager */}
       <FlatList

@@ -24,6 +24,15 @@ export type UserVideo = {
 type PreferencesContextType = {
   videoBackgroundEnabled: boolean;
   setVideoBackgroundEnabled: (enabled: boolean) => Promise<void>;
+  // Video background styling
+  snippetCardBackgroundOpacity: number;
+  setSnippetCardBackgroundOpacity: (opacity: number) => Promise<void>;
+  snippetCardTextColor: string;
+  setSnippetCardTextColor: (color: string) => Promise<void>;
+  snippetCardBackgroundColor: string;
+  setSnippetCardBackgroundColor: (color: string) => Promise<void>;
+  videoBackgroundShowHeader: boolean;
+  setVideoBackgroundShowHeader: (show: boolean) => Promise<void>;
   // Video categories
   enabledVideoCategoryIds: string[];
   setEnabledVideoCategoryIds: (ids: string[]) => Promise<void>;
@@ -42,6 +51,10 @@ type PreferencesContextType = {
 const PreferencesContext = createContext<PreferencesContextType | undefined>(undefined);
 
 const VIDEO_BACKGROUND_ENABLED_KEY = 'videoBackgroundEnabled';
+const SNIPPET_CARD_BACKGROUND_OPACITY_KEY = 'snippetCardBackgroundOpacity';
+const SNIPPET_CARD_TEXT_COLOR_KEY = 'snippetCardTextColor';
+const SNIPPET_CARD_BACKGROUND_COLOR_KEY = 'snippetCardBackgroundColor';
+const VIDEO_BACKGROUND_SHOW_HEADER_KEY = 'videoBackgroundShowHeader';
 const ENABLED_VIDEO_CATEGORY_IDS_KEY = 'enabledVideoCategoryIds';
 const USER_VIDEO_CATEGORIES_KEY = 'videoUserCategories';
 const USER_VIDEOS_KEY = 'videoUserVideos';
@@ -49,6 +62,10 @@ const USER_VIDEOS_DIR = 'user-videos';
 
 export function PreferencesProvider({ children }: { children: React.ReactNode }) {
   const [videoBackgroundEnabled, setVideoBackgroundEnabledState] = useState(false);
+  const [snippetCardBackgroundOpacity, setSnippetCardBackgroundOpacityState] = useState(0.8);
+  const [snippetCardTextColor, setSnippetCardTextColorState] = useState('#ECEDEE');
+  const [snippetCardBackgroundColor, setSnippetCardBackgroundColorState] = useState('#1E2022');
+  const [videoBackgroundShowHeader, setVideoBackgroundShowHeaderState] = useState(true);
   const [enabledVideoCategoryIds, setEnabledVideoCategoryIdsState] = useState<string[]>([]);
   const [userVideoCategories, setUserVideoCategoriesState] = useState<UserVideoCategory[]>([]);
   const [userVideos, setUserVideosState] = useState<UserVideo[]>([]);
@@ -57,14 +74,22 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
   useEffect(() => {
     const loadPreferences = async () => {
       try {
-        const [enabled, categoryIds, categories, videos] = await Promise.all([
+        const [enabled, opacity, textColor, bgColor, showHeader, categoryIds, categories, videos] = await Promise.all([
           AsyncStorage.getItem(VIDEO_BACKGROUND_ENABLED_KEY),
+          AsyncStorage.getItem(SNIPPET_CARD_BACKGROUND_OPACITY_KEY),
+          AsyncStorage.getItem(SNIPPET_CARD_TEXT_COLOR_KEY),
+          AsyncStorage.getItem(SNIPPET_CARD_BACKGROUND_COLOR_KEY),
+          AsyncStorage.getItem(VIDEO_BACKGROUND_SHOW_HEADER_KEY),
           AsyncStorage.getItem(ENABLED_VIDEO_CATEGORY_IDS_KEY),
           AsyncStorage.getItem(USER_VIDEO_CATEGORIES_KEY),
           AsyncStorage.getItem(USER_VIDEOS_KEY),
         ]);
 
         setVideoBackgroundEnabledState(enabled === 'true');
+        setSnippetCardBackgroundOpacityState(opacity ? parseFloat(opacity) : 0.8);
+        setSnippetCardTextColorState(textColor || '#ECEDEE');
+        setSnippetCardBackgroundColorState(bgColor || '#1E2022');
+        setVideoBackgroundShowHeaderState(showHeader !== 'false');
         // Default to all built-in categories enabled if none are set
         const defaultEnabledIds: string[] = ['gameplay', 'satisfying', 'narrated', 'ambient', 'nature'];
         setEnabledVideoCategoryIdsState(
@@ -94,6 +119,42 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
       setVideoBackgroundEnabledState(enabled);
     } catch (error) {
       console.error('Error saving video background preference:', error);
+    }
+  };
+
+  const setSnippetCardBackgroundOpacity = async (opacity: number) => {
+    try {
+      await AsyncStorage.setItem(SNIPPET_CARD_BACKGROUND_OPACITY_KEY, opacity.toString());
+      setSnippetCardBackgroundOpacityState(opacity);
+    } catch (error) {
+      console.error('Error saving snippet card background opacity:', error);
+    }
+  };
+
+  const setSnippetCardTextColor = async (color: string) => {
+    try {
+      await AsyncStorage.setItem(SNIPPET_CARD_TEXT_COLOR_KEY, color);
+      setSnippetCardTextColorState(color);
+    } catch (error) {
+      console.error('Error saving snippet card text color:', error);
+    }
+  };
+
+  const setSnippetCardBackgroundColor = async (color: string) => {
+    try {
+      await AsyncStorage.setItem(SNIPPET_CARD_BACKGROUND_COLOR_KEY, color);
+      setSnippetCardBackgroundColorState(color);
+    } catch (error) {
+      console.error('Error saving snippet card background color:', error);
+    }
+  };
+
+  const setVideoBackgroundShowHeader = async (show: boolean) => {
+    try {
+      await AsyncStorage.setItem(VIDEO_BACKGROUND_SHOW_HEADER_KEY, show.toString());
+      setVideoBackgroundShowHeaderState(show);
+    } catch (error) {
+      console.error('Error saving video background show header:', error);
     }
   };
 
@@ -306,6 +367,14 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
       value={{
         videoBackgroundEnabled,
         setVideoBackgroundEnabled,
+        snippetCardBackgroundOpacity,
+        setSnippetCardBackgroundOpacity,
+        snippetCardTextColor,
+        setSnippetCardTextColor,
+        snippetCardBackgroundColor,
+        setSnippetCardBackgroundColor,
+        videoBackgroundShowHeader,
+        setVideoBackgroundShowHeader,
         enabledVideoCategoryIds,
         setEnabledVideoCategoryIds,
         userVideoCategories,

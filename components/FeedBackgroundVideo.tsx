@@ -196,7 +196,7 @@ export default function FeedBackgroundVideo({
   }
 
   return (
-    <View style={[StyleSheet.absoluteFill, styles.container]} pointerEvents="none">
+    <View style={[StyleSheet.absoluteFill, styles.container, { zIndex: 0 }]} pointerEvents="none">
       <VideoView
         player={activePlayer}
         style={StyleSheet.absoluteFill}

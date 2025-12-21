@@ -32,7 +32,13 @@ export default function SnippetCard({ snippet, height }: SnippetCardProps) {
     const [isRevealed, setIsRevealed] = useState(false);
     const fadeAnim = useRef(new Animated.Value(1)).current;
 
-    const { videoBackgroundEnabled: isVideoBackgroundEnabled } = usePreferences();
+    const {
+        videoBackgroundEnabled: isVideoBackgroundEnabled,
+        snippetCardBackgroundOpacity,
+        snippetCardTextColor,
+        snippetCardBackgroundColor,
+        videoBackgroundShowHeader,
+    } = usePreferences();
 
     const handleReveal = () => {
         Animated.timing(fadeAnim, {
@@ -95,19 +101,35 @@ export default function SnippetCard({ snippet, height }: SnippetCardProps) {
             isVideoBackgroundEnabled && { backgroundColor: 'transparent' },
             getCardStyle()
         ]}>
-            {!isVideoBackgroundEnabled && (
+            {/* Background overlay when video backgrounds are enabled */}
+            {isVideoBackgroundEnabled && (
+                <View style={[
+                    StyleSheet.absoluteFill,
+                    {
+                        backgroundColor: snippetCardBackgroundColor,
+                        opacity: snippetCardBackgroundOpacity,
+                        borderRadius: 24,
+                    }
+                ]} />
+            )}
+            {/* Header - shown when not video backgrounds OR when video backgrounds enabled and header toggle is on */}
+            {(!isVideoBackgroundEnabled || videoBackgroundShowHeader) && (
                 <View style={styles.header}>
                     <View style={styles.iconContainer}>
                         {renderIcon()}
                     </View>
-                    <Text style={styles.label}>{renderLabel()}</Text>
+                    <Text style={[
+                        styles.label,
+                        isVideoBackgroundEnabled && { color: snippetCardTextColor }
+                    ]}>{renderLabel()}</Text>
                 </View>
             )}
             <View style={styles.contentContainer}>
                 <Text style={[
                     styles.mainText,
                     snippet.type === 'concept' && styles.conceptText,
-                    isVideoBackgroundEnabled && styles.mainTextWithShadow
+                    isVideoBackgroundEnabled && styles.mainTextWithShadow,
+                    isVideoBackgroundEnabled && { color: snippetCardTextColor }
                 ]}>
                     {cleanContent(snippet.content)}
                 </Text>
@@ -116,9 +138,14 @@ export default function SnippetCard({ snippet, height }: SnippetCardProps) {
                     <View style={styles.interactiveContainer}>
                         {!isRevealed ? (
                             <Animated.View style={{ opacity: fadeAnim }}>
-                                <TouchableOpacity style={styles.revealButton} onPress={handleReveal}>
+                                <TouchableOpacity
+                                    style={[
+                                        styles.revealButton
+                                    ]}
+                                    onPress={handleReveal}
+                                >
                                     <Text style={[
-                                        styles.revealButtonText,
+                                        styles.revealButtonText
                                     ]}>
                                         Reveal Answer
                                     </Text>
@@ -130,7 +157,11 @@ export default function SnippetCard({ snippet, height }: SnippetCardProps) {
                                     <Ionicons name="checkmark-circle" size={20} color={Colors.tint} />
                                     <Text style={styles.answerLabel}>Answer:</Text>
                                 </View>
-                                <Text style={styles.answerText}>{snippet.answer}</Text>
+                                <Text style={[
+                                    styles.answerText
+                                ]}>
+                                    {snippet.answer}
+                                </Text>
                             </View>
                         )}
                     </View>
@@ -222,7 +253,7 @@ const styles = StyleSheet.create({
         gap: 8,
     },
     revealButtonText: {
-        color: Colors.background,
+        color: Colors.background, // Default color, will be overridden when video backgrounds enabled
         fontSize: 16,
         fontWeight: "600",
     },
