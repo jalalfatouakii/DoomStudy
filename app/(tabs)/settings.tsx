@@ -110,6 +110,7 @@ const EditNameModal = ({ visible, onClose, onSave, initialName }: { visible: boo
 const MODELS = [
     { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite' },
     { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
+    { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash' }
 ];
 
 const BASE_OFFLINE_MODELS = [
@@ -1025,11 +1026,10 @@ const SnippetTypesModal = ({ visible, onClose, onSave, selectedTypes }: {
     );
 };
 
-// Video Background Settings Modal (merged toggle + categories)
-const VideoBackgroundSettingsModal = ({ visible, onClose }: { visible: boolean; onClose: () => void }) => {
+const VIDEO_OPACITY_PRESETS = [0, 0.25, 0.5, 0.75, 1] as const;
+
+const VideoBackgroundAppearanceModal = ({ visible, onClose }: { visible: boolean; onClose: () => void }) => {
     const {
-        videoBackgroundEnabled,
-        setVideoBackgroundEnabled,
         snippetCardBackgroundOpacity,
         setSnippetCardBackgroundOpacity,
         snippetCardTextColor,
@@ -1038,6 +1038,227 @@ const VideoBackgroundSettingsModal = ({ visible, onClose }: { visible: boolean; 
         setSnippetCardBackgroundColor,
         videoBackgroundShowHeader,
         setVideoBackgroundShowHeader,
+    } = usePreferences();
+
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+    const [tempOpacity, setTempOpacity] = useState(snippetCardBackgroundOpacity);
+    const [tempTextColor, setTempTextColor] = useState(snippetCardTextColor);
+    const [tempBgColor, setTempBgColor] = useState(snippetCardBackgroundColor);
+    const [tempShowHeader, setTempShowHeader] = useState(videoBackgroundShowHeader);
+    const [showTextColorPicker, setShowTextColorPicker] = useState(false);
+    const [showBgColorPicker, setShowBgColorPicker] = useState(false);
+
+    useEffect(() => {
+        if (!visible) return;
+        fadeAnim.setValue(0);
+        Animated.timing(fadeAnim, {
+            toValue: 1,
+            duration: 200,
+            useNativeDriver: true,
+        }).start();
+        setTempOpacity(snippetCardBackgroundOpacity);
+        setTempTextColor(snippetCardTextColor);
+        setTempBgColor(snippetCardBackgroundColor);
+        setTempShowHeader(videoBackgroundShowHeader);
+        setShowTextColorPicker(false);
+        setShowBgColorPicker(false);
+    }, [visible, fadeAnim, snippetCardBackgroundOpacity, snippetCardTextColor, snippetCardBackgroundColor, videoBackgroundShowHeader]);
+
+    const animateClose = async () => {
+        await setSnippetCardBackgroundOpacity(tempOpacity);
+        await setSnippetCardTextColor(tempTextColor);
+        await setSnippetCardBackgroundColor(tempBgColor);
+        await setVideoBackgroundShowHeader(tempShowHeader);
+
+        Animated.timing(fadeAnim, {
+            toValue: 0,
+            duration: 150,
+            useNativeDriver: true,
+        }).start(() => onClose());
+    };
+
+    if (!visible) return null;
+
+    return (
+        <Modal transparent visible={visible} onRequestClose={animateClose} animationType="none">
+            <View style={styles.modalOverlay}>
+                <Pressable style={StyleSheet.absoluteFill} onPress={animateClose} />
+                <Animated.View
+                    style={[
+                        styles.modalContent,
+                        {
+                            opacity: fadeAnim,
+                            transform: [
+                                {
+                                    scale: fadeAnim.interpolate({
+                                        inputRange: [0, 1],
+                                        outputRange: [0.95, 1],
+                                    }),
+                                },
+                            ],
+                        },
+                    ]}
+                    onStartShouldSetResponder={() => true}
+                >
+                    <ScrollView showsVerticalScrollIndicator={false}>
+                        <Text style={styles.modalTitle}>Appearance</Text>
+                        <Text style={styles.modalSubtitle}>Customize how snippets look on top of videos</Text>
+
+                        {/* Preview */}
+                        <View style={styles.previewCardOuter}>
+                            <View style={styles.previewCard}>
+                                <View
+                                    style={[
+                                        StyleSheet.absoluteFill,
+                                        {
+                                            backgroundColor: tempBgColor,
+                                            opacity: tempOpacity,
+                                            borderRadius: 20,
+                                        },
+                                    ]}
+                                />
+                                {tempShowHeader && (
+                                    <View style={styles.previewHeader}>
+                                        <View style={styles.previewIcon}>
+                                            <Ionicons name="bulb" size={18} color={Colors.tint} />
+                                        </View>
+                                        <Text style={[styles.previewLabel, { color: tempTextColor }]}>Did You Know?</Text>
+                                    </View>
+                                )}
+                                <Text style={[styles.previewText, { color: tempTextColor }]}>
+                                    This is a preview of a snippet card. Your opacity and colors update live.
+                                </Text>
+                            </View>
+                        </View>
+
+                        {/* Opacity */}
+                        <View style={styles.videoSettingsSection}>
+                            <Text style={styles.sectionHeader}>
+                                Card background opacity ({Math.round(tempOpacity * 100)}%)
+                            </Text>
+                            <View style={styles.opacityButtons}>
+                                {VIDEO_OPACITY_PRESETS.map((val) => (
+                                    <TouchableOpacity
+                                        key={val}
+                                        style={[styles.opacityButton, tempOpacity === val && styles.opacityButtonActive]}
+                                        onPress={() => setTempOpacity(val)}
+                                    >
+                                        <Text style={[styles.opacityButtonText, tempOpacity === val && styles.opacityButtonTextActive]}>
+                                            {Math.round(val * 100)}%
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        </View>
+
+                        {/* Header toggle */}
+                        <View style={styles.videoSettingsSection}>
+                            <View style={styles.settingItem}>
+                                <View style={styles.settingLeft}>
+                                    <View style={styles.iconContainer}>
+                                        <Ionicons name="list" size={20} color={Colors.text} />
+                                    </View>
+                                    <Text style={styles.settingTitle}>Show snippet header</Text>
+                                </View>
+                                <Switch
+                                    value={tempShowHeader}
+                                    onValueChange={setTempShowHeader}
+                                    trackColor={{ false: Colors.backgroundLighter, true: Colors.tint + '80' }}
+                                    thumbColor={tempShowHeader ? Colors.tint : Colors.tabIconDefault}
+                                />
+                            </View>
+                        </View>
+
+                        {/* Text color */}
+                        <View style={styles.videoSettingsSection}>
+                            <Text style={styles.sectionHeader}>Text color (card & header)</Text>
+                            <TouchableOpacity
+                                style={styles.colorPickerButton}
+                                onPress={() => setShowTextColorPicker(!showTextColorPicker)}
+                            >
+                                <View style={[styles.colorPreview, { backgroundColor: tempTextColor }]} />
+                                <Text style={styles.colorPickerButtonText}>{tempTextColor}</Text>
+                                <Ionicons name={showTextColorPicker ? 'chevron-up' : 'chevron-down'} size={20} color={Colors.text} />
+                            </TouchableOpacity>
+                            {showTextColorPicker && (
+                                <View style={styles.colorPickerContainer}>
+                                    <TextInput
+                                        style={styles.colorInput}
+                                        value={tempTextColor}
+                                        onChangeText={setTempTextColor}
+                                        placeholder="#ECEDEE"
+                                        placeholderTextColor={Colors.tabIconDefault}
+                                        selectionColor={Colors.tint}
+                                    />
+                                    <View style={styles.colorPresets}>
+                                        {['#ECEDEE', '#FFFFFF', '#000000', '#80F65C', '#FF9500', '#34C759', '#AF52DE'].map((color) => (
+                                            <Pressable
+                                                key={color}
+                                                style={[
+                                                    styles.colorPreset,
+                                                    { backgroundColor: color },
+                                                    tempTextColor === color && styles.colorPresetSelected,
+                                                ]}
+                                                onPress={() => setTempTextColor(color)}
+                                            />
+                                        ))}
+                                    </View>
+                                </View>
+                            )}
+                        </View>
+
+                        {/* Background color */}
+                        <View style={styles.videoSettingsSection}>
+                            <Text style={styles.sectionHeader}>Background color</Text>
+                            <TouchableOpacity
+                                style={styles.colorPickerButton}
+                                onPress={() => setShowBgColorPicker(!showBgColorPicker)}
+                            >
+                                <View style={[styles.colorPreview, { backgroundColor: tempBgColor }]} />
+                                <Text style={styles.colorPickerButtonText}>{tempBgColor}</Text>
+                                <Ionicons name={showBgColorPicker ? 'chevron-up' : 'chevron-down'} size={20} color={Colors.text} />
+                            </TouchableOpacity>
+                            {showBgColorPicker && (
+                                <View style={styles.colorPickerContainer}>
+                                    <TextInput
+                                        style={styles.colorInput}
+                                        value={tempBgColor}
+                                        onChangeText={setTempBgColor}
+                                        placeholder="#1E2022"
+                                        placeholderTextColor={Colors.tabIconDefault}
+                                        selectionColor={Colors.tint}
+                                    />
+                                    <View style={styles.colorPresets}>
+                                        {['#1E2022', '#151718', '#000000', 'rgba(30, 32, 34, 0.8)', 'rgba(21, 23, 24, 0.9)', 'rgba(0, 0, 0, 0.7)', 'rgba(255, 255, 255, 0.1)'].map((color) => (
+                                            <Pressable
+                                                key={color}
+                                                style={[
+                                                    styles.colorPreset,
+                                                    { backgroundColor: color },
+                                                    tempBgColor === color && styles.colorPresetSelected,
+                                                ]}
+                                                onPress={() => setTempBgColor(color)}
+                                            />
+                                        ))}
+                                    </View>
+                                </View>
+                            )}
+                        </View>
+
+                        <View style={styles.modalButtons}>
+                            <Pressable style={[styles.modalButton, styles.cancelButton]} onPress={animateClose}>
+                                <Text style={styles.cancelButtonText}>Done</Text>
+                            </Pressable>
+                        </View>
+                    </ScrollView>
+                </Animated.View>
+            </View>
+        </Modal>
+    );
+};
+
+const VideoBackgroundManagerModal = ({ visible, onClose }: { visible: boolean; onClose: () => void }) => {
+    const {
         enabledVideoCategoryIds,
         setEnabledVideoCategoryIds,
         userVideoCategories,
@@ -1053,16 +1274,9 @@ const VideoBackgroundSettingsModal = ({ visible, onClose }: { visible: boolean; 
 
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
-    const [editingVideo, setEditingVideo] = useState<UserVideo | null>(null);
     const [editingCategory, setEditingCategory] = useState<UserVideoCategory | null>(null);
     const [newCategoryName, setNewCategoryName] = useState('');
     const [showCreateCategory, setShowCreateCategory] = useState(false);
-    const [showCategories, setShowCategories] = useState(false);
-    const [tempOpacity, setTempOpacity] = useState(snippetCardBackgroundOpacity);
-    const [tempTextColor, setTempTextColor] = useState(snippetCardTextColor);
-    const [tempBgColor, setTempBgColor] = useState(snippetCardBackgroundColor);
-    const [showTextColorPicker, setShowTextColorPicker] = useState(false);
-    const [showBgColorPicker, setShowBgColorPicker] = useState(false);
 
     const builtInCategories: { id: BuiltInVideoCategoryId; name: string }[] = [
         { id: 'gameplay', name: 'Gameplay' },
@@ -1078,43 +1292,25 @@ const VideoBackgroundSettingsModal = ({ visible, onClose }: { visible: boolean; 
     ];
 
     useEffect(() => {
-        if (visible) {
-            fadeAnim.setValue(0);
-            Animated.timing(fadeAnim, {
-                toValue: 1,
-                duration: 200,
-                useNativeDriver: true,
-            }).start();
-            setTempOpacity(snippetCardBackgroundOpacity);
-            setTempTextColor(snippetCardTextColor);
-            setTempBgColor(snippetCardBackgroundColor);
-            setShowCategories(false);
-            setShowTextColorPicker(false);
-            setShowBgColorPicker(false);
-        }
-    }, [visible, snippetCardBackgroundOpacity, snippetCardTextColor, snippetCardBackgroundColor]);
+        if (!visible) return;
+        fadeAnim.setValue(0);
+        Animated.timing(fadeAnim, {
+            toValue: 1,
+            duration: 200,
+            useNativeDriver: true,
+        }).start();
+        setExpandedCategory(null);
+        setEditingCategory(null);
+        setShowCreateCategory(false);
+        setNewCategoryName('');
+    }, [visible, fadeAnim]);
 
     const animateClose = async () => {
-        // Save opacity and colors when closing
-        await setSnippetCardBackgroundOpacity(tempOpacity);
-        await setSnippetCardTextColor(tempTextColor);
-        await setSnippetCardBackgroundColor(tempBgColor);
-
         Animated.timing(fadeAnim, {
             toValue: 0,
             duration: 150,
             useNativeDriver: true,
-        }).start(() => {
-            setExpandedCategory(null);
-            setEditingVideo(null);
-            setEditingCategory(null);
-            setShowCreateCategory(false);
-            setShowCategories(false);
-            setShowTextColorPicker(false);
-            setShowBgColorPicker(false);
-            setNewCategoryName('');
-            onClose();
-        });
+        }).start(() => onClose());
     };
 
     const toggleCategoryEnabled = async (categoryId: string) => {
@@ -1131,7 +1327,6 @@ const VideoBackgroundSettingsModal = ({ visible, onClose }: { visible: boolean; 
     };
 
     const getBundledCount = (categoryId: string): number => {
-        // Built-in categories have 1 bundled video each (for now)
         return builtInCategories.some((cat) => cat.id === categoryId) ? 1 : 0;
     };
 
@@ -1173,7 +1368,6 @@ const VideoBackgroundSettingsModal = ({ visible, onClose }: { visible: boolean; 
 
         try {
             await updateUserVideoMeta(video.id, { displayName: newName.trim() });
-            setEditingVideo(null);
             Alert.alert('Success', 'Video renamed successfully!');
         } catch (error) {
             Alert.alert('Error', 'Failed to rename video.');
@@ -1280,7 +1474,8 @@ const VideoBackgroundSettingsModal = ({ visible, onClose }: { visible: boolean; 
 
     return (
         <Modal transparent visible={visible} onRequestClose={animateClose} animationType="none">
-            <Pressable style={styles.modalOverlay} onPress={animateClose}>
+            <View style={styles.modalOverlay}>
+                <Pressable style={StyleSheet.absoluteFill} onPress={animateClose} />
                 <Animated.View
                     style={[
                         styles.modalContent,
@@ -1299,346 +1494,177 @@ const VideoBackgroundSettingsModal = ({ visible, onClose }: { visible: boolean; 
                     onStartShouldSetResponder={() => true}
                 >
                     <ScrollView showsVerticalScrollIndicator={false}>
-                        <Text style={styles.modalTitle}>Video Backgrounds</Text>
-                        <Text style={styles.modalSubtitle}>Customize your feed video backgrounds</Text>
+                        <Text style={styles.modalTitle}>Manage videos</Text>
+                        <Text style={styles.modalSubtitle}>Add videos, create categories, and choose what’s enabled</Text>
 
-                        {/* Toggle Section */}
                         <View style={styles.videoSettingsSection}>
-                            <View style={styles.settingItem}>
-                                <View style={styles.settingLeft}>
-                                    <View style={styles.iconContainer}>
-                                        <Ionicons name="videocam" size={20} color={Colors.text} />
-                                    </View>
-                                    <Text style={styles.settingTitle}>Video Backgrounds</Text>
-                                </View>
-                                <Switch
-                                    value={videoBackgroundEnabled}
-                                    onValueChange={setVideoBackgroundEnabled}
-                                    trackColor={{ false: Colors.backgroundLighter, true: Colors.tint + '80' }}
-                                    thumbColor={videoBackgroundEnabled ? Colors.tint : Colors.tabIconDefault}
-                                />
-                            </View>
-                        </View>
+                            <Text style={styles.sectionHeader}>Enabled categories</Text>
+                            {allCategories.map((category) => {
+                                const isEnabled = enabledVideoCategoryIds.includes(category.id);
+                                const videos = getVideosForCategory(category.id);
+                                const bundledCount = getBundledCount(category.id);
+                                const isExpanded = expandedCategory === category.id;
 
-                        {/* Settings Section - Only show if enabled */}
-                        {videoBackgroundEnabled && (
-                            <View>
-                                {/* Snippet Card Background Opacity Control */}
-                                <View style={styles.videoSettingsSection}>
-                                    <Text style={styles.sectionHeader}>Snippet Card Background Opacity</Text>
-                                    <View style={styles.opacityButtons}>
-                                        {[0, 0.25, 0.5, 0.75, 1].map((val) => (
+                                return (
+                                    <View key={category.id} style={styles.categoryItem}>
+                                        <View style={styles.categoryHeader}>
                                             <TouchableOpacity
-                                                key={val}
-                                                style={[
-                                                    styles.opacityButton,
-                                                    tempOpacity === val && styles.opacityButtonActive
-                                                ]}
-                                                onPress={() => {
-                                                    setTempOpacity(val);
-                                                }}
+                                                style={styles.categoryHeaderLeft}
+                                                onPress={() => setExpandedCategory(isExpanded ? null : category.id)}
                                             >
-                                                <Text style={[
-                                                    styles.opacityButtonText,
-                                                    tempOpacity === val && styles.opacityButtonTextActive
-                                                ]}>
-                                                    {Math.round(val * 100)}%
+                                                <Ionicons
+                                                    name={isExpanded ? 'chevron-down' : 'chevron-forward'}
+                                                    size={20}
+                                                    color={Colors.text}
+                                                />
+                                                <Text style={styles.categoryName}>
+                                                    {category.name}{' '}
+                                                    <Text style={styles.categoryCount}>
+                                                        ({bundledCount + videos.length})
+                                                    </Text>
                                                 </Text>
                                             </TouchableOpacity>
-                                        ))}
-                                    </View>
-                                </View>
-
-                                {/* Show Header Toggle */}
-                                <View style={styles.videoSettingsSection}>
-                                    <View style={styles.settingItem}>
-                                        <View style={styles.settingLeft}>
-                                            <View style={styles.iconContainer}>
-                                                <Ionicons name="list" size={20} color={Colors.text} />
-                                            </View>
-                                            <Text style={styles.settingTitle}>Show Header</Text>
-                                        </View>
-                                        <Switch
-                                            value={videoBackgroundShowHeader}
-                                            onValueChange={setVideoBackgroundShowHeader}
-                                            trackColor={{ false: Colors.backgroundLighter, true: Colors.tint + '80' }}
-                                            thumbColor={videoBackgroundShowHeader ? Colors.tint : Colors.tabIconDefault}
-                                        />
-                                    </View>
-                                </View>
-
-                                {/* Snippet Card Text Color (also affects header) */}
-                                <View style={styles.videoSettingsSection}>
-                                    <Text style={styles.sectionHeader}>Text Color (Card & Header)</Text>
-                                    <TouchableOpacity
-                                        style={styles.colorPickerButton}
-                                        onPress={() => setShowTextColorPicker(!showTextColorPicker)}
-                                    >
-                                        <View style={[styles.colorPreview, { backgroundColor: tempTextColor }]} />
-                                        <Text style={styles.colorPickerButtonText}>{tempTextColor}</Text>
-                                        <Ionicons name={showTextColorPicker ? 'chevron-up' : 'chevron-down'} size={20} color={Colors.text} />
-                                    </TouchableOpacity>
-                                    {showTextColorPicker && (
-                                        <View style={styles.colorPickerContainer}>
-                                            <TextInput
-                                                style={styles.colorInput}
-                                                value={tempTextColor}
-                                                onChangeText={setTempTextColor}
-                                                placeholder="#ECEDEE"
-                                                placeholderTextColor={Colors.tabIconDefault}
-                                                selectionColor={Colors.tint}
+                                            <Switch
+                                                value={isEnabled}
+                                                onValueChange={() => toggleCategoryEnabled(category.id)}
+                                                trackColor={{
+                                                    false: Colors.backgroundLighter,
+                                                    true: Colors.tint + '80',
+                                                }}
+                                                thumbColor={isEnabled ? Colors.tint : Colors.tabIconDefault}
                                             />
-                                            <View style={styles.colorPresets}>
-                                                {['#ECEDEE', '#FFFFFF', '#000000', '#80F65C', '#FF9500', '#34C759', '#AF52DE'].map((color) => (
-                                                    <Pressable
-                                                        key={color}
-                                                        style={[
-                                                            styles.colorPreset,
-                                                            { backgroundColor: color },
-                                                            tempTextColor === color && styles.colorPresetSelected
-                                                        ]}
-                                                        onPress={() => setTempTextColor(color)}
-                                                    />
-                                                ))}
-                                            </View>
                                         </View>
-                                    )}
-                                </View>
 
-                                {/* Snippet Card Background Color */}
-                                <View style={styles.videoSettingsSection}>
-                                    <Text style={styles.sectionHeader}>Snippet Card Background Color</Text>
-                                    <TouchableOpacity
-                                        style={styles.colorPickerButton}
-                                        onPress={() => setShowBgColorPicker(!showBgColorPicker)}
-                                    >
-                                        <View style={[styles.colorPreview, { backgroundColor: tempBgColor }]} />
-                                        <Text style={styles.colorPickerButtonText}>{tempBgColor}</Text>
-                                        <Ionicons name={showBgColorPicker ? 'chevron-up' : 'chevron-down'} size={20} color={Colors.text} />
-                                    </TouchableOpacity>
-                                    {showBgColorPicker && (
-                                        <View style={styles.colorPickerContainer}>
-                                            <TextInput
-                                                style={styles.colorInput}
-                                                value={tempBgColor}
-                                                onChangeText={setTempBgColor}
-                                                placeholder="#1E2022"
-                                                placeholderTextColor={Colors.tabIconDefault}
-                                                selectionColor={Colors.tint}
-                                            />
-                                            <View style={styles.colorPresets}>
-                                                {['#1E2022', '#151718', '#000000', 'rgba(30, 32, 34, 0.8)', 'rgba(21, 23, 24, 0.9)', 'rgba(0, 0, 0, 0.7)', 'rgba(255, 255, 255, 0.1)'].map((color) => (
-                                                    <Pressable
-                                                        key={color}
-                                                        style={[
-                                                            styles.colorPreset,
-                                                            { backgroundColor: color },
-                                                            tempBgColor === color && styles.colorPresetSelected
-                                                        ]}
-                                                        onPress={() => setTempBgColor(color)}
-                                                    />
-                                                ))}
-                                            </View>
-                                        </View>
-                                    )}
-                                </View>
-
-                                {/* Manage Categories Button */}
-                                <View style={styles.videoSettingsSection}>
-                                    <TouchableOpacity
-                                        style={styles.manageCategoriesButton}
-                                        onPress={() => setShowCategories(!showCategories)}
-                                    >
-                                        <Ionicons name={showCategories ? 'chevron-down' : 'chevron-forward'} size={20} color={Colors.text} />
-                                        <Text style={styles.manageCategoriesButtonText}>Manage Video Categories</Text>
-                                        <Ionicons name="settings" size={20} color={Colors.tint} />
-                                    </TouchableOpacity>
-                                </View>
-
-                                {/* Categories Section - Only show if expanded */}
-                                {showCategories && (
-                                    <View style={styles.videoSettingsSection}>
-                                        <Text style={styles.sectionHeader}>Video Categories</Text>
-                                        {allCategories.map((category) => {
-                                            const isEnabled = enabledVideoCategoryIds.includes(category.id);
-                                            const videos = getVideosForCategory(category.id);
-                                            const bundledCount = getBundledCount(category.id);
-                                            const isExpanded = expandedCategory === category.id;
-
-                                            return (
-                                                <View key={category.id} style={styles.categoryItem}>
-                                                    <View style={styles.categoryHeader}>
+                                        {isExpanded && (
+                                            <View style={styles.categoryContent}>
+                                                {!category.isBuiltIn && (
+                                                    <View style={styles.categoryActions}>
                                                         <TouchableOpacity
-                                                            style={styles.categoryHeaderLeft}
-                                                            onPress={() =>
-                                                                setExpandedCategory(isExpanded ? null : category.id)
-                                                            }
-                                                        >
-                                                            <Ionicons
-                                                                name={isExpanded ? 'chevron-down' : 'chevron-forward'}
-                                                                size={20}
-                                                                color={Colors.text}
-                                                            />
-                                                            <Text style={styles.categoryName}>{category.name}</Text>
-                                                        </TouchableOpacity>
-                                                        <Switch
-                                                            value={isEnabled}
-                                                            onValueChange={() => toggleCategoryEnabled(category.id)}
-                                                            trackColor={{
-                                                                false: Colors.backgroundLighter,
-                                                                true: Colors.tint + '80',
+                                                            style={styles.actionButton}
+                                                            onPress={() => {
+                                                                const userCat = userVideoCategories.find((c) => c.id === category.id);
+                                                                if (userCat) setEditingCategory(userCat);
                                                             }}
-                                                            thumbColor={isEnabled ? Colors.tint : Colors.tabIconDefault}
-                                                        />
+                                                        >
+                                                            <Ionicons name="pencil" size={16} color={Colors.tint} />
+                                                            <Text style={styles.actionButtonText}>Rename</Text>
+                                                        </TouchableOpacity>
+                                                        <TouchableOpacity
+                                                            style={styles.actionButton}
+                                                            onPress={() => {
+                                                                const userCat = userVideoCategories.find((c) => c.id === category.id);
+                                                                if (userCat) handleDeleteCategory(userCat);
+                                                            }}
+                                                        >
+                                                            <Ionicons name="trash" size={16} color="#ff4444" />
+                                                            <Text style={[styles.actionButtonText, { color: '#ff4444' }]}>Delete</Text>
+                                                        </TouchableOpacity>
                                                     </View>
+                                                )}
 
-                                                    {isExpanded && (
-                                                        <View style={styles.categoryContent}>
-                                                            {!category.isBuiltIn && (
-                                                                <View style={styles.categoryActions}>
-                                                                    <TouchableOpacity
-                                                                        style={styles.actionButton}
-                                                                        onPress={() => {
-                                                                            const userCat = userVideoCategories.find(
-                                                                                (c) => c.id === category.id
-                                                                            );
-                                                                            if (userCat) setEditingCategory(userCat);
-                                                                        }}
-                                                                    >
-                                                                        <Ionicons name="pencil" size={16} color={Colors.tint} />
-                                                                        <Text style={styles.actionButtonText}>Rename</Text>
-                                                                    </TouchableOpacity>
-                                                                    <TouchableOpacity
-                                                                        style={styles.actionButton}
-                                                                        onPress={() => {
-                                                                            const userCat = userVideoCategories.find(
-                                                                                (c) => c.id === category.id
-                                                                            );
-                                                                            if (userCat) handleDeleteCategory(userCat);
-                                                                        }}
-                                                                    >
-                                                                        <Ionicons name="trash" size={16} color="#ff4444" />
-                                                                        <Text style={[styles.actionButtonText, { color: '#ff4444' }]}>
-                                                                            Delete
-                                                                        </Text>
-                                                                    </TouchableOpacity>
-                                                                </View>
-                                                            )}
+                                                <TouchableOpacity
+                                                    style={styles.addVideoButton}
+                                                    onPress={() => handleAddVideo(category.id)}
+                                                >
+                                                    <Ionicons name="add-circle" size={20} color={Colors.tint} />
+                                                    <Text style={styles.addVideoButtonText}>Add Video</Text>
+                                                </TouchableOpacity>
 
-                                                            <TouchableOpacity
-                                                                style={styles.addVideoButton}
-                                                                onPress={() => handleAddVideo(category.id)}
-                                                            >
-                                                                <Ionicons name="add-circle" size={20} color={Colors.tint} />
-                                                                <Text style={styles.addVideoButtonText}>Add Video</Text>
-                                                            </TouchableOpacity>
-
-                                                            {videos.map((video) => (
-                                                                <View key={video.id} style={styles.videoItem}>
-                                                                    <View style={styles.videoItemLeft}>
-                                                                        <Ionicons name="videocam" size={16} color={Colors.text} />
-                                                                        <Text style={styles.videoName}>{video.displayName}</Text>
-                                                                    </View>
-                                                                    <View style={styles.videoActions}>
-                                                                        <TouchableOpacity
-                                                                            onPress={() => {
-                                                                                Alert.prompt(
-                                                                                    'Rename Video',
-                                                                                    'Enter new name:',
-                                                                                    [
-                                                                                        { text: 'Cancel', style: 'cancel' },
-                                                                                        {
-                                                                                            text: 'Save',
-                                                                                            onPress: (newName?: string) => {
-                                                                                                if (newName) {
-                                                                                                    handleRenameVideo(video, newName);
-                                                                                                }
-                                                                                            },
-                                                                                        },
-                                                                                    ],
-                                                                                    'plain-text',
-                                                                                    video.displayName
-                                                                                );
-                                                                            }}
-                                                                        >
-                                                                            <Ionicons name="pencil" size={18} color={Colors.tint} />
-                                                                        </TouchableOpacity>
-                                                                        <TouchableOpacity
-                                                                            onPress={() => {
-                                                                                Alert.alert(
-                                                                                    'Move Video',
-                                                                                    'Select new category:',
-                                                                                    [
-                                                                                        ...allCategories
-                                                                                            .filter((cat) => cat.id !== video.categoryId)
-                                                                                            .map((cat) => ({
-                                                                                                text: cat.name,
-                                                                                                onPress: () => handleMoveVideo(video, cat.id),
-                                                                                            })),
-                                                                                        { text: 'Cancel', style: 'cancel' },
-                                                                                    ]
-                                                                                );
-                                                                            }}
-                                                                        >
-                                                                            <Ionicons name="folder" size={18} color={Colors.tint} />
-                                                                        </TouchableOpacity>
-                                                                        <TouchableOpacity onPress={() => handleReplaceVideo(video)}>
-                                                                            <Ionicons name="refresh" size={18} color={Colors.tint} />
-                                                                        </TouchableOpacity>
-                                                                        <TouchableOpacity onPress={() => handleDeleteVideo(video)}>
-                                                                            <Ionicons name="trash" size={18} color="#ff4444" />
-                                                                        </TouchableOpacity>
-                                                                    </View>
-                                                                </View>
-                                                            ))}
+                                                {videos.map((video) => (
+                                                    <View key={video.id} style={styles.videoItem}>
+                                                        <View style={styles.videoItemLeft}>
+                                                            <Ionicons name="videocam" size={16} color={Colors.text} />
+                                                            <Text style={styles.videoName}>{video.displayName}</Text>
                                                         </View>
-                                                    )}
-                                                </View>
-                                            );
-                                        })}
-
-                                        {showCreateCategory ? (
-                                            <View style={styles.createCategoryContainer}>
-                                                <TextInput
-                                                    style={styles.input}
-                                                    value={newCategoryName}
-                                                    onChangeText={setNewCategoryName}
-                                                    placeholder="Category name"
-                                                    placeholderTextColor={Colors.tabIconDefault}
-                                                    autoFocus
-                                                    selectionColor={Colors.tint}
-                                                />
-                                                <View style={styles.createCategoryActions}>
-                                                    <Pressable
-                                                        style={[styles.modalButton, styles.cancelButton]}
-                                                        onPress={() => {
-                                                            setShowCreateCategory(false);
-                                                            setNewCategoryName('');
-                                                        }}
-                                                    >
-                                                        <Text style={styles.cancelButtonText}>Cancel</Text>
-                                                    </Pressable>
-                                                    <Pressable
-                                                        style={[styles.modalButton, styles.saveButton]}
-                                                        onPress={handleCreateCategory}
-                                                    >
-                                                        <Text style={styles.saveButtonText}>Create</Text>
-                                                    </Pressable>
-                                                </View>
+                                                        <View style={styles.videoActions}>
+                                                            <TouchableOpacity
+                                                                onPress={() => {
+                                                                    Alert.prompt(
+                                                                        'Rename Video',
+                                                                        'Enter new name:',
+                                                                        [
+                                                                            { text: 'Cancel', style: 'cancel' },
+                                                                            {
+                                                                                text: 'Save',
+                                                                                onPress: (newName?: string) => {
+                                                                                    if (newName) handleRenameVideo(video, newName);
+                                                                                },
+                                                                            },
+                                                                        ],
+                                                                        'plain-text',
+                                                                        video.displayName
+                                                                    );
+                                                                }}
+                                                            >
+                                                                <Ionicons name="pencil" size={18} color={Colors.tint} />
+                                                            </TouchableOpacity>
+                                                            <TouchableOpacity
+                                                                onPress={() => {
+                                                                    Alert.alert(
+                                                                        'Move Video',
+                                                                        'Select new category:',
+                                                                        [
+                                                                            ...allCategories
+                                                                                .filter((cat) => cat.id !== video.categoryId)
+                                                                                .map((cat) => ({
+                                                                                    text: cat.name,
+                                                                                    onPress: () => handleMoveVideo(video, cat.id),
+                                                                                })),
+                                                                            { text: 'Cancel', style: 'cancel' },
+                                                                        ]
+                                                                    );
+                                                                }}
+                                                            >
+                                                                <Ionicons name="folder" size={18} color={Colors.tint} />
+                                                            </TouchableOpacity>
+                                                            <TouchableOpacity onPress={() => handleReplaceVideo(video)}>
+                                                                <Ionicons name="refresh" size={18} color={Colors.tint} />
+                                                            </TouchableOpacity>
+                                                            <TouchableOpacity onPress={() => handleDeleteVideo(video)}>
+                                                                <Ionicons name="trash" size={18} color="#ff4444" />
+                                                            </TouchableOpacity>
+                                                        </View>
+                                                    </View>
+                                                ))}
                                             </View>
-                                        ) : (
-                                            <TouchableOpacity
-                                                style={styles.createCategoryButton}
-                                                onPress={() => setShowCreateCategory(true)}
-                                            >
-                                                <Ionicons name="add-circle-outline" size={20} color={Colors.tint} />
-                                                <Text style={styles.createCategoryButtonText}>Create New Category</Text>
-                                            </TouchableOpacity>
                                         )}
                                     </View>
-                                )}
-                            </View>
-                        )}
+                                );
+                            })}
+
+                            {showCreateCategory ? (
+                                <View style={styles.createCategoryContainer}>
+                                    <TextInput
+                                        style={styles.input}
+                                        value={newCategoryName}
+                                        onChangeText={setNewCategoryName}
+                                        placeholder="Category name"
+                                        placeholderTextColor={Colors.tabIconDefault}
+                                        autoFocus
+                                        selectionColor={Colors.tint}
+                                    />
+                                    <View style={styles.createCategoryActions}>
+                                        <Pressable
+                                            style={[styles.modalButton, styles.cancelButton]}
+                                            onPress={() => {
+                                                setShowCreateCategory(false);
+                                                setNewCategoryName('');
+                                            }}
+                                        >
+                                            <Text style={styles.cancelButtonText}>Cancel</Text>
+                                        </Pressable>
+                                        <Pressable style={[styles.modalButton, styles.saveButton]} onPress={handleCreateCategory}>
+                                            <Text style={styles.saveButtonText}>Create</Text>
+                                        </Pressable>
+                                    </View>
+                                </View>
+                            ) : (
+                                <TouchableOpacity style={styles.createCategoryButton} onPress={() => setShowCreateCategory(true)}>
+                                    <Ionicons name="add-circle-outline" size={20} color={Colors.tint} />
+                                    <Text style={styles.createCategoryButtonText}>Create New Category</Text>
+                                </TouchableOpacity>
+                            )}
+                        </View>
 
                         {editingCategory && (
                             <View style={styles.editModal}>
@@ -1646,19 +1672,14 @@ const VideoBackgroundSettingsModal = ({ visible, onClose }: { visible: boolean; 
                                 <TextInput
                                     style={styles.input}
                                     value={editingCategory.name}
-                                    onChangeText={(text) =>
-                                        setEditingCategory({ ...editingCategory, name: text })
-                                    }
+                                    onChangeText={(text) => setEditingCategory({ ...editingCategory, name: text })}
                                     placeholder="Category name"
                                     placeholderTextColor={Colors.tabIconDefault}
                                     autoFocus
                                     selectionColor={Colors.tint}
                                 />
                                 <View style={styles.modalButtons}>
-                                    <Pressable
-                                        style={[styles.modalButton, styles.cancelButton]}
-                                        onPress={() => setEditingCategory(null)}
-                                    >
+                                    <Pressable style={[styles.modalButton, styles.cancelButton]} onPress={() => setEditingCategory(null)}>
                                         <Text style={styles.cancelButtonText}>Cancel</Text>
                                     </Pressable>
                                     <Pressable
@@ -1672,14 +1693,129 @@ const VideoBackgroundSettingsModal = ({ visible, onClose }: { visible: boolean; 
                         )}
 
                         <View style={styles.modalButtons}>
-                            <TouchableOpacity style={[styles.modalButton, styles.cancelButton]} onPress={animateClose}>
-                                <Text style={styles.cancelButtonText}>Close</Text>
-                            </TouchableOpacity>
+                            <Pressable style={[styles.modalButton, styles.cancelButton]} onPress={animateClose}>
+                                <Text style={styles.cancelButtonText}>Done</Text>
+                            </Pressable>
                         </View>
                     </ScrollView>
                 </Animated.View>
-            </Pressable>
+            </View>
         </Modal>
+    );
+};
+
+// Video Background Settings Modal (launcher only: enable + shortcuts)
+const VideoBackgroundSettingsModal = ({ visible, onClose }: { visible: boolean; onClose: () => void }) => {
+    const { videoBackgroundEnabled, setVideoBackgroundEnabled } = usePreferences();
+
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+    const [appearanceVisible, setAppearanceVisible] = useState(false);
+    const [managerVisible, setManagerVisible] = useState(false);
+
+    useEffect(() => {
+        if (!visible) return;
+        fadeAnim.setValue(0);
+        Animated.timing(fadeAnim, {
+            toValue: 1,
+            duration: 200,
+            useNativeDriver: true,
+        }).start();
+    }, [visible, fadeAnim]);
+
+    const animateClose = async () => {
+        Animated.timing(fadeAnim, {
+            toValue: 0,
+            duration: 150,
+            useNativeDriver: true,
+        }).start(() => onClose());
+    };
+
+    if (!visible) return null;
+
+    // Hide main modal when nested modals are open
+    const isMainModalVisible = visible && !appearanceVisible && !managerVisible;
+
+    return (
+        <>
+            <Modal transparent visible={isMainModalVisible} onRequestClose={animateClose} animationType="none">
+                <View style={styles.modalOverlay}>
+                    <Pressable style={StyleSheet.absoluteFill} onPress={animateClose} />
+                    <Animated.View
+                        style={[
+                            styles.modalContent,
+                            {
+                                opacity: fadeAnim,
+                                transform: [
+                                    {
+                                        scale: fadeAnim.interpolate({
+                                            inputRange: [0, 1],
+                                            outputRange: [0.95, 1],
+                                        }),
+                                    },
+                                ],
+                            },
+                        ]}
+                        onStartShouldSetResponder={() => true}
+                    >
+                        <Text style={styles.modalTitle}>Video Backgrounds</Text>
+                        <Text style={[styles.modalSubtitle, { opacity: 0.7 }]}>Turn it on, then customize appearance or manage videos</Text>
+
+                        <View style={styles.videoSettingsSection}>
+                            <View style={styles.settingItem}>
+                                <View style={styles.settingLeft}>
+                                    <View style={styles.iconContainer}>
+                                        <Ionicons name="videocam" size={20} color={Colors.text} />
+                                    </View>
+                                    <Text style={styles.settingTitle}>Video backgrounds</Text>
+                                </View>
+                                <Switch
+                                    value={videoBackgroundEnabled}
+                                    onValueChange={setVideoBackgroundEnabled}
+                                    trackColor={{ false: Colors.backgroundLighter, true: Colors.tint + '80' }}
+                                    thumbColor={videoBackgroundEnabled ? Colors.tint : Colors.tabIconDefault}
+                                />
+                            </View>
+                        </View>
+
+                        {videoBackgroundEnabled && (
+                            <View style={styles.launcherActions}>
+                                <TouchableOpacity
+                                    style={styles.manageCategoriesButton}
+                                    onPress={() => setAppearanceVisible(true)}
+                                >
+                                    <Ionicons name="color-palette" size={20} color={Colors.text} />
+                                    <Text style={styles.manageCategoriesButtonText}>Appearance</Text>
+                                    <Ionicons name="chevron-forward" size={20} color={Colors.tabIconDefault} />
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={styles.manageCategoriesButton}
+                                    onPress={() => setManagerVisible(true)}
+                                >
+                                    <Ionicons name="film" size={20} color={Colors.text} />
+                                    <Text style={styles.manageCategoriesButtonText}>Manage videos & categories</Text>
+                                    <Ionicons name="chevron-forward" size={20} color={Colors.tabIconDefault} />
+                                </TouchableOpacity>
+                            </View>
+                        )}
+
+                        <View style={styles.modalButtons}>
+                            <Pressable style={[styles.modalButton, styles.cancelButton]} onPress={animateClose}>
+                                <Text style={styles.cancelButtonText}>Close</Text>
+                            </Pressable>
+                        </View>
+                    </Animated.View>
+                </View>
+            </Modal>
+
+            <VideoBackgroundAppearanceModal
+                visible={appearanceVisible}
+                onClose={() => setAppearanceVisible(false)}
+            />
+            <VideoBackgroundManagerModal
+                visible={managerVisible}
+                onClose={() => setManagerVisible(false)}
+            />
+        </>
     );
 };
 
@@ -1973,14 +2109,14 @@ export default function Settings() {
 
                         <ActionItem
                             icon="book"
-                            title="Select Types of Snippets"
+                            title="Snippet Types"
                             onPress={() => setEditTypesModalVisible(true)}
                         />
                         <View style={styles.separator} />
 
                         <ActionItem
                             icon="settings"
-                            title="Manage Model Preferences"
+                            title="Model Preferences"
                             onPress={() => setModelPreferencesModalVisible(true)}
                         />
                         <View style={styles.separator} />
@@ -1998,7 +2134,7 @@ export default function Settings() {
                     <View style={styles.sectionContent}>
 
                         <ActionItem
-                            icon="document-text"
+                            icon="shield-checkmark"
                             title="Privacy Policy"
                             onPress={() => { WebBrowser.openBrowserAsync('https://doomstudyapp.com/#/privacy', { presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET }) }}
                         />
@@ -2983,9 +3119,6 @@ const styles = StyleSheet.create({
         backgroundColor: Colors.backgroundSecondary,
         borderRadius: 8,
         marginBottom: 12,
-        borderWidth: 1,
-        borderColor: Colors.tint + '40',
-        borderStyle: 'dashed',
     },
     addVideoButtonText: {
         fontSize: 14,
@@ -3037,9 +3170,6 @@ const styles = StyleSheet.create({
         backgroundColor: Colors.backgroundLighter,
         borderRadius: 12,
         marginTop: 12,
-        borderWidth: 1,
-        borderColor: Colors.tint + '40',
-        borderStyle: 'dashed',
         marginBottom: 12,
     },
     createCategoryButtonText: {
@@ -3141,6 +3271,46 @@ const styles = StyleSheet.create({
         borderRadius: 8,
         borderWidth: 2,
         borderColor: Colors.backgroundLighter,
+    },
+    launcherActions: {
+        gap: 12,
+        marginBottom: 20,
+    },
+    previewCardOuter: {
+        marginBottom: 20,
+    },
+    previewCard: {
+        borderRadius: 20,
+        padding: 16,
+        backgroundColor: 'transparent',
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: Colors.backgroundLighter,
+    },
+    previewHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        marginBottom: 10,
+    },
+    previewIcon: {
+        width: 32,
+        height: 32,
+        borderRadius: 10,
+        backgroundColor: Colors.backgroundSecondary,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    previewLabel: {
+        fontSize: 12,
+        fontWeight: '700',
+        textTransform: 'uppercase',
+        letterSpacing: 1,
+    },
+    previewText: {
+        fontSize: 16,
+        fontWeight: '600',
+        lineHeight: 22,
     },
     manageCategoriesButton: {
         flexDirection: 'row',
