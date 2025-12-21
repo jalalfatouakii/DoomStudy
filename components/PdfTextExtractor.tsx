@@ -1,3 +1,4 @@
+import { Asset } from 'expo-asset';
 import React, { useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { WebView } from 'react-native-webview';
@@ -11,22 +12,103 @@ interface PdfTextExtractorProps {
 export default function PdfTextExtractor({ pdfBase64, onExtract, onError }: PdfTextExtractorProps) {
     const webViewRef = useRef<WebView>(null);
     const [isWebViewLoaded, setIsWebViewLoaded] = useState(false);
+    const [pdfJsScript, setPdfJsScript] = useState<string>('');
+    const [pdfWorkerScript, setPdfWorkerScript] = useState<string>('');
+
+    // Load PDF.js files on mount
+    useEffect(() => {
+        const loadPdfJs = async () => {
+            try {
+                // Try to load as assets - if require() fails due to Metro blockList, 
+                // we'll need to rename files to .txt or use a different approach
+                let pdfJsAsset: Asset;
+                let pdfWorkerAsset: Asset;
+
+                // Load as .txt files - Metro treats them as assets, not modules
+                pdfJsAsset = Asset.fromModule(require('@/assets/pdfjs/pdf.min.txt'));
+                pdfWorkerAsset = Asset.fromModule(require('@/assets/pdfjs/pdf.worker.min.txt'));
+
+                await pdfJsAsset.downloadAsync();
+                await pdfWorkerAsset.downloadAsync();
+
+                const pdfJsLocalUri = pdfJsAsset.localUri || pdfJsAsset.uri;
+                const pdfWorkerLocalUri = pdfWorkerAsset.localUri || pdfWorkerAsset.uri;
+
+                // Fetch the content
+                const pdfJsResponse = await fetch(pdfJsLocalUri);
+                const pdfJsContent = await pdfJsResponse.text();
+
+                // Verify we got content
+                if (!pdfJsContent || pdfJsContent.length === 0) {
+                    throw new Error('PDF.js script is empty');
+                }
+                console.log('PDF.js script loaded, length:', pdfJsContent.length);
+                setPdfJsScript(pdfJsContent);
+
+                const pdfWorkerResponse = await fetch(pdfWorkerLocalUri);
+                const pdfWorkerContent = await pdfWorkerResponse.text();
+
+                if (!pdfWorkerContent || pdfWorkerContent.length === 0) {
+                    throw new Error('PDF.js worker script is empty');
+                }
+                console.log('PDF.js worker script loaded, length:', pdfWorkerContent.length);
+                setPdfWorkerScript(pdfWorkerContent);
+            } catch (error) {
+                console.error('Error loading PDF.js files:', error);
+                if (onError) {
+                    onError('Failed to load PDF.js library. Please restart Metro bundler with: npm start -- --reset-cache');
+                }
+            }
+        };
+
+        loadPdfJs();
+    }, [onError]);
+
+    // Inject PDF.js scripts when WebView loads
+    useEffect(() => {
+        if (isWebViewLoaded && webViewRef.current && pdfJsScript && pdfWorkerScript) {
+            // Inject PDF.js main script
+            const injectPdfJs = `
+                (function() {
+                    try {
+                        ${pdfJsScript}
+                        if (typeof pdfjsLib === 'undefined') {
+                            throw new Error('pdfjsLib not defined after injection');
+                        }
+                        
+                        // Configure worker
+                        const workerScript = ${JSON.stringify(pdfWorkerScript)};
+                        const workerBlob = new Blob([workerScript], { type: 'application/javascript' });
+                        const workerUrl = URL.createObjectURL(workerBlob);
+                        pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
+                        
+                        console.log('PDF.js injected successfully');
+                        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'PDFJS_READY' }));
+                    } catch (error) {
+                        console.error('Error injecting PDF.js:', error);
+                        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'ERROR', message: 'Failed to inject PDF.js: ' + error.toString() }));
+                    }
+                })();
+            `;
+            webViewRef.current.injectJavaScript(injectPdfJs);
+        }
+    }, [isWebViewLoaded, pdfJsScript, pdfWorkerScript]);
 
     useEffect(() => {
-        if (pdfBase64 && isWebViewLoaded && webViewRef.current) {
-            // Send the base64 data to the WebView
-            webViewRef.current.postMessage(JSON.stringify({ type: 'EXTRACT', data: pdfBase64 }));
+        if (pdfBase64 && isWebViewLoaded && webViewRef.current && pdfJsScript && pdfWorkerScript) {
+            // Small delay to ensure PDF.js is injected
+            setTimeout(() => {
+                webViewRef.current?.postMessage(JSON.stringify({ type: 'EXTRACT', data: pdfBase64 }));
+            }, 100);
         }
-    }, [pdfBase64, isWebViewLoaded]);
+    }, [pdfBase64, isWebViewLoaded, pdfJsScript, pdfWorkerScript]);
 
+    // Build HTML content - scripts will be injected via injectJavaScript
     const htmlContent = `
     <!DOCTYPE html>
     <html>
     <head>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-        <script>
-            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-        </script>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
     </head>
     <body>
         <script>
@@ -35,6 +117,10 @@ export default function PdfTextExtractor({ pdfBase64, onExtract, onError }: PdfT
 
             async function handleMessage(event) {
                 try {
+                    if (typeof pdfjsLib === 'undefined') {
+                        throw new Error('pdfjsLib is not available. PDF.js may not be loaded yet.');
+                    }
+                    
                     const message = JSON.parse(event.data);
                     if (message.type === 'EXTRACT') {
                         const pdfData = atob(message.data);
@@ -72,6 +158,11 @@ export default function PdfTextExtractor({ pdfBase64, onExtract, onError }: PdfT
             console.error("Error parsing WebView message:", e);
         }
     };
+
+    // Only render WebView when scripts are loaded
+    if (!pdfJsScript || !pdfWorkerScript) {
+        return null;
+    }
 
     return (
         <View style={{ height: 0, width: 0, overflow: 'hidden' }}>

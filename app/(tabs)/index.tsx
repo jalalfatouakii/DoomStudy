@@ -651,36 +651,36 @@ export default function Index() {
   return (
     <View style={styles.container}>
       {/* Header */}
-      {videoBackgroundShowHeader && (
-        <View style={[
-          styles.headerContainer,
-          videoBackgroundEnabled && { zIndex: 100, backgroundColor: 'transparent' }
-        ]}>
-          <FlatList
-            ref={headerListRef}
-            data={categories}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            keyExtractor={(item) => item.id}
-            contentContainerStyle={styles.headerContent}
-            renderItem={({ item, index }) => (
-              <TouchableOpacity
-                onPress={() => onHeaderPress(index)}
-                style={styles.headerItem}
+
+      <View style={[
+        styles.headerContainer,
+        videoBackgroundEnabled && { zIndex: 100, backgroundColor: 'transparent' }
+      ]}>
+        <FlatList
+          ref={headerListRef}
+          data={categories}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.headerContent}
+          renderItem={({ item, index }) => (
+            <TouchableOpacity
+              onPress={() => onHeaderPress(index)}
+              style={styles.headerItem}
+            >
+              <Text
+                style={[
+                  styles.headerText,
+                  activeIndex === index && styles.headerTextActive,
+                ]}
               >
-                <Text
-                  style={[
-                    styles.headerText,
-                    activeIndex === index && styles.headerTextActive,
-                  ]}
-                >
-                  {item.title}
-                </Text>
-              </TouchableOpacity>
-            )}
-          />
-        </View>
-      )}
+                {item.title}
+              </Text>
+            </TouchableOpacity>
+          )}
+        />
+      </View>
+
 
       {/* Main Horizontal Pager */}
       <FlatList
