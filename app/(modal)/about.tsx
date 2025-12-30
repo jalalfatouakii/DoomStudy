@@ -143,7 +143,7 @@ export default function AboutScreen() {
                 {/* Footer */}
                 <View style={styles.footer}>
                     <Text style={styles.footerText}>Made by Jalal Fatouaki :P</Text>
-                    <Text style={styles.copyright}>© 2025 DoomStudy. All rights reserved.</Text>
+                    <Text style={styles.copyright}>© 2026 DoomStudy. All rights reserved.</Text>
                 </View>
             </ScrollView>
         </View>

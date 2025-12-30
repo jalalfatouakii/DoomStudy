@@ -4,6 +4,21 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { generateText } from "ai";
 import { Platform } from "react-native";
 
+/**
+ * Custom error class for Gemini API errors
+ */
+export class GeminiError extends Error {
+    constructor(
+        message: string,
+        public readonly isRateLimit: boolean = false,
+        public readonly isApiKeyError: boolean = false,
+        public readonly originalError?: any
+    ) {
+        super(message);
+        this.name = 'GeminiError';
+    }
+}
+
 // Lazy import Apple AI only on iOS
 let apple: any = null;
 const getAppleAI = async () => {
@@ -461,26 +476,83 @@ export async function generateSnippetsWithGemini(
         // Clean up potential markdown code blocks
         const cleanedText = textResponse.replace(/```json/g, "").replace(/```/g, "").trim();
 
-        const snippets = JSON.parse(cleanedText);
+        try {
+            const snippets = JSON.parse(cleanedText);
 
-        if (Array.isArray(snippets)) {
-            return snippets.map(s => {
-                // Ensure it's a valid object structure, otherwise fallback
-                if (typeof s === 'object' && s !== null && 'content' in s) {
-                    return JSON.stringify(s);
-                }
-                // Fallback for simple strings or malformed objects
-                if (typeof s === 'string') return s;
-                return JSON.stringify({ type: 'text', content: String(s) });
-            });
-        } else {
-            console.warn("Gemini response was not an array:", snippets);
-            return [];
+            if (Array.isArray(snippets)) {
+                return snippets.map(s => {
+                    // Ensure it's a valid object structure, otherwise fallback
+                    if (typeof s === 'object' && s !== null && 'content' in s) {
+                        return JSON.stringify(s);
+                    }
+                    // Fallback for simple strings or malformed objects
+                    if (typeof s === 'string') return s;
+                    return JSON.stringify({ type: 'text', content: String(s) });
+                });
+            } else {
+                console.warn("Gemini response was not an array:", snippets);
+                throw new GeminiError("Invalid response format from Gemini API");
+            }
+        } catch (parseError) {
+            // If JSON parsing fails, throw an error
+            throw new GeminiError("Failed to parse Gemini response", false, false, parseError);
         }
 
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error generating snippets with Gemini:", error);
-        return [];
+
+        // Check if it's already a GeminiError
+        if (error instanceof GeminiError) {
+            throw error;
+        }
+
+        // Check for rate limit errors
+        const errorMessage = error?.message?.toLowerCase() || '';
+        const errorCode = error?.code || error?.status || error?.statusCode || '';
+        const errorString = String(error).toLowerCase();
+
+        const isRateLimit =
+            errorCode === 429 ||
+            errorCode === '429' ||
+            errorMessage.includes('rate limit') ||
+            errorMessage.includes('quota') ||
+            errorMessage.includes('resource exhausted') ||
+            errorString.includes('rate limit') ||
+            errorString.includes('quota') ||
+            errorString.includes('resource exhausted');
+
+        // Check for API key errors
+        const isApiKeyError =
+            errorCode === 401 ||
+            errorCode === 403 ||
+            errorCode === '401' ||
+            errorCode === '403' ||
+            errorMessage.includes('api key') ||
+            errorMessage.includes('authentication') ||
+            errorMessage.includes('permission denied') ||
+            errorMessage.includes('invalid api key') ||
+            errorString.includes('api key') ||
+            errorString.includes('authentication') ||
+            errorString.includes('permission denied');
+
+        // Create appropriate error message
+        let errorMsg = "Failed to generate content with Gemini API";
+        if (isRateLimit) {
+            errorMsg = "Gemini API rate limit reached. Please try again later.";
+            const errorTitle = "Rate Limit Reached";
+            const errorMessage = "You've reached your Gemini API rate limit. Please try again later or check your API quota.";
+            alert(`${errorTitle}: ${errorMessage}`);
+        } else if (isApiKeyError) {
+            errorMsg = "Invalid or missing Gemini API key. Please check your API key in settings.";
+            const errorTitle = "API Key Error";
+            const errorMessage = "Invalid or missing Gemini API key. Please check your API key in settings.";
+            alert(`${errorTitle}: ${errorMessage}`);
+        } else if (errorMessage) {
+            errorMsg = `Gemini API error: ${errorMessage}`;
+            alert(errorMsg);
+        }
+
+        throw new GeminiError(errorMsg, isRateLimit, isApiKeyError, error);
     }
 }
 
@@ -527,7 +599,24 @@ export async function generateSnippets(
         }
     } catch (error) {
         console.error("Error in generateSnippets:", error);
-        // Fallback to Gemini on any error
-        return await generateSnippetsWithGemini(text, apiKey, numberOfSnippets, fileId);
+        // If it's a GeminiError, re-throw it
+        if (error instanceof GeminiError) {
+            throw error;
+        }
+        // For other errors, try to fallback to Gemini if we're in offline mode
+        // But if we're already in online mode, re-throw the error
+        const modePreference = await AsyncStorage.getItem("modelModePreference");
+        const mode = modePreference === 'offline' ? 'offline' : 'online';
+        if (mode === 'offline') {
+            try {
+                return await generateSnippetsWithGemini(text, apiKey, numberOfSnippets, fileId);
+            } catch (geminiError) {
+                // If fallback also fails, throw the original error
+                throw error;
+            }
+        } else {
+            // Already using Gemini, so throw the error
+            throw error;
+        }
     }
 }

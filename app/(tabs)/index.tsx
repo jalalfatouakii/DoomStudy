@@ -6,13 +6,14 @@ import { usePreferences } from "@/context/PreferencesContext";
 import { useRefresh } from "@/context/RefreshContext";
 import { useTabPress } from "@/hooks/useTabPress";
 import { SnippetType } from "@/utils/contentExtractor";
-import { generateSnippets } from "@/utils/gemini";
+import { GeminiError, generateSnippets } from "@/utils/gemini";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Dimensions,
   FlatList,
   NativeScrollEvent,
@@ -402,12 +403,54 @@ export default function Index() {
           }
         } catch (err) {
           console.error(`Failed to generate for file ${file.fileName}`, err);
-          // Continue to next file even if this one fails
+
+          // If it's a GeminiError, show alert and stop processing
+          if (err instanceof GeminiError) {
+            isGeneratingMoreRef.current[categoryId] = false;
+            setIsGeneratingMore(prev => ({ ...prev, [categoryId]: false }));
+
+            // Show user-friendly error message
+            let errorTitle = "AI Generation Error";
+            let errorMessage = err.message;
+
+            if (err.isRateLimit) {
+              errorTitle = "Rate Limit Reached";
+              errorMessage = "You've reached your Gemini API rate limit. Please try again later or check your API quota.";
+            } else if (err.isApiKeyError) {
+              errorTitle = "API Key Error";
+              errorMessage = "There's an issue with your Gemini API key. Please check your API key in settings.";
+            }
+
+            Alert.alert(
+              errorTitle,
+              errorMessage,
+              [{ text: "OK" }]
+            );
+            // Stop processing remaining files
+            return;
+          }
+          // For other errors, continue with next file
         }
       }
 
     } catch (error) {
       console.error("Error generating infinite AI content:", error);
+
+      // Check if it's a GeminiError and show alert
+      if (error instanceof GeminiError) {
+        let errorTitle = "AI Generation Error";
+        let errorMessage = error.message;
+
+        if (error.isRateLimit) {
+          errorTitle = "Rate Limit Reached";
+          errorMessage = "You've reached your Gemini API rate limit. Please try again later or check your API quota.";
+        } else if (error.isApiKeyError) {
+          errorTitle = "API Key Error";
+          errorMessage = "There's an issue with your Gemini API key. Please check your API key in settings.";
+        }
+
+        Alert.alert(errorTitle, errorMessage, [{ text: "OK" }]);
+      }
     } finally {
       isGeneratingMoreRef.current[categoryId] = false;
       setIsGeneratingMore(prev => ({ ...prev, [categoryId]: false }));

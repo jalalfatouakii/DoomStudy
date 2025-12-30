@@ -2,13 +2,14 @@ import SnippetCard from "@/components/SnippetCard";
 import { Colors } from "@/constants/colors";
 import { ContentSnippet, useCourses } from "@/context/CourseContext";
 import { SnippetType } from "@/utils/contentExtractor";
-import { generateSnippets } from "@/utils/gemini";
+import { generateSnippets, GeminiError } from "@/utils/gemini";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
     ActivityIndicator,
+    Alert,
     Dimensions,
     FlatList,
     RefreshControl,
@@ -137,6 +138,11 @@ export default function CourseDetail() {
 
         } catch (error) {
             console.error("Error generating infinite AI content:", error);
+            
+            // Check if it's a GeminiError and show alert
+            if (error instanceof GeminiError) {
+                Alert.alert("AI Generation Error", error.message, [{ text: "OK" }]);
+            }
         } finally {
             setIsGeneratingMore(false);
         }

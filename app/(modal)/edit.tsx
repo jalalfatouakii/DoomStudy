@@ -4,7 +4,7 @@ import PdfTextExtractor from "@/components/PdfTextExtractor";
 import ProcessingModal from "@/components/ProcessingModal";
 import { Colors } from "@/constants/colors";
 import { useCourses } from "@/context/CourseContext";
-import { generateSnippets } from "@/utils/gemini";
+import { GeminiError, generateSnippets } from "@/utils/gemini";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as DocumentPicker from 'expo-document-picker';
@@ -346,13 +346,33 @@ export default function EditCourse() {
                     updatedSnippets.push(...taggedSnippets);
                 } catch (err) {
                     console.error(`Error generating snippets for ${file.name}`, err);
+
+                    // If it's a GeminiError, show alert and stop processing
+                    if (err instanceof GeminiError) {
+                        setIsGeneratingAI(false);
+                        setProcessingVisible(false);
+                        Alert.alert(
+                            "AI Generation Error",
+                            err.message,
+                            [{ text: "OK" }]
+                        );
+                        // Return current snippets to stop processing
+                        return updatedSnippets;
+                    }
+                    // For other errors, continue with other files
                 }
             }
             setProcessingStatus("Finalizing course...");
             setProcessingProgress(1);
         } catch (error) {
             console.error("AI Generation in Edit failed:", error);
-            Alert.alert("AI update failed", "Could not generate snippets for some files.");
+
+            // Check if it's a GeminiError
+            if (error instanceof GeminiError) {
+                Alert.alert("AI Generation Error", error.message, [{ text: "OK" }]);
+            } else {
+                Alert.alert("AI update failed", "Could not generate snippets for some files.");
+            }
         } finally {
             setIsGeneratingAI(false);
             setProcessingVisible(false);

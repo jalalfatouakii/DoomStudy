@@ -4,7 +4,7 @@ import PdfTextExtractor from "@/components/PdfTextExtractor";
 import ProcessingModal from "@/components/ProcessingModal";
 import { Colors } from "@/constants/colors";
 import { useCourses } from "@/context/CourseContext";
-import { generateSnippets } from "@/utils/gemini";
+import { GeminiError, generateSnippets } from "@/utils/gemini";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as DocumentPicker from 'expo-document-picker';
@@ -234,7 +234,20 @@ export default function AddCourse() {
                     aiSnippets.push(...taggedSnippets);
                 } catch (err) {
                     console.error(`Failed to generate snippets for ${file.name}:`, err);
-                    // Continue with other files even if one fails
+
+                    // If it's a GeminiError, show alert and stop processing
+                    if (err instanceof GeminiError) {
+                        setIsGeneratingAI(false);
+                        setProcessingVisible(false);
+                        Alert.alert(
+                            "AI Generation Error",
+                            err.message,
+                            [{ text: "OK" }]
+                        );
+                        // Return empty array to stop processing
+                        return [];
+                    }
+                    // For other errors, continue with other files
                 }
             }
 
@@ -242,7 +255,13 @@ export default function AddCourse() {
             setProcessingProgress(1);
         } catch (error) {
             console.error("AI Generation failed:", error);
-            Alert.alert("AI Generation Failed", "Course will be created without AI snippets.");
+
+            // Check if it's a GeminiError
+            if (error instanceof GeminiError) {
+                Alert.alert("AI Generation Error", error.message, [{ text: "OK" }]);
+            } else {
+                Alert.alert("AI Generation Failed", "Course will be created without AI snippets.");
+            }
         } finally {
             setIsGeneratingAI(false);
             setProcessingVisible(false);
