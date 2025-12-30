@@ -30,6 +30,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { generateText } from "ai";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
+import ColorPicker, { HueSlider, OpacitySlider, Panel1, Preview, Swatches } from 'reanimated-color-picker';
 
 // Lazy import Apple AI only on iOS
 let apple: any = null;
@@ -1055,6 +1056,29 @@ const SnippetTypesModal = ({ visible, onClose, onSave, selectedTypes }: {
 
 const VIDEO_OPACITY_PRESETS = [0, 0.25, 0.5, 0.75, 1] as const;
 
+// Helper function to convert rgba/rgb to hex
+const colorToHex = (color: string): string => {
+    // If already hex, return as is
+    if (color.startsWith('#')) {
+        return color;
+    }
+
+    // Handle rgba/rgb format
+    const rgbaMatch = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+    if (rgbaMatch) {
+        const r = parseInt(rgbaMatch[1]);
+        const g = parseInt(rgbaMatch[2]);
+        const b = parseInt(rgbaMatch[3]);
+        return `#${[r, g, b].map(x => {
+            const hex = x.toString(16);
+            return hex.length === 1 ? '0' + hex : hex;
+        }).join('')}`;
+    }
+
+    // Default fallback
+    return '#ECEDEE';
+};
+
 const VideoBackgroundAppearanceModal = ({ visible, onClose }: { visible: boolean; onClose: () => void }) => {
     const {
         snippetCardBackgroundOpacity,
@@ -1072,8 +1096,10 @@ const VideoBackgroundAppearanceModal = ({ visible, onClose }: { visible: boolean
     const [tempTextColor, setTempTextColor] = useState(snippetCardTextColor);
     const [tempBgColor, setTempBgColor] = useState(snippetCardBackgroundColor);
     const [tempShowHeader, setTempShowHeader] = useState(videoBackgroundShowHeader);
-    const [showTextColorPicker, setShowTextColorPicker] = useState(false);
-    const [showBgColorPicker, setShowBgColorPicker] = useState(false);
+    const [showTextColorPickerModal, setShowTextColorPickerModal] = useState(false);
+    const [showBgColorPickerModal, setShowBgColorPickerModal] = useState(false);
+    const [textColorPickerAnim] = useState(new Animated.Value(0));
+    const [bgColorPickerAnim] = useState(new Animated.Value(0));
 
     useEffect(() => {
         if (!visible) return;
@@ -1087,9 +1113,63 @@ const VideoBackgroundAppearanceModal = ({ visible, onClose }: { visible: boolean
         setTempTextColor(snippetCardTextColor);
         setTempBgColor(snippetCardBackgroundColor);
         setTempShowHeader(videoBackgroundShowHeader);
-        setShowTextColorPicker(false);
-        setShowBgColorPicker(false);
+        setShowTextColorPickerModal(false);
+        setShowBgColorPickerModal(false);
     }, [visible, fadeAnim, snippetCardBackgroundOpacity, snippetCardTextColor, snippetCardBackgroundColor, videoBackgroundShowHeader]);
+
+    // Handle text color picker modal animations
+    useEffect(() => {
+        if (showTextColorPickerModal) {
+            textColorPickerAnim.setValue(0);
+            Animated.timing(textColorPickerAnim, {
+                toValue: 1,
+                duration: 200,
+                useNativeDriver: true,
+            }).start();
+        }
+    }, [showTextColorPickerModal]);
+
+    // Handle background color picker modal animations
+    useEffect(() => {
+        if (showBgColorPickerModal) {
+            bgColorPickerAnim.setValue(0);
+            Animated.timing(bgColorPickerAnim, {
+                toValue: 1,
+                duration: 200,
+                useNativeDriver: true,
+            }).start();
+        }
+    }, [showBgColorPickerModal]);
+
+    const closeTextColorPicker = () => {
+        Animated.timing(textColorPickerAnim, {
+            toValue: 0,
+            duration: 150,
+            useNativeDriver: true,
+        }).start(() => {
+            setShowTextColorPickerModal(false);
+        });
+    };
+
+    const closeBgColorPicker = () => {
+        Animated.timing(bgColorPickerAnim, {
+            toValue: 0,
+            duration: 150,
+            useNativeDriver: true,
+        }).start(() => {
+            setShowBgColorPickerModal(false);
+        });
+    };
+
+    const handleTextColorSelect = ({ hex }: { hex: string }) => {
+        setTempTextColor(hex);
+        closeTextColorPicker();
+    };
+
+    const handleBgColorSelect = ({ hex }: { hex: string }) => {
+        setTempBgColor(hex);
+        closeBgColorPicker();
+    };
 
     const animateClose = async () => {
         await setSnippetCardBackgroundOpacity(tempOpacity);
@@ -1201,37 +1281,12 @@ const VideoBackgroundAppearanceModal = ({ visible, onClose }: { visible: boolean
                             <Text style={styles.sectionHeader}>Text color (card & header)</Text>
                             <TouchableOpacity
                                 style={styles.colorPickerButton}
-                                onPress={() => setShowTextColorPicker(!showTextColorPicker)}
+                                onPress={() => setShowTextColorPickerModal(true)}
                             >
                                 <View style={[styles.colorPreview, { backgroundColor: tempTextColor }]} />
                                 <Text style={styles.colorPickerButtonText}>{tempTextColor}</Text>
-                                <Ionicons name={showTextColorPicker ? 'chevron-up' : 'chevron-down'} size={20} color={Colors.text} />
+                                <Ionicons name="color-palette-outline" size={20} color={Colors.text} />
                             </TouchableOpacity>
-                            {showTextColorPicker && (
-                                <View style={styles.colorPickerContainer}>
-                                    <TextInput
-                                        style={styles.colorInput}
-                                        value={tempTextColor}
-                                        onChangeText={setTempTextColor}
-                                        placeholder="#ECEDEE"
-                                        placeholderTextColor={Colors.tabIconDefault}
-                                        selectionColor={Colors.tint}
-                                    />
-                                    <View style={styles.colorPresets}>
-                                        {['#ECEDEE', '#FFFFFF', '#000000', '#80F65C', '#FF9500', '#34C759', '#AF52DE'].map((color) => (
-                                            <Pressable
-                                                key={color}
-                                                style={[
-                                                    styles.colorPreset,
-                                                    { backgroundColor: color },
-                                                    tempTextColor === color && styles.colorPresetSelected,
-                                                ]}
-                                                onPress={() => setTempTextColor(color)}
-                                            />
-                                        ))}
-                                    </View>
-                                </View>
-                            )}
                         </View>
 
                         {/* Background color */}
@@ -1239,37 +1294,12 @@ const VideoBackgroundAppearanceModal = ({ visible, onClose }: { visible: boolean
                             <Text style={styles.sectionHeader}>Background color</Text>
                             <TouchableOpacity
                                 style={styles.colorPickerButton}
-                                onPress={() => setShowBgColorPicker(!showBgColorPicker)}
+                                onPress={() => setShowBgColorPickerModal(true)}
                             >
                                 <View style={[styles.colorPreview, { backgroundColor: tempBgColor }]} />
                                 <Text style={styles.colorPickerButtonText}>{tempBgColor}</Text>
-                                <Ionicons name={showBgColorPicker ? 'chevron-up' : 'chevron-down'} size={20} color={Colors.text} />
+                                <Ionicons name="color-palette-outline" size={20} color={Colors.text} />
                             </TouchableOpacity>
-                            {showBgColorPicker && (
-                                <View style={styles.colorPickerContainer}>
-                                    <TextInput
-                                        style={styles.colorInput}
-                                        value={tempBgColor}
-                                        onChangeText={setTempBgColor}
-                                        placeholder="#1E2022"
-                                        placeholderTextColor={Colors.tabIconDefault}
-                                        selectionColor={Colors.tint}
-                                    />
-                                    <View style={styles.colorPresets}>
-                                        {['#1E2022', '#151718', '#000000', 'rgba(30, 32, 34, 0.8)', 'rgba(21, 23, 24, 0.9)', 'rgba(0, 0, 0, 0.7)', 'rgba(255, 255, 255, 0.1)'].map((color) => (
-                                            <Pressable
-                                                key={color}
-                                                style={[
-                                                    styles.colorPreset,
-                                                    { backgroundColor: color },
-                                                    tempBgColor === color && styles.colorPresetSelected,
-                                                ]}
-                                                onPress={() => setTempBgColor(color)}
-                                            />
-                                        ))}
-                                    </View>
-                                </View>
-                            )}
                         </View>
 
                         <View style={styles.modalButtons}>
@@ -1280,6 +1310,112 @@ const VideoBackgroundAppearanceModal = ({ visible, onClose }: { visible: boolean
                     </ScrollView>
                 </Animated.View>
             </View>
+
+            {/* Text Color Picker Modal */}
+            <Modal
+                transparent
+                visible={showTextColorPickerModal}
+                onRequestClose={closeTextColorPicker}
+                animationType="none"
+            >
+                <View style={styles.modalOverlay}>
+                    <Pressable style={StyleSheet.absoluteFill} onPress={closeTextColorPicker} />
+                    <Animated.View
+                        style={[
+                            styles.colorPickerModalContent,
+                            {
+                                opacity: textColorPickerAnim,
+                                transform: [
+                                    {
+                                        scale: textColorPickerAnim.interpolate({
+                                            inputRange: [0, 1],
+                                            outputRange: [0.95, 1],
+                                        }),
+                                    },
+                                ],
+                            },
+                        ]}
+                        onStartShouldSetResponder={() => true}
+                    >
+                        <View style={styles.colorPickerModalHeader}>
+                            <Text style={styles.modalTitle}>Select Text Color</Text>
+                            <TouchableOpacity
+                                onPress={closeTextColorPicker}
+                                style={styles.closeButton}
+                            >
+                                <Ionicons name="close" size={24} color={Colors.text} />
+                            </TouchableOpacity>
+                        </View>
+                        <ColorPicker
+                            style={styles.colorPicker}
+                            value={colorToHex(tempTextColor)}
+                            onCompleteJS={handleTextColorSelect}
+                        >
+                            <Preview style={{ marginBottom: 12 }} />
+                            <Panel1 style={{ marginBottom: 12 }} />
+                            <HueSlider style={{ marginBottom: 12 }} />
+                            <OpacitySlider style={{ marginBottom: 12 }} boundedThumb={true} />
+                            <Swatches
+                                colors={['#ECEDEE', '#FFFFFF', '#000000', '#80F65C', '#FF9500', '#34C759', '#AF52DE']}
+                                style={{ marginBottom: 12 }}
+                            />
+                        </ColorPicker>
+                    </Animated.View>
+                </View>
+            </Modal>
+
+            {/* Background Color Picker Modal */}
+            <Modal
+                transparent
+                visible={showBgColorPickerModal}
+                onRequestClose={closeBgColorPicker}
+                animationType="none"
+            >
+                <View style={styles.modalOverlay}>
+                    <Pressable style={StyleSheet.absoluteFill} onPress={closeBgColorPicker} />
+                    <Animated.View
+                        style={[
+                            styles.colorPickerModalContent,
+                            {
+                                opacity: bgColorPickerAnim,
+                                transform: [
+                                    {
+                                        scale: bgColorPickerAnim.interpolate({
+                                            inputRange: [0, 1],
+                                            outputRange: [0.95, 1],
+                                        }),
+                                    },
+                                ],
+                            },
+                        ]}
+                        onStartShouldSetResponder={() => true}
+                    >
+                        <View style={styles.colorPickerModalHeader}>
+                            <Text style={styles.modalTitle}>Select Background Color</Text>
+                            <TouchableOpacity
+                                onPress={closeBgColorPicker}
+                                style={styles.closeButton}
+                            >
+                                <Ionicons name="close" size={24} color={Colors.text} />
+                            </TouchableOpacity>
+                        </View>
+                        <ColorPicker
+                            style={styles.colorPicker}
+                            value={colorToHex(tempBgColor)}
+                            onCompleteJS={handleBgColorSelect}
+                        >
+                            <Preview style={{ marginBottom: 12 }} />
+                            <Panel1 style={{ marginBottom: 12 }} />
+                            <HueSlider style={{ marginBottom: 12 }} />
+                            <OpacitySlider style={{ marginBottom: 12 }} boundedThumb={true} />
+                            <Swatches
+                                colors={['#1E2022', '#151718', '#000000', '#FFFFFF', '#ECEDEE', '#2C2C2E', '#3A3A3C']}
+                                style={{ marginBottom: 12 }}
+                            />
+                        </ColorPicker>
+                    </Animated.View>
+                </View>
+            </Modal>
         </Modal>
     );
 };
@@ -1855,6 +1991,12 @@ export default function Settings() {
 
 
 
+    const [showColorPicker, setShowColorPicker] = useState(false);
+    const onSelectColor = ({ hex }: { hex: string }) => {
+        'worklet';
+        // do something with the selected color.
+        console.log(hex);
+    };
 
     // Format time saved
     const hours = Math.floor(timeSaved / 3600);
@@ -2216,6 +2358,15 @@ export default function Settings() {
 
                     </View>
 
+                    <View style={styles.separator} />
+                    <ActionItem
+                        icon="color-palette"
+                        title="Change accent color"
+                        onPress={() => setShowColorPicker(true)}
+                    />
+
+
+
                     {/* AI Section 
                     <View style={styles.separator} />
 
@@ -2290,6 +2441,19 @@ export default function Settings() {
                 onOfflineModelsUpdate={handleOfflineModelsUpdate}
                 onModelModeSave={handleModelModeSave}
             />
+
+            <Modal
+                visible={showColorPicker}
+                onRequestClose={() => setShowColorPicker(false)}
+            >
+                <ColorPicker style={{ width: '70%' }} value='red' onComplete={onSelectColor}>
+                    <Preview />
+                    <Panel1 />
+                    <HueSlider />
+                    <OpacitySlider />
+                    <Swatches />
+                </ColorPicker>
+            </Modal>
 
             <VideoBackgroundSettingsModal
                 visible={videoCategoriesModalVisible}
@@ -3391,6 +3555,26 @@ const styles = StyleSheet.create({
     colorPresetSelected: {
         borderColor: Colors.tint,
         borderWidth: 3,
+    },
+    colorPickerModalContent: {
+        backgroundColor: Colors.backgroundSecondary,
+        borderRadius: 20,
+        padding: 24,
+        width: '90%',
+        maxWidth: 400,
+        maxHeight: '80%',
+    },
+    colorPickerModalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 20,
+    },
+    closeButton: {
+        padding: 4,
+    },
+    colorPicker: {
+        width: '100%',
     },
 });
 

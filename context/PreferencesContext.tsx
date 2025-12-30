@@ -65,8 +65,8 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
   const [snippetCardBackgroundOpacity, setSnippetCardBackgroundOpacityState] = useState(0.8);
   const [snippetCardTextColor, setSnippetCardTextColorState] = useState('#ECEDEE');
   const [snippetCardBackgroundColor, setSnippetCardBackgroundColorState] = useState('#1E2022');
-  const [videoBackgroundShowHeader, setVideoBackgroundShowHeaderState] = useState(true);
-  const [enabledVideoCategoryIds, setEnabledVideoCategoryIdsState] = useState<string[]>([]);
+  const [videoBackgroundShowHeader, setVideoBackgroundShowHeaderState] = useState(false);
+  const [enabledVideoCategoryIds, setEnabledVideoCategoryIdsState] = useState<string[]>(['gameplay', 'satisfying', 'narrated', 'ambient', 'nature']);
   const [userVideoCategories, setUserVideoCategoriesState] = useState<UserVideoCategory[]>([]);
   const [userVideos, setUserVideosState] = useState<UserVideo[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -89,7 +89,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
         setSnippetCardBackgroundOpacityState(opacity ? parseFloat(opacity) : 0.8);
         setSnippetCardTextColorState(textColor || '#ECEDEE');
         setSnippetCardBackgroundColorState(bgColor || '#1E2022');
-        setVideoBackgroundShowHeaderState(showHeader !== 'false');
+        setVideoBackgroundShowHeaderState(showHeader === 'true');
         // Default to all built-in categories enabled if none are set
         const defaultEnabledIds: string[] = ['gameplay', 'satisfying', 'narrated', 'ambient', 'nature'];
         setEnabledVideoCategoryIdsState(

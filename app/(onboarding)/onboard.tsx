@@ -198,11 +198,7 @@ export default function Onboarding() {
             // Persist video background preferences
             await setVideoBackgroundEnabled(videoBackgroundEnabled);
             // Default to all categories enabled if video backgrounds are enabled
-            if (videoBackgroundEnabled) {
-                await setEnabledVideoCategoryIds(['gameplay', 'satisfying', 'narrated', 'ambient', 'nature']);
-            } else {
-                await setEnabledVideoCategoryIds([]);
-            }
+            await setEnabledVideoCategoryIds(['gameplay', 'satisfying', 'narrated', 'ambient', 'nature']);
 
             await AsyncStorage.setItem("hasOnboarded", "true");
             router.replace("/(tabs)");
