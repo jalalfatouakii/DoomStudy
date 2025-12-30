@@ -62,7 +62,7 @@ const USER_VIDEOS_DIR = 'user-videos';
 
 export function PreferencesProvider({ children }: { children: React.ReactNode }) {
   const [videoBackgroundEnabled, setVideoBackgroundEnabledState] = useState(false);
-  const [snippetCardBackgroundOpacity, setSnippetCardBackgroundOpacityState] = useState(0.8);
+  const [snippetCardBackgroundOpacity, setSnippetCardBackgroundOpacityState] = useState(1);
   const [snippetCardTextColor, setSnippetCardTextColorState] = useState('#ECEDEE');
   const [snippetCardBackgroundColor, setSnippetCardBackgroundColorState] = useState('#1E2022');
   const [videoBackgroundShowHeader, setVideoBackgroundShowHeaderState] = useState(false);
@@ -86,7 +86,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
         ]);
 
         setVideoBackgroundEnabledState(enabled === 'true');
-        setSnippetCardBackgroundOpacityState(opacity ? parseFloat(opacity) : 0.8);
+        setSnippetCardBackgroundOpacityState(opacity ? parseFloat(opacity) : 1);
         setSnippetCardTextColorState(textColor || '#ECEDEE');
         setSnippetCardBackgroundColorState(bgColor || '#1E2022');
         setVideoBackgroundShowHeaderState(showHeader === 'true');
