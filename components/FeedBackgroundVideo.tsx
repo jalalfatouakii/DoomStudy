@@ -2,7 +2,7 @@ import { usePreferences } from "@/context/PreferencesContext";
 import { ContentSnippet } from "@/utils/contentExtractor";
 import { getVideoSourceForSnippet, VideoSource } from "@/utils/videoSources";
 import { useVideoPlayer, VideoView } from "expo-video";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
 
 type FeedBackgroundVideoProps = {
@@ -26,6 +26,8 @@ export default function FeedBackgroundVideo({
   const [activeVideoSource, setActiveVideoSource] = useState<VideoSource | null>(null);
   const [prevVideoSource, setPrevVideoSource] = useState<VideoSource | null>(null);
   const [nextVideoSource, setNextVideoSource] = useState<VideoSource | null>(null);
+  // Track previous video to exclude it when selecting next one
+  const previousVideoRef = useRef<VideoSource | null>(null);
 
   // Helper to convert VideoSource to expo-video compatible format
   const toVideoPlayerSource = (source: VideoSource | null): { uri: string } | number => {
@@ -70,32 +72,39 @@ export default function FeedBackgroundVideo({
       setActiveVideoSource(null);
       setPrevVideoSource(null);
       setNextVideoSource(null);
+      previousVideoRef.current = null;
       return;
     }
 
-    // Get current snippet's video
+    // Capture the current video before we change it (this is what we want to exclude)
+    const videoToExclude = activeVideoSource;
+
+    // Get current snippet's video (exclude previous video to avoid repetition)
     const currentSnippet = snippets[activeIndex];
     const currentVideo = currentSnippet
-      ? getVideoSourceForSnippet(currentSnippet, enabledVideoCategoryIds, userVideos)
+      ? getVideoSourceForSnippet(currentSnippet, enabledVideoCategoryIds, userVideos, videoToExclude)
       : null;
+
+    // Update the previous video ref to the video that was just playing
+    previousVideoRef.current = videoToExclude;
     setActiveVideoSource(currentVideo);
 
-    // Preload previous snippet's video
+    // Preload previous snippet's video (exclude current video)
     if (activeIndex > 0) {
       const prevSnippet = snippets[activeIndex - 1];
       const prevVideo = prevSnippet
-        ? getVideoSourceForSnippet(prevSnippet, enabledVideoCategoryIds, userVideos)
+        ? getVideoSourceForSnippet(prevSnippet, enabledVideoCategoryIds, userVideos, currentVideo)
         : null;
       setPrevVideoSource(prevVideo);
     } else {
       setPrevVideoSource(null);
     }
 
-    // Preload next snippet's video
+    // Preload next snippet's video (exclude current video to ensure next is different)
     if (activeIndex < snippets.length - 1) {
       const nextSnippet = snippets[activeIndex + 1];
       const nextVideo = nextSnippet
-        ? getVideoSourceForSnippet(nextSnippet, enabledVideoCategoryIds, userVideos)
+        ? getVideoSourceForSnippet(nextSnippet, enabledVideoCategoryIds, userVideos, currentVideo)
         : null;
       setNextVideoSource(nextVideo);
     } else {
