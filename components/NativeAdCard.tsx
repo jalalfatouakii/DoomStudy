@@ -1,6 +1,6 @@
 import { Colors } from "@/constants/colors";
 import React, { useEffect, useState } from "react";
-import { Dimensions, Image, StyleSheet, Text, View } from "react-native";
+import { Dimensions, Image, Platform, StyleSheet, Text, View } from "react-native";
 import {
     NativeAd,
     NativeAdView,
@@ -12,8 +12,7 @@ import {
 
 const { width } = Dimensions.get("window");
 
-const adUnitId = __DEV__ ? TestIds.NATIVE : "ca-app-pub-xxxxxxxxxxxxxxxx/yyyyyyyyyy";
-
+const adUnitId = __DEV__ ? TestIds.NATIVE : Platform.OS === "ios" ? "ca-app-pub-7857372081627659/2953716374" : "ca-app-pub-7857372081627659/3532300871";
 type Props = {
     height?: number;
 };

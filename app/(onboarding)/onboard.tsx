@@ -25,11 +25,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 const { width } = Dimensions.get("window");
 
 const GOALS = [
-    "Stop Doomscrolling",
-    "Learn New Skills",
-    "Save Time",
-    "Boost Productivity",
-    "Track Progress"
+    "Scroll with Purpose",
+    "Learn Something Daily",
+    "Make Scrolling Productive",
+    "Satisify your scrolling addiction",
+    "Track your progress"
 ];
 
 const SNIPPET_TYPES = [

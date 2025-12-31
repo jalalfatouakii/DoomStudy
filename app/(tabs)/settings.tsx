@@ -2360,7 +2360,7 @@ export default function Settings() {
                     </View>
                 </View>
 
-                {/* dev Section */}
+                {/* dev Section 
                 <View style={styles.section}>
                     <Text style={styles.sectionHeader}>Developer Options</Text>
                     <View style={styles.sectionContent}>
@@ -2431,8 +2431,15 @@ export default function Settings() {
 
                     <View style={styles.separator} />
                     <Text style={{ color: Colors.text, fontSize: 12, marginTop: 10, marginLeft: 10, marginRight: 10, marginBottom: 10 }}>Gemini Key: {geminiKey}</Text>
-                */}
                 </View>
+                */}
+                <ActionItem
+                    icon="alert"
+                    title="Go to Onboarding"
+                    onPress={async () => {
+                        router.push('/(onboarding)/onboard');
+                    }}
+                />
 
 
 
