@@ -2443,6 +2443,28 @@ export default function Settings() {
                 </View>
 
                 */}
+                {/*
+                {__DEV__ && (
+                    <ActionItem
+                        icon="alert"
+                        title="Go to Onboarding"
+                        onPress={async () => {
+                            router.push('/(onboarding)/onboard');
+                        }}
+                    />
+                )}
+                {__DEV__ && (
+                    <ActionItem
+                        icon="trash"
+                        title="Delete Async Storage"
+                        onPress={async () => {
+                            await AsyncStorage.clear();
+                            await resetStats();
+                            Alert.alert("Async Storage cleared, please restart the app");
+                        }}
+                    />
+                )}
+                */}
 
 
 

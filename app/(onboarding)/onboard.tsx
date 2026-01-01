@@ -34,7 +34,8 @@ const GOALS = [
     "Learn Something Daily",
     "Make Scrolling Productive",
     "Satisify your scrolling addiction",
-    "Track your progress"
+    "Track your progress",
+    "Other"
 ];
 
 const SNIPPET_TYPES = [
@@ -302,9 +303,21 @@ export default function Onboarding() {
                                 />
                             </View>
                             {videoBackgroundEnabled && (
-                                <View style={styles.customizationNote}>
-                                    <Text style={styles.customizationNoteText}>You can turn this off and customize the appearance in Settings</Text>
-                                </View>
+                                <>
+                                    <View style={styles.videoFeaturesContainer}>
+                                        <View style={styles.videoFeatureItem}>
+                                            <Ionicons name="cloud-upload-outline" size={18} color={Colors.tint} />
+                                            <Text style={styles.videoFeatureText}>Upload your own videos</Text>
+                                        </View>
+                                        <View style={styles.videoFeatureItem}>
+                                            <Ionicons name="checkmark-circle-outline" size={18} color={Colors.tint} />
+                                            <Text style={styles.videoFeatureText}>Choose which videos to see</Text>
+                                        </View>
+                                    </View>
+                                    <View style={styles.customizationNote}>
+                                        <Text style={styles.customizationNoteText}>Manage videos and customize later in the Settings</Text>
+                                    </View>
+                                </>
                             )}
                         </View>
 
@@ -1217,6 +1230,23 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: Colors.tabIconDefault,
         textAlign: 'center',
+    },
+    videoFeaturesContainer: {
+        marginTop: 12,
+        gap: 8,
+        paddingHorizontal: 4,
+        alignItems: 'center',
+    },
+    videoFeatureItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        paddingVertical: 6,
+    },
+    videoFeatureText: {
+        fontSize: 13,
+        color: Colors.text,
+        fontWeight: '500',
     },
     customizationSection: {
         marginBottom: 24,
