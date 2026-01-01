@@ -7,6 +7,7 @@ import {
     Keyboard,
     Linking,
     Modal,
+    Platform,
     StyleSheet,
     Text,
     TextInput,
@@ -19,11 +20,30 @@ interface GeminiKeyModalProps {
     visible: boolean;
     onClose: () => void;
     onSave: (key: string) => void;
+    onModelModeSave?: (mode: 'online' | 'offline') => void;
+    onOfflineModelSelect?: (modelId: string) => void;
 }
 
-export default function GeminiKeyModal({ visible, onClose, onSave }: GeminiKeyModalProps) {
+export default function GeminiKeyModal({ visible, onClose, onSave, onModelModeSave, onOfflineModelSelect }: GeminiKeyModalProps) {
     const [key, setKey] = useState("");
+    const [mode, setMode] = useState<'online' | 'offline'>('online');
+    const [appleIntelligenceAvailable, setAppleIntelligenceAvailable] = useState(false);
     const fadeAnim = useRef(new Animated.Value(0)).current;
+
+    // Check for Apple Intelligence availability
+    useEffect(() => {
+        if (Platform.OS === 'ios' && visible) {
+            try {
+                const appleAI = require("@react-native-ai/apple").apple;
+                if (appleAI && appleAI.isAvailable && appleAI.isAvailable()) {
+                    setAppleIntelligenceAvailable(true);
+                }
+            } catch (e) {
+                // Apple AI not available
+                setAppleIntelligenceAvailable(false);
+            }
+        }
+    }, [visible]);
 
     useEffect(() => {
         if (visible) {
@@ -42,11 +62,33 @@ export default function GeminiKeyModal({ visible, onClose, onSave }: GeminiKeyMo
     }, [visible]);
 
     const handleSave = async () => {
-        if (key.trim()) {
+        if (mode === 'online' && key.trim()) {
             await AsyncStorage.setItem("geminiKey", key.trim());
+            await AsyncStorage.setItem("modelModePreference", "online");
             onSave(key.trim());
+            if (onModelModeSave) {
+                onModelModeSave('online');
+            }
+            handleClose();
+        } else if (mode === 'offline') {
+            await AsyncStorage.setItem("modelModePreference", "offline");
+            if (onModelModeSave) {
+                onModelModeSave('offline');
+            }
             handleClose();
         }
+    };
+
+    const handleSelectAppleIntelligence = async () => {
+        await AsyncStorage.setItem("modelModePreference", "offline");
+        await AsyncStorage.setItem("selectedOfflineModel", "apple-intelligence");
+        if (onModelModeSave) {
+            onModelModeSave('offline');
+        }
+        if (onOfflineModelSelect) {
+            onOfflineModelSelect('apple-intelligence');
+        }
+        handleClose();
     };
 
     const handleClose = () => {
@@ -82,22 +124,78 @@ export default function GeminiKeyModal({ visible, onClose, onSave }: GeminiKeyMo
 
                             <Text style={styles.title}>Integrate AI into your feed</Text>
                             <Text style={styles.description}>
-                                You can use either a Gemini API key (free, online) or download an offline model (Settings > Manage Model Preferences) to generate AI-powered content for your courses.
+                                Choose how you want to generate AI-powered content for your courses.
                             </Text>
 
-                            <TouchableOpacity style={styles.guideLink} onPress={openGetKeyUrl}>
-                                <Text style={styles.guideText}>Get your free API key here <Ionicons name="open-outline" size={12} /></Text>
-                            </TouchableOpacity>
+                            {/* Mode Selection */}
+                            <View style={styles.modeSelector}>
+                                <TouchableOpacity
+                                    style={[styles.modeButton, mode === 'online' && styles.modeButtonActive]}
+                                    onPress={() => setMode('online')}
+                                >
+                                    <Ionicons name="cloud" size={20} color={mode === 'online' ? Colors.background : Colors.tabIconDefault} />
+                                    <Text style={[styles.modeButtonText, mode === 'online' && styles.modeButtonTextActive]}>Online</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.modeButton, mode === 'offline' && styles.modeButtonActive]}
+                                    onPress={() => setMode('offline')}
+                                >
+                                    <Ionicons name="phone-portrait" size={20} color={mode === 'offline' ? Colors.background : Colors.tabIconDefault} />
+                                    <Text style={[styles.modeButtonText, mode === 'offline' && styles.modeButtonTextActive]}>Offline</Text>
+                                </TouchableOpacity>
+                            </View>
 
-                            <TextInput
-                                style={styles.input}
-                                placeholder="Paste your API key here"
-                                placeholderTextColor={Colors.tabIconDefault}
-                                value={key}
-                                onChangeText={setKey}
-                                autoCapitalize="none"
-                                autoCorrect={false}
-                            />
+                            {mode === 'online' ? (
+                                <>
+                                    <TouchableOpacity style={styles.guideLink} onPress={openGetKeyUrl}>
+                                        <Text style={styles.guideText}>Get your free Gemini API key here <Ionicons name="open-outline" size={12} /></Text>
+                                    </TouchableOpacity>
+
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder="Paste your API key here"
+                                        placeholderTextColor={Colors.tabIconDefault}
+                                        value={key}
+                                        onChangeText={setKey}
+                                        autoCapitalize="none"
+                                        autoCorrect={false}
+                                    />
+                                </>
+                            ) : (
+                                <>
+                                    {appleIntelligenceAvailable ? (
+                                        <>
+                                            <TouchableOpacity
+                                                style={styles.appleIntelligenceButton}
+                                                onPress={handleSelectAppleIntelligence}
+                                            >
+                                                <View style={styles.appleIntelligenceContent}>
+                                                    <Ionicons name="logo-apple" size={24} color={Colors.text} />
+                                                    <View style={styles.appleIntelligenceText}>
+                                                        <Text style={styles.appleIntelligenceTitle}>Apple Intelligence</Text>
+                                                        <Text style={styles.appleIntelligenceSubtitle}>Native AI built into your device - No setup required</Text>
+                                                    </View>
+                                                </View>
+                                                <Ionicons name="chevron-forward" size={20} color={Colors.tabIconDefault} />
+                                            </TouchableOpacity>
+                                            <Text style={styles.orText}>or</Text>
+                                            <View style={styles.offlineInfo}>
+                                                <Ionicons name="information-circle-outline" size={20} color={Colors.tabIconDefault} />
+                                                <Text style={styles.offlineInfoText}>
+                                                    Download another offline model from Settings {'>'} Model Preferences later.
+                                                </Text>
+                                            </View>
+                                        </>
+                                    ) : (
+                                        <View style={styles.offlineInfo}>
+                                            <Ionicons name="information-circle-outline" size={20} color={Colors.tabIconDefault} />
+                                            <Text style={styles.offlineInfoText}>
+                                                Download an offline model from Settings {'>'} Model Preferences to use AI without an API key.
+                                            </Text>
+                                        </View>
+                                    )}
+                                </>
+                            )}
 
                             <Text style={styles.note}>
                                 You can change this later in Settings.
@@ -107,13 +205,24 @@ export default function GeminiKeyModal({ visible, onClose, onSave }: GeminiKeyMo
                                 <TouchableOpacity style={styles.cancelButton} onPress={handleClose}>
                                     <Text style={styles.cancelText}>Skip for now</Text>
                                 </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={[styles.saveButton, !key.trim() && styles.disabledButton]}
-                                    onPress={handleSave}
-                                    disabled={!key.trim()}
-                                >
-                                    <Text style={styles.saveText}>Save & Continue</Text>
-                                </TouchableOpacity>
+                                {mode === 'offline' && appleIntelligenceAvailable ? (
+                                    <TouchableOpacity
+                                        style={styles.saveButton}
+                                        onPress={handleSave}
+                                    >
+                                        <Text style={styles.saveText}>Set up later</Text>
+                                    </TouchableOpacity>
+                                ) : (
+                                    <TouchableOpacity
+                                        style={[styles.saveButton, mode === 'online' && !key.trim() && styles.disabledButton]}
+                                        onPress={handleSave}
+                                        disabled={mode === 'online' && !key.trim()}
+                                    >
+                                        <Text style={styles.saveText}>
+                                            {mode === 'online' ? 'Save & Continue' : 'Continue'}
+                                        </Text>
+                                    </TouchableOpacity>
+                                )}
                             </View>
                         </Animated.View>
                     </TouchableWithoutFeedback>
@@ -221,5 +330,88 @@ const styles = StyleSheet.create({
     saveText: {
         color: Colors.background,
         fontWeight: "bold",
+    },
+    modeSelector: {
+        flexDirection: "row",
+        width: "100%",
+        gap: 12,
+        marginBottom: 20,
+    },
+    modeButton: {
+        flex: 1,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 8,
+        padding: 14,
+        borderRadius: 16,
+        backgroundColor: Colors.backgroundLighter,
+        borderWidth: 2,
+        borderColor: "transparent",
+    },
+    modeButtonActive: {
+        backgroundColor: Colors.tint,
+        borderColor: Colors.tint,
+    },
+    modeButtonText: {
+        fontSize: 16,
+        fontWeight: "600",
+        color: Colors.tabIconDefault,
+    },
+    modeButtonTextActive: {
+        color: Colors.background,
+    },
+    appleIntelligenceButton: {
+        width: "100%",
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        padding: 16,
+        borderRadius: 16,
+        backgroundColor: Colors.backgroundLighter,
+        borderWidth: 2,
+        borderColor: Colors.tint,
+        marginBottom: 12,
+    },
+    appleIntelligenceContent: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 12,
+        flex: 1,
+    },
+    appleIntelligenceText: {
+        flex: 1,
+    },
+    appleIntelligenceTitle: {
+        fontSize: 16,
+        fontWeight: "600",
+        color: Colors.text,
+        marginBottom: 4,
+    },
+    appleIntelligenceSubtitle: {
+        fontSize: 13,
+        color: Colors.tabIconDefault,
+    },
+    offlineInfo: {
+        flexDirection: "row",
+        alignItems: "flex-start",
+        gap: 12,
+        padding: 16,
+        borderRadius: 16,
+        backgroundColor: Colors.backgroundLighter,
+        marginBottom: 12,
+    },
+    offlineInfoText: {
+        flex: 1,
+        fontSize: 14,
+        color: Colors.tabIconDefault,
+        lineHeight: 20,
+    },
+    orText: {
+        fontSize: 14,
+        color: Colors.tabIconDefault,
+        textAlign: "center",
+        marginVertical: 12,
+        fontWeight: "500",
     },
 });

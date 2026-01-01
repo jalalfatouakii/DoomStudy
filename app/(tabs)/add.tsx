@@ -144,9 +144,9 @@ export default function AddCourse() {
                 return;
             }
         } else {
-            // Online mode - check for Gemini key
+            // Online mode - check for Gemini key (show the modal if no key)
             if (!geminiKey) {
-                Alert.alert("Please add a Gemini API key in the settings before creating a course.");
+                setShowKeyModal(true);
                 return;
             }
         }

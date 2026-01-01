@@ -768,6 +768,7 @@ const ModelPreferencesModal = ({ visible, onClose, geminiKey, selectedModel, sel
                                     }}
                                     keyboardType="numeric"
                                     maxLength={5}
+                                    returnKeyType="done"
                                 />
                                 <TouchableOpacity
                                     style={[styles.sliderButton, chunkSize >= 30000 && styles.sliderButtonDisabled]}
@@ -2443,6 +2444,7 @@ export default function Settings() {
                 </View>
 
                 */}
+
                 {/*
                 {__DEV__ && (
                     <ActionItem

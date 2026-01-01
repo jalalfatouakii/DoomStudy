@@ -109,7 +109,7 @@ export default function AboutScreen() {
 
                         <TouchableOpacity
                             style={styles.linkItem}
-                            onPress={() => openLink("mailto:contact@doomstudy.app")}
+                            onPress={() => openLink("mailto:contact@doomstudyapp.com")}
                             activeOpacity={0.7}
                         >
                             <View style={styles.linkLeft}>

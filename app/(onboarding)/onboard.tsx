@@ -302,6 +302,13 @@ export default function Onboarding() {
                                     thumbColor={videoBackgroundEnabled ? Colors.tint : Colors.tabIconDefault}
                                 />
                             </View>
+                            {!videoBackgroundEnabled && (
+                                <View style={styles.videoFeaturesContainer}>
+                                    <View style={styles.videoFeatureItem}>
+                                        <Text style={styles.videoFeatureText}>You can change this later in the Settings</Text>
+                                    </View>
+                                </View>
+                            )}
                             {videoBackgroundEnabled && (
                                 <>
                                     <View style={styles.videoFeaturesContainer}>
@@ -606,7 +613,6 @@ export default function Onboarding() {
                             ]}
                         />
                     </View>
-                    <Text style={styles.progressText}>{currentIndex + 1} / {slides.length}</Text>
                 </View>
 
                 <View style={styles.slidesContainer}>
