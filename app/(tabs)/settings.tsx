@@ -1079,7 +1079,7 @@ const colorToHex = (color: string): string => {
     return '#ECEDEE';
 };
 
-const VideoBackgroundAppearanceModal = ({ visible, onClose }: { visible: boolean; onClose: () => void }) => {
+const AppearanceModal = ({ visible, onClose }: { visible: boolean; onClose: () => void }) => {
     const {
         snippetCardBackgroundOpacity,
         setSnippetCardBackgroundOpacity,
@@ -1089,6 +1089,7 @@ const VideoBackgroundAppearanceModal = ({ visible, onClose }: { visible: boolean
         setSnippetCardBackgroundColor,
         videoBackgroundShowHeader,
         setVideoBackgroundShowHeader,
+        videoBackgroundEnabled,
     } = usePreferences();
 
     const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -1147,6 +1148,7 @@ const VideoBackgroundAppearanceModal = ({ visible, onClose }: { visible: boolean
         }
     }, [showBgColorPickerModal]);
 
+
     const closeTextColorPicker = () => {
         Animated.timing(textColorPickerAnim, {
             toValue: 0,
@@ -1167,6 +1169,7 @@ const VideoBackgroundAppearanceModal = ({ visible, onClose }: { visible: boolean
         });
     };
 
+
     const handleTextColorComplete = ({ hex }: { hex: string }) => {
         // Only update pickerTextColor when user completes a selection (lets go)
         setPickerTextColor(hex);
@@ -1176,6 +1179,7 @@ const VideoBackgroundAppearanceModal = ({ visible, onClose }: { visible: boolean
         // Only update pickerBgColor when user completes a selection (lets go)
         setPickerBgColor(hex);
     };
+
 
     const saveTextColor = () => {
         setTempTextColor(pickerTextColor);
@@ -1187,6 +1191,7 @@ const VideoBackgroundAppearanceModal = ({ visible, onClose }: { visible: boolean
         closeBgColorPicker();
     };
 
+
     const cancelTextColorPicker = () => {
         setPickerTextColor(tempTextColor); // Reset to current temp color
         closeTextColorPicker();
@@ -1196,6 +1201,7 @@ const VideoBackgroundAppearanceModal = ({ visible, onClose }: { visible: boolean
         setPickerBgColor(tempBgColor); // Reset to current temp color
         closeBgColorPicker();
     };
+
 
     const animateClose = async () => {
         await setSnippetCardBackgroundOpacity(tempOpacity);
@@ -1235,7 +1241,6 @@ const VideoBackgroundAppearanceModal = ({ visible, onClose }: { visible: boolean
                 >
                     <ScrollView showsVerticalScrollIndicator={false}>
                         <Text style={styles.modalTitle}>Appearance</Text>
-                        <Text style={styles.modalSubtitle}>Customize how snippets look on top of videos</Text>
 
                         {/* Preview */}
                         <View style={styles.previewCardOuter}>
@@ -1266,23 +1271,24 @@ const VideoBackgroundAppearanceModal = ({ visible, onClose }: { visible: boolean
 
 
                         {/* Header toggle */}
-                        <View style={styles.videoSettingsSection}>
-                            <View style={styles.settingItem}>
-                                <View style={styles.settingLeft}>
-                                    <View style={styles.iconContainer}>
-                                        <Ionicons name="list" size={20} color={Colors.text} />
+                        {videoBackgroundEnabled && (
+                            <View style={styles.videoSettingsSection}>
+                                <View style={styles.settingItem}>
+                                    <View style={styles.settingLeft}>
+                                        <View style={styles.iconContainer}>
+                                            <Ionicons name="list" size={20} color={Colors.text} />
+                                        </View>
+                                        <Text style={styles.settingTitle}>Show snippet header</Text>
                                     </View>
-                                    <Text style={styles.settingTitle}>Show snippet header</Text>
+                                    <Switch
+                                        value={tempShowHeader}
+                                        onValueChange={setTempShowHeader}
+                                        trackColor={{ false: Colors.backgroundLighter, true: Colors.tint + '80' }}
+                                        thumbColor={tempShowHeader ? Colors.tint : Colors.tabIconDefault}
+                                    />
                                 </View>
-                                <Switch
-                                    value={tempShowHeader}
-                                    onValueChange={setTempShowHeader}
-                                    trackColor={{ false: Colors.backgroundLighter, true: Colors.tint + '80' }}
-                                    thumbColor={tempShowHeader ? Colors.tint : Colors.tabIconDefault}
-                                />
                             </View>
-                        </View>
-
+                        )}
                         {/* Text color */}
                         <View style={styles.videoSettingsSection}>
                             <Text style={styles.sectionHeader}>Text color (card & header)</Text>
@@ -1451,6 +1457,7 @@ const VideoBackgroundAppearanceModal = ({ visible, onClose }: { visible: boolean
                     </Animated.View>
                 </View>
             </Modal>
+
         </Modal>
     );
 };
@@ -1907,7 +1914,6 @@ const VideoBackgroundSettingsModal = ({ visible, onClose }: { visible: boolean; 
     const { videoBackgroundEnabled, setVideoBackgroundEnabled } = usePreferences();
 
     const fadeAnim = useRef(new Animated.Value(0)).current;
-    const [appearanceVisible, setAppearanceVisible] = useState(false);
     const [managerVisible, setManagerVisible] = useState(false);
 
     useEffect(() => {
@@ -1931,7 +1937,7 @@ const VideoBackgroundSettingsModal = ({ visible, onClose }: { visible: boolean; 
     if (!visible) return null;
 
     // Hide main modal when nested modals are open
-    const isMainModalVisible = visible && !appearanceVisible && !managerVisible;
+    const isMainModalVisible = visible && !managerVisible;
 
     return (
         <>
@@ -1979,14 +1985,6 @@ const VideoBackgroundSettingsModal = ({ visible, onClose }: { visible: boolean; 
                             <View style={styles.launcherActions}>
                                 <TouchableOpacity
                                     style={styles.manageCategoriesButton}
-                                    onPress={() => setAppearanceVisible(true)}
-                                >
-                                    <Ionicons name="color-palette" size={20} color={Colors.text} />
-                                    <Text style={styles.manageCategoriesButtonText}>Appearance</Text>
-                                    <Ionicons name="chevron-forward" size={20} color={Colors.tabIconDefault} />
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={styles.manageCategoriesButton}
                                     onPress={() => setManagerVisible(true)}
                                 >
                                     <Ionicons name="film" size={20} color={Colors.text} />
@@ -2005,10 +2003,6 @@ const VideoBackgroundSettingsModal = ({ visible, onClose }: { visible: boolean; 
                 </View>
             </Modal>
 
-            <VideoBackgroundAppearanceModal
-                visible={appearanceVisible}
-                onClose={() => setAppearanceVisible(false)}
-            />
             <VideoBackgroundManagerModal
                 visible={managerVisible}
                 onClose={() => setManagerVisible(false)}
@@ -2023,6 +2017,7 @@ export default function Settings() {
     const { streak, timeSaved, weeklyData, weeklyLabels, resetStats } = useStats();
     const { videoBackgroundEnabled, setVideoBackgroundEnabled } = usePreferences();
     const [videoCategoriesModalVisible, setVideoCategoriesModalVisible] = useState(false);
+    const [appearanceModalVisible, setAppearanceModalVisible] = useState(false);
 
 
 
@@ -2325,6 +2320,12 @@ export default function Settings() {
                         />
                         <View style={styles.separator} />
                         <ActionItem
+                            icon="color-palette"
+                            title="Appearance"
+                            onPress={() => setAppearanceModalVisible(true)}
+                        />
+                        <View style={styles.separator} />
+                        <ActionItem
                             icon="videocam"
                             title="Video Backgrounds"
                             onPress={() => setVideoCategoriesModalVisible(true)}
@@ -2360,7 +2361,7 @@ export default function Settings() {
                     </View>
                 </View>
 
-                {/* dev Section 
+                {/* dev Section
                 <View style={styles.section}>
                     <Text style={styles.sectionHeader}>Developer Options</Text>
                     <View style={styles.sectionContent}>
@@ -2431,8 +2432,7 @@ export default function Settings() {
 
                     <View style={styles.separator} />
                     <Text style={{ color: Colors.text, fontSize: 12, marginTop: 10, marginLeft: 10, marginRight: 10, marginBottom: 10 }}>Gemini Key: {geminiKey}</Text>
-                </View>
-                */}
+               
                 <ActionItem
                     icon="alert"
                     title="Go to Onboarding"
@@ -2440,6 +2440,10 @@ export default function Settings() {
                         router.push('/(onboarding)/onboard');
                     }}
                 />
+                </View>
+
+                */}
+
 
 
 
@@ -2481,6 +2485,11 @@ export default function Settings() {
             <VideoBackgroundSettingsModal
                 visible={videoCategoriesModalVisible}
                 onClose={() => setVideoCategoriesModalVisible(false)}
+            />
+
+            <AppearanceModal
+                visible={appearanceModalVisible}
+                onClose={() => setAppearanceModalVisible(false)}
             />
 
             <OfflineModelTestModal

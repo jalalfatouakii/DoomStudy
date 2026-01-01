@@ -8,9 +8,13 @@ import { useRouter } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { useRef, useState } from "react";
 import {
+    Animated,
     Dimensions,
     FlatList,
     Keyboard,
+    Modal,
+    Platform,
+    Pressable,
     ScrollView,
     StyleSheet,
     Switch,
@@ -21,6 +25,7 @@ import {
     ViewToken
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import ColorPicker, { HueSlider, OpacitySlider, Panel1, Preview, Swatches } from 'reanimated-color-picker';
 
 const { width } = Dimensions.get("window");
 
@@ -107,7 +112,13 @@ const PREVIEW_VIDEO = require('@/assets/videos/narrated.mp4');
 export default function Onboarding() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
-    const { setVideoBackgroundEnabled, setEnabledVideoCategoryIds } = usePreferences();
+    const {
+        setVideoBackgroundEnabled,
+        setEnabledVideoCategoryIds,
+        setSnippetCardBackgroundColor,
+        setSnippetCardTextColor,
+        setSnippetCardBackgroundOpacity,
+    } = usePreferences();
     const [currentIndex, setCurrentIndex] = useState(0);
     const flatListRef = useRef<FlatList>(null);
 
@@ -117,8 +128,22 @@ export default function Onboarding() {
     const [selectedSnippetTypes, setSelectedSnippetTypes] = useState<string[]>(['fact', 'concept', 'qna', 'true_false']);
     const [videoBackgroundEnabled, setVideoBackgroundEnabledLocal] = useState(false);
 
+    // Customization State
+    const [snippetBgColor, setSnippetBgColor] = useState('#1E2022');
+    const [snippetTextColor, setSnippetTextColor] = useState('#ECEDEE');
+    const [bgOpacity, setBgOpacity] = useState(1);
+
+    // Color picker modals
+    const [showBgColorPicker, setShowBgColorPicker] = useState(false);
+    const [showTextColorPicker, setShowTextColorPicker] = useState(false);
+    const [tempBgColor, setTempBgColor] = useState('#1E2022');
+    const [tempTextColor, setTempTextColor] = useState('#ECEDEE');
+    const [bgColorPickerAnim] = useState(new Animated.Value(0));
+    const [textColorPickerAnim] = useState(new Animated.Value(0));
+
     const slides = [
         { id: "welcome", type: "welcome" },
+        { id: "customization", type: "customization" },
         { id: "name", type: "input" },
         { id: "goals", type: "selection" },
         { id: "snippets", type: "snippets" },
@@ -144,7 +169,7 @@ export default function Onboarding() {
 
     const handleNext = async () => {
         // Hide keyboard if we're on the name input slide
-        if (currentIndex === 1) {
+        if (currentIndex === 2) {
             Keyboard.dismiss();
         }
 
@@ -200,6 +225,11 @@ export default function Onboarding() {
             // Default to all categories enabled if video backgrounds are enabled
             await setEnabledVideoCategoryIds(['gameplay', 'satisfying', 'narrated', 'ambient', 'nature']);
 
+            // Persist customization preferences
+            await setSnippetCardBackgroundColor(snippetBgColor);
+            await setSnippetCardTextColor(snippetTextColor);
+            await setSnippetCardBackgroundOpacity(bgOpacity);
+
             await AsyncStorage.setItem("hasOnboarded", "true");
             router.replace("/(tabs)");
         } catch (error) {
@@ -228,9 +258,10 @@ export default function Onboarding() {
 
     const isNextDisabled = () => {
         if (currentIndex === 0) return false; // Welcome screen
-        if (currentIndex === 1) return name.trim().length === 0;
-        if (currentIndex === 2) return selectedGoals.length === 0;
-        if (currentIndex === 3) return selectedSnippetTypes.length === 0;
+        if (currentIndex === 1) return false; // Customization screen (optional)
+        if (currentIndex === 2) return name.trim().length === 0; // Name input
+        if (currentIndex === 3) return selectedGoals.length === 0; // Goals
+        if (currentIndex === 4) return selectedSnippetTypes.length === 0; // Snippet types
         return false;
     };
 
@@ -292,6 +323,100 @@ export default function Onboarding() {
                             <Ionicons name="lock-closed-outline" size={16} color={Colors.tabIconDefault} />
                             <Text style={styles.trustText}>Your files stay on your device and are not uploaded to any servers.</Text>
                         </View>
+                    </ScrollView>
+                </View>
+            );
+        }
+
+        if (item.type === "customization") {
+            return (
+                <View style={styles.slide}>
+                    <ScrollView
+                        contentContainerStyle={styles.welcomeContent}
+                        showsVerticalScrollIndicator={false}
+                        style={{ flex: 1 }}
+                        bounces={true}
+                        scrollEnabled={true}
+                        keyboardShouldPersistTaps="handled"
+                    >
+                        <View style={styles.welcomeHeader}>
+                            <Text style={styles.welcomeTitle}>Customize Appearance</Text>
+                            <Text style={styles.welcomeSubtitle}>Make your snippets look exactly how you want</Text>
+                        </View>
+
+                        {/* Preview */}
+                        <View style={styles.previewContainer}>
+                            <Text style={styles.previewLabel}>Preview</Text>
+                            <View style={styles.snippetCardWrapper}>
+                                <View style={styles.previewCard}>
+                                    <View
+                                        style={[
+                                            StyleSheet.absoluteFill,
+                                            {
+                                                backgroundColor: snippetBgColor,
+                                                opacity: bgOpacity,
+                                                borderRadius: 20,
+                                            },
+                                        ]}
+                                    />
+                                    <View style={styles.previewHeader}>
+                                        <View style={styles.previewIcon}>
+                                            <Ionicons name="bulb" size={18} color={Colors.tint} />
+                                        </View>
+                                        <Text style={[styles.previewLabel, { color: snippetTextColor }]}>Did You Know?</Text>
+                                    </View>
+                                    <Text style={[styles.previewText, { color: snippetTextColor }]}>
+                                        This is a preview of how your snippets will look. Adjust the colors and opacity below.
+                                    </Text>
+                                </View>
+                            </View>
+                        </View>
+
+                        {/* Background Color */}
+                        <View style={styles.customizationSection}>
+                            <Text style={styles.customizationLabel}>Background Color</Text>
+                            <TouchableOpacity
+                                style={styles.colorPickerButton}
+                                onPress={() => {
+                                    setTempBgColor(snippetBgColor);
+                                    setShowBgColorPicker(true);
+                                    Animated.timing(bgColorPickerAnim, {
+                                        toValue: 1,
+                                        duration: 200,
+                                        useNativeDriver: true,
+                                    }).start();
+                                }}
+                            >
+                                <View style={[styles.colorPreview, { backgroundColor: snippetBgColor }]} />
+                                <Text style={styles.colorPickerButtonText}>{snippetBgColor}</Text>
+                                <Ionicons name="color-palette-outline" size={20} color={Colors.text} />
+                            </TouchableOpacity>
+                        </View>
+
+                        {/* Text Color */}
+                        <View style={styles.customizationSection}>
+                            <Text style={styles.customizationLabel}>Text Color</Text>
+                            <TouchableOpacity
+                                style={styles.colorPickerButton}
+                                onPress={() => {
+                                    setTempTextColor(snippetTextColor);
+                                    setShowTextColorPicker(true);
+                                    Animated.timing(textColorPickerAnim, {
+                                        toValue: 1,
+                                        duration: 200,
+                                        useNativeDriver: true,
+                                    }).start();
+                                }}
+                            >
+                                <View style={[styles.colorPreview, { backgroundColor: snippetTextColor }]} />
+                                <Text style={styles.colorPickerButtonText}>{snippetTextColor}</Text>
+                                <Ionicons name="color-palette-outline" size={20} color={Colors.text} />
+                            </TouchableOpacity>
+                        </View>
+
+
+
+                        <Text style={styles.customizationNoteText}>You can change these settings anytime in Settings {'>'} Appearance</Text>
                     </ScrollView>
                 </View>
             );
@@ -507,6 +632,208 @@ export default function Onboarding() {
                     </TouchableOpacity>
                 </View>
             </View>
+
+            {/* Background Color Picker Modal */}
+            <Modal
+                transparent
+                visible={showBgColorPicker}
+                onRequestClose={() => {
+                    Animated.timing(bgColorPickerAnim, {
+                        toValue: 0,
+                        duration: 150,
+                        useNativeDriver: true,
+                    }).start(() => setShowBgColorPicker(false));
+                }}
+                animationType="none"
+            >
+                <View style={styles.modalOverlay}>
+                    <Pressable
+                        style={StyleSheet.absoluteFill}
+                        onPress={() => {
+                            Animated.timing(bgColorPickerAnim, {
+                                toValue: 0,
+                                duration: 150,
+                                useNativeDriver: true,
+                            }).start(() => setShowBgColorPicker(false));
+                        }}
+                    />
+                    <Animated.View
+                        style={[
+                            styles.colorPickerModalContent,
+                            {
+                                opacity: bgColorPickerAnim,
+                                transform: [
+                                    {
+                                        scale: bgColorPickerAnim.interpolate({
+                                            inputRange: [0, 1],
+                                            outputRange: [0.95, 1],
+                                        }),
+                                    },
+                                ],
+                            },
+                        ]}
+                        onStartShouldSetResponder={() => true}
+                    >
+                        <View style={styles.colorPickerModalHeader}>
+                            <Text style={styles.modalTitle}>Select Background Color</Text>
+                            <TouchableOpacity
+                                onPress={() => {
+                                    Animated.timing(bgColorPickerAnim, {
+                                        toValue: 0,
+                                        duration: 150,
+                                        useNativeDriver: true,
+                                    }).start(() => setShowBgColorPicker(false));
+                                }}
+                                style={styles.closeButton}
+                            >
+                                <Ionicons name="close" size={24} color={Colors.text} />
+                            </TouchableOpacity>
+                        </View>
+                        <ColorPicker
+                            style={styles.colorPicker}
+                            value={tempBgColor}
+                            onCompleteJS={({ hex }: { hex: string }) => setTempBgColor(hex)}
+                        >
+                            <Preview style={{ marginBottom: 12 }} hideInitialColor={true} />
+                            <Panel1 style={{ marginBottom: 12 }} thumbSize={24} />
+                            <HueSlider style={{ marginBottom: 12 }} adaptSpectrum={true} thumbSize={24} />
+                            <OpacitySlider style={{ marginBottom: 12 }} boundedThumb={true} adaptSpectrum={true} thumbSize={24} />
+                            <Swatches
+                                colors={['#1E2022', '#151718', '#000000', '#FFFFFF', '#2C2C2E', '#3A3A3C']}
+                                style={{ marginBottom: 12 }}
+                            />
+                        </ColorPicker>
+                        <View style={styles.colorPickerModalButtons}>
+                            <Pressable
+                                style={styles.cancelColorButton}
+                                onPress={() => {
+                                    Animated.timing(bgColorPickerAnim, {
+                                        toValue: 0,
+                                        duration: 150,
+                                        useNativeDriver: true,
+                                    }).start(() => setShowBgColorPicker(false));
+                                }}
+                            >
+                                <Text style={styles.cancelColorButtonText}>Cancel</Text>
+                            </Pressable>
+                            <Pressable
+                                style={styles.saveColorButton}
+                                onPress={() => {
+                                    setSnippetBgColor(tempBgColor);
+                                    Animated.timing(bgColorPickerAnim, {
+                                        toValue: 0,
+                                        duration: 150,
+                                        useNativeDriver: true,
+                                    }).start(() => setShowBgColorPicker(false));
+                                }}
+                            >
+                                <Text style={styles.saveColorButtonText}>Save</Text>
+                            </Pressable>
+                        </View>
+                    </Animated.View>
+                </View>
+            </Modal>
+
+            {/* Text Color Picker Modal */}
+            <Modal
+                transparent
+                visible={showTextColorPicker}
+                onRequestClose={() => {
+                    Animated.timing(textColorPickerAnim, {
+                        toValue: 0,
+                        duration: 150,
+                        useNativeDriver: true,
+                    }).start(() => setShowTextColorPicker(false));
+                }}
+                animationType="none"
+            >
+                <View style={styles.modalOverlay}>
+                    <Pressable
+                        style={StyleSheet.absoluteFill}
+                        onPress={() => {
+                            Animated.timing(textColorPickerAnim, {
+                                toValue: 0,
+                                duration: 150,
+                                useNativeDriver: true,
+                            }).start(() => setShowTextColorPicker(false));
+                        }}
+                    />
+                    <Animated.View
+                        style={[
+                            styles.colorPickerModalContent,
+                            {
+                                opacity: textColorPickerAnim,
+                                transform: [
+                                    {
+                                        scale: textColorPickerAnim.interpolate({
+                                            inputRange: [0, 1],
+                                            outputRange: [0.95, 1],
+                                        }),
+                                    },
+                                ],
+                            },
+                        ]}
+                        onStartShouldSetResponder={() => true}
+                    >
+                        <View style={styles.colorPickerModalHeader}>
+                            <Text style={styles.modalTitle}>Select Text Color</Text>
+                            <TouchableOpacity
+                                onPress={() => {
+                                    Animated.timing(textColorPickerAnim, {
+                                        toValue: 0,
+                                        duration: 150,
+                                        useNativeDriver: true,
+                                    }).start(() => setShowTextColorPicker(false));
+                                }}
+                                style={styles.closeButton}
+                            >
+                                <Ionicons name="close" size={24} color={Colors.text} />
+                            </TouchableOpacity>
+                        </View>
+                        <ColorPicker
+                            style={styles.colorPicker}
+                            value={tempTextColor}
+                            onCompleteJS={({ hex }: { hex: string }) => setTempTextColor(hex)}
+                        >
+                            <Preview style={{ marginBottom: 12 }} hideInitialColor={true} />
+                            <Panel1 style={{ marginBottom: 12 }} thumbSize={24} />
+                            <HueSlider style={{ marginBottom: 12 }} adaptSpectrum={true} thumbSize={24} />
+                            <OpacitySlider style={{ marginBottom: 12 }} boundedThumb={true} adaptSpectrum={true} thumbSize={24} />
+                            <Swatches
+                                colors={['#ECEDEE', '#FFFFFF', '#E0E0E0', '#B0B0B0', '#808080', '#000000']}
+                                style={{ marginBottom: 12 }}
+                            />
+                        </ColorPicker>
+                        <View style={styles.colorPickerModalButtons}>
+                            <Pressable
+                                style={styles.cancelColorButton}
+                                onPress={() => {
+                                    Animated.timing(textColorPickerAnim, {
+                                        toValue: 0,
+                                        duration: 150,
+                                        useNativeDriver: true,
+                                    }).start(() => setShowTextColorPicker(false));
+                                }}
+                            >
+                                <Text style={styles.cancelColorButtonText}>Cancel</Text>
+                            </Pressable>
+                            <Pressable
+                                style={styles.saveColorButton}
+                                onPress={() => {
+                                    setSnippetTextColor(tempTextColor);
+                                    Animated.timing(textColorPickerAnim, {
+                                        toValue: 0,
+                                        duration: 150,
+                                        useNativeDriver: true,
+                                    }).start(() => setShowTextColorPicker(false));
+                                }}
+                            >
+                                <Text style={styles.saveColorButtonText}>Save</Text>
+                            </Pressable>
+                        </View>
+                    </Animated.View>
+                </View>
+            </Modal>
         </View>
     );
 }
@@ -890,6 +1217,198 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: Colors.tabIconDefault,
         textAlign: 'center',
+    },
+    customizationSection: {
+        marginBottom: 24,
+        width: '100%',
+    },
+    customizationLabel: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: Colors.text,
+        marginBottom: 12,
+    },
+    colorPresets: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 12,
+    },
+    colorPreset: {
+        width: 50,
+        height: 50,
+        borderRadius: 12,
+        borderWidth: 2,
+        borderColor: Colors.backgroundLighter,
+    },
+    colorPresetSelected: {
+        borderColor: Colors.tint,
+        borderWidth: 3,
+    },
+    previewCard: {
+        backgroundColor: 'transparent',
+        borderRadius: 20,
+        padding: 24,
+        width: "100%",
+        position: 'relative',
+        minHeight: 150,
+    },
+    previewHeader: {
+        flexDirection: "row",
+        alignItems: "center",
+        marginBottom: 16,
+    },
+    previewIcon: {
+        width: 32,
+        height: 32,
+        borderRadius: 8,
+        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        alignItems: "center",
+        justifyContent: "center",
+        marginRight: 12,
+    },
+    previewText: {
+        fontSize: 18,
+        fontWeight: "600",
+        lineHeight: 26,
+    },
+    sliderContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        marginTop: 8,
+    },
+    sliderLabel: {
+        fontSize: 12,
+        color: Colors.tabIconDefault,
+        width: 35,
+    },
+    sliderTrack: {
+        flex: 1,
+        height: 4,
+        backgroundColor: Colors.backgroundLighter,
+        borderRadius: 2,
+        position: 'relative',
+    },
+    sliderFill: {
+        height: '100%',
+        backgroundColor: Colors.tint,
+        borderRadius: 2,
+    },
+    sliderThumb: {
+        width: 20,
+        height: 20,
+        borderRadius: 10,
+        backgroundColor: Colors.tint,
+        position: 'absolute',
+        top: -8,
+        marginLeft: -10,
+    },
+    sliderButtons: {
+        flexDirection: 'row',
+        gap: 8,
+        marginTop: 12,
+        justifyContent: 'center',
+    },
+    opacityButton: {
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        backgroundColor: Colors.backgroundSecondary,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: Colors.backgroundLighter,
+    },
+    opacityButtonActive: {
+        backgroundColor: Colors.tint,
+        borderColor: Colors.tint,
+    },
+    opacityButtonText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: Colors.text,
+    },
+    colorPickerButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        padding: 12,
+        backgroundColor: Colors.backgroundLighter,
+        borderRadius: 8,
+        marginTop: 8,
+    },
+    colorPreview: {
+        width: 30,
+        height: 30,
+        borderRadius: 6,
+        borderWidth: 1,
+        borderColor: Colors.backgroundSecondary,
+    },
+    colorPickerButtonText: {
+        flex: 1,
+        fontSize: 14,
+        color: Colors.text,
+        fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    colorPickerModalContent: {
+        backgroundColor: Colors.backgroundSecondary,
+        borderRadius: 20,
+        padding: 24,
+        width: '90%',
+        maxWidth: 400,
+        maxHeight: '80%',
+    },
+    colorPickerModalHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 20,
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: Colors.text,
+    },
+    closeButton: {
+        padding: 4,
+    },
+    colorPicker: {
+        width: '100%',
+    },
+    colorPickerModalButtons: {
+        flexDirection: 'row',
+        gap: 12,
+        marginTop: 20,
+    },
+    cancelColorButton: {
+        flex: 1,
+        padding: 14,
+        backgroundColor: Colors.backgroundLighter,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    saveColorButton: {
+        flex: 1,
+        padding: 14,
+        backgroundColor: Colors.tint,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    cancelColorButtonText: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: Colors.text,
+    },
+    saveColorButtonText: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: Colors.background,
     },
 });
 

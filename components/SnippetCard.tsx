@@ -65,15 +65,15 @@ export default function SnippetCard({ snippet, height }: SnippetCardProps) {
     const renderIcon = () => {
         switch (snippet.type) {
             case "fact":
-                return <Ionicons name="bulb" size={24} color={Colors.tint} />;
+                return <Ionicons name="bulb" size={24} color={isVideoBackgroundEnabled ? cardTextColor : Colors.tint} />;
             case "qna":
-                return <Ionicons name="information-circle" size={24} color="#FF9500" />;
+                return <Ionicons name="information-circle" size={24} color={isVideoBackgroundEnabled ? cardTextColor : "#FF9500"} />;
             case "true_false":
-                return <Ionicons name="checkbox" size={24} color="#34C759" />;
+                return <Ionicons name="checkbox" size={24} color={isVideoBackgroundEnabled ? cardTextColor : "#34C759"} />;
             case "concept":
-                return <Ionicons name="key" size={24} color="#AF52DE" />;
+                return <Ionicons name="key" size={24} color={isVideoBackgroundEnabled ? cardTextColor : "#AF52DE"} />;
             default:
-                return <Ionicons name="document" size={24} color={Colors.tabIconDefault} />;
+                return <Ionicons name="document" size={24} color={isVideoBackgroundEnabled ? cardTextColor : Colors.tabIconDefault} />;
         }
     };
 
@@ -94,20 +94,34 @@ export default function SnippetCard({ snippet, height }: SnippetCardProps) {
         return {};
     };
 
+    // Use custom colors for normal mode too
+    const cardBackgroundColor = isVideoBackgroundEnabled ? 'transparent' : snippetCardBackgroundColor;
+    const cardTextColor = isVideoBackgroundEnabled ? snippetCardTextColor : (snippetCardTextColor || Colors.text);
+    const cardOpacity = isVideoBackgroundEnabled ? snippetCardBackgroundOpacity : 1;
+
     return (
         <View style={[
             styles.card,
             { height: height || "auto" },
-            isVideoBackgroundEnabled && { backgroundColor: 'transparent' },
+            { backgroundColor: cardBackgroundColor },
             getCardStyle()
         ]}>
-            {/* Background overlay when video backgrounds are enabled */}
-            {isVideoBackgroundEnabled && (
+            {/* Background overlay - shown for video backgrounds, or as solid background for normal mode */}
+            {isVideoBackgroundEnabled ? (
                 <View style={[
                     StyleSheet.absoluteFill,
                     {
                         backgroundColor: snippetCardBackgroundColor,
                         opacity: snippetCardBackgroundOpacity,
+                        borderRadius: 24,
+                    }
+                ]} />
+            ) : (
+                <View style={[
+                    StyleSheet.absoluteFill,
+                    {
+                        backgroundColor: snippetCardBackgroundColor,
+                        opacity: cardOpacity,
                         borderRadius: 24,
                     }
                 ]} />
@@ -120,7 +134,7 @@ export default function SnippetCard({ snippet, height }: SnippetCardProps) {
                     </View>
                     <Text style={[
                         styles.label,
-                        isVideoBackgroundEnabled && { color: snippetCardTextColor }
+                        { color: cardTextColor }
                     ]}>{renderLabel()}</Text>
                 </View>
             )}
@@ -129,7 +143,7 @@ export default function SnippetCard({ snippet, height }: SnippetCardProps) {
                     styles.mainText,
                     snippet.type === 'concept' && styles.conceptText,
                     isVideoBackgroundEnabled && styles.mainTextWithShadow,
-                    isVideoBackgroundEnabled && { color: snippetCardTextColor }
+                    { color: cardTextColor }
                 ]}>
                     {cleanContent(snippet.content)}
                 </Text>
@@ -140,25 +154,28 @@ export default function SnippetCard({ snippet, height }: SnippetCardProps) {
                             <Animated.View style={{ opacity: fadeAnim }}>
                                 <TouchableOpacity
                                     style={[
-                                        styles.revealButton
+                                        styles.revealButton,
+                                        { backgroundColor: Colors.tint }
                                     ]}
                                     onPress={handleReveal}
                                 >
                                     <Text style={[
-                                        styles.revealButtonText
+                                        styles.revealButtonText,
+                                        { color: Colors.background }
                                     ]}>
                                         Reveal Answer
                                     </Text>
                                 </TouchableOpacity>
                             </Animated.View>
                         ) : (
-                            <View style={styles.answerContainer}>
+                            <View style={[styles.answerContainer, { borderColor: Colors.tint }]}>
                                 <View style={styles.answerHeader}>
                                     <Ionicons name="checkmark-circle" size={20} color={Colors.tint} />
-                                    <Text style={styles.answerLabel}>Answer:</Text>
+                                    <Text style={[styles.answerLabel, { color: Colors.tint }]}>Answer:</Text>
                                 </View>
                                 <Text style={[
-                                    styles.answerText
+                                    styles.answerText,
+                                    { color: cardTextColor }
                                 ]}>
                                     {snippet.answer}
                                 </Text>
@@ -174,7 +191,7 @@ export default function SnippetCard({ snippet, height }: SnippetCardProps) {
                     <View style={styles.tagsRow}>
                         {snippet.tags.slice(0, 3).map((tag, idx) => (
                             <View key={idx} style={styles.tagBadge}>
-                                <Text style={styles.tagText}>{tag}</Text>
+                                <Text style={[styles.tagText, { color: Colors.tint }]}>{tag}</Text>
                             </View>
                         ))}
                     </View>
@@ -243,7 +260,7 @@ const styles = StyleSheet.create({
         marginTop: 8,
     },
     revealButton: {
-        backgroundColor: Colors.tint,
+        // backgroundColor will be set dynamically
         paddingVertical: 14,
         paddingHorizontal: 20,
         borderRadius: 16,
@@ -267,7 +284,7 @@ const styles = StyleSheet.create({
         padding: 16,
         borderRadius: 16,
         borderWidth: 1,
-        borderColor: Colors.tint,
+        // borderColor will be set dynamically
     },
     answerHeader: {
         flexDirection: "row",
@@ -278,11 +295,11 @@ const styles = StyleSheet.create({
     answerLabel: {
         fontSize: 14,
         fontWeight: "bold",
-        color: Colors.tint,
+        // color will be set dynamically
     },
     answerText: {
         fontSize: 16,
-        color: Colors.text,
+        // color will be set dynamically
         lineHeight: 24,
     },
     answerTextWithShadow: {
@@ -310,7 +327,7 @@ const styles = StyleSheet.create({
         borderRadius: 8,
     },
     tagText: {
-        color: Colors.tint,
+        // color will be set dynamically
         fontSize: 12,
         fontWeight: '600',
     },
