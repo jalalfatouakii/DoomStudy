@@ -1,6 +1,8 @@
 import AITermsModal from "@/components/AITermsModal";
+import DocxTextExtractor from "@/components/DocxTextExtractor";
 import GeminiKeyModal from "@/components/GeminiKeyModal";
 import PdfTextExtractor from "@/components/PdfTextExtractor";
+import PptxTextExtractor from "@/components/PptxTextExtractor";
 import ProcessingModal from "@/components/ProcessingModal";
 import { Colors } from "@/constants/colors";
 import { useCourses } from "@/context/CourseContext";
@@ -44,8 +46,10 @@ export default function EditCourse() {
     const [tagInput, setTagInput] = useState("");
     const [files, setFiles] = useState<FileState[]>([]);
 
-    // PDF & parsing state
+    // PDF, DOCX & PPTX parsing state
     const [pdfBase64, setPdfBase64] = useState<string | null>(null);
+    const [docxBase64, setDocxBase64] = useState<string | null>(null);
+    const [pptxBase64, setPptxBase64] = useState<string | null>(null);
     const [isParsing, setIsParsing] = useState(false);
     const [currentParsingFileId, setCurrentParsingFileId] = useState<string | null>(null);
     const [viewingTextFileId, setViewingTextFileId] = useState<string | null>(null);
@@ -117,11 +121,23 @@ export default function EditCourse() {
         if (viewingTextFileId === id) setViewingTextFileId(null);
     };
 
+    // Helper function to detect file type
+    const getFileType = (fileName: string): 'pdf' | 'docx' | 'pptx' => {
+        const ext = fileName.toLowerCase().split('.').pop();
+        if (ext === 'docx') return 'docx';
+        if (ext === 'pptx') return 'pptx';
+        return 'pdf';
+    };
+
     const filepicker = async () => {
         try {
             const result = await DocumentPicker.getDocumentAsync({
                 copyToCacheDirectory: true,
-                type: "application/pdf",
+                type: [
+                    "application/pdf",
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                ],
                 multiple: true  // Enable multiple file selection
             });
 
@@ -141,10 +157,11 @@ export default function EditCourse() {
             // Process the first file immediately
             if (newFiles.length > 0) {
                 const firstFile = newFiles[0];
+                const fileType = getFileType(firstFile.name);
 
                 setProcessingVisible(true);
                 setProcessingTitle("Reading Files");
-                setProcessingStep("Processing PDF");
+                setProcessingStep(`Processing ${fileType.toUpperCase()}`);
                 setProcessingStatus(`Parsing ${firstFile.name}...`);
                 setProcessingProgress(undefined);
 
@@ -153,7 +170,14 @@ export default function EditCourse() {
 
                 const file = new FileSystem.File(firstFile.uri);
                 const base64 = await file.base64();
-                setPdfBase64(base64);
+
+                if (fileType === 'docx') {
+                    setDocxBase64(base64);
+                } else if (fileType === 'pptx') {
+                    setPptxBase64(base64);
+                } else {
+                    setPdfBase64(base64);
+                }
             }
 
         } catch (error) {
@@ -164,7 +188,7 @@ export default function EditCourse() {
         }
     }
 
-    const handlePdfExtracted = (text: string) => {
+    const handleFileExtracted = (text: string) => {
         console.log("Extracted Text Length:", text.length);
         if (currentParsingFileId) {
             setFiles(prev => prev.map(f =>
@@ -175,6 +199,8 @@ export default function EditCourse() {
         setIsParsing(false);
         setCurrentParsingFileId(null);
         setPdfBase64(null); // Reset after extraction
+        setDocxBase64(null); // Reset after extraction
+        setPptxBase64(null); // Reset after extraction
 
         // Check if there are more files to process
         setTimeout(async () => {
@@ -183,9 +209,11 @@ export default function EditCourse() {
                 const nextFile = currentFiles.find(f => !f.parsedText);
 
                 if (nextFile) {
+                    const fileType = getFileType(nextFile.name);
+
                     // Process the next file - keep modal open
                     setProcessingTitle("Reading Files");
-                    setProcessingStep("Processing PDF");
+                    setProcessingStep(`Processing ${fileType.toUpperCase()}`);
                     setProcessingStatus(`Parsing ${nextFile.name}...`);
                     setProcessingProgress(undefined);
 
@@ -195,7 +223,13 @@ export default function EditCourse() {
                     // Read the next file
                     const file = new FileSystem.File(nextFile.uri!);
                     file.base64().then(base64 => {
-                        setPdfBase64(base64);
+                        if (fileType === 'docx') {
+                            setDocxBase64(base64);
+                        } else if (fileType === 'pptx') {
+                            setPptxBase64(base64);
+                        } else {
+                            setPdfBase64(base64);
+                        }
                     }).catch(error => {
                         console.error(`Error processing ${nextFile.name}:`, error);
                         setIsParsing(false);
@@ -219,6 +253,24 @@ export default function EditCourse() {
         setCurrentParsingFileId(null);
         setPdfBase64(null);
         Alert.alert("Error", "Failed to extract text from PDF.");
+    };
+
+    const handleDocxError = (error: string) => {
+        console.error("DOCX Extraction Error:", error);
+        setIsParsing(false);
+        setProcessingVisible(false);
+        setCurrentParsingFileId(null);
+        setDocxBase64(null);
+        Alert.alert("Error", "Failed to extract text from DOCX.");
+    };
+
+    const handlePptxError = (error: string) => {
+        console.error("PPTX Extraction Error:", error);
+        setIsParsing(false);
+        setProcessingVisible(false);
+        setCurrentParsingFileId(null);
+        setPptxBase64(null);
+        Alert.alert("Error", "Failed to extract text from PPTX.");
     };
 
 
@@ -454,8 +506,18 @@ export default function EditCourse() {
         <SafeAreaView style={styles.safeArea}>
             <PdfTextExtractor
                 pdfBase64={pdfBase64}
-                onExtract={handlePdfExtracted}
+                onExtract={handleFileExtracted}
                 onError={handlePdfError}
+            />
+            <DocxTextExtractor
+                docxBase64={docxBase64}
+                onExtract={handleFileExtracted}
+                onError={handleDocxError}
+            />
+            <PptxTextExtractor
+                pptxBase64={pptxBase64}
+                onExtract={handleFileExtracted}
+                onError={handlePptxError}
             />
 
             <GeminiKeyModal
