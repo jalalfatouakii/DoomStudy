@@ -464,7 +464,14 @@ export default function Onboarding() {
         if (item.type === "selection") {
             return (
                 <View style={styles.slide}>
-                    <View style={styles.contentContainer}>
+                    <ScrollView
+                        contentContainerStyle={styles.selectionContent}
+                        showsVerticalScrollIndicator={false}
+                        style={{ flex: 1 }}
+                        bounces={true}
+                        scrollEnabled={true}
+                        keyboardShouldPersistTaps="handled"
+                    >
                         <Text style={styles.title}>Why are you here?</Text>
                         <Text style={styles.description}>We'll tailor your feed to match your intent. Select all that apply.</Text>
                         <View style={styles.goalsContainer}>
@@ -487,7 +494,7 @@ export default function Onboarding() {
                                 </TouchableOpacity>
                             ))}
                         </View>
-                    </View>
+                    </ScrollView>
                 </View>
             );
         }
@@ -495,7 +502,14 @@ export default function Onboarding() {
         if (item.type === "snippets") {
             return (
                 <View style={styles.slide}>
-                    <View style={styles.contentContainer}>
+                    <ScrollView
+                        contentContainerStyle={styles.selectionContent}
+                        showsVerticalScrollIndicator={false}
+                        style={{ flex: 1 }}
+                        bounces={true}
+                        scrollEnabled={true}
+                        keyboardShouldPersistTaps="handled"
+                    >
                         <Text style={styles.title}>Choose your study formats</Text>
                         <Text style={styles.description}>Select how you want to practice. You can change this anytime.</Text>
                         <View style={styles.goalsContainer}>
@@ -525,7 +539,7 @@ export default function Onboarding() {
                             ))}
                         </View>
                         <Text style={styles.subDescription}>Preferences can be updated anytime in Settings.</Text>
-                    </View>
+                    </ScrollView>
                 </View>
             );
         }
@@ -949,6 +963,11 @@ const styles = StyleSheet.create({
         marginBottom: 30,
     },
     welcomeContent: {
+        paddingVertical: 20,
+        paddingBottom: 40,
+        flexGrow: 1,
+    },
+    selectionContent: {
         paddingVertical: 20,
         paddingBottom: 40,
         flexGrow: 1,
