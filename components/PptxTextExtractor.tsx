@@ -80,6 +80,13 @@ export default function PptxTextExtractor({ pptxBase64, onExtract, onError }: Pp
     </head>
     <body>
         <script>
+            // Polyfill setImmediate for JSZip
+            if (typeof setImmediate === 'undefined') {
+                window.setImmediate = function(callback, ...args) {
+                    return setTimeout(callback, 0, ...args);
+                };
+            }
+            
             let jszipReady = false;
 
             document.addEventListener('message', handleMessage);
@@ -87,6 +94,7 @@ export default function PptxTextExtractor({ pptxBase64, onExtract, onError }: Pp
 
             function handleMessage(event) {
                 try {
+                    if (!event || !event.data) return;
                     const message = JSON.parse(event.data);
                     
                     if (message.type === 'JSZIP_READY') {
@@ -163,6 +171,7 @@ export default function PptxTextExtractor({ pptxBase64, onExtract, onError }: Pp
 
     const onMessage = (event: any) => {
         try {
+            if (!event.nativeEvent?.data) return;
             const data = JSON.parse(event.nativeEvent.data);
             if (data.type === 'SUCCESS') {
                 onExtract(data.text);

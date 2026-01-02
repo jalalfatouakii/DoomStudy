@@ -18,7 +18,7 @@ Transform your study materials into an engaging, scrollable learning experience.
 ## Features
 
 ### Document Upload
-- Upload PDFs (PPTX and DOCX support to come soon)
+- Upload PDFs, DOCX, and PPTX
 - Automatic text extraction and processing
 - Organize content by courses with custom tags
 

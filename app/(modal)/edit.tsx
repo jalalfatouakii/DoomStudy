@@ -614,7 +614,7 @@ export default function EditCourse() {
                             </View>
                             <View>
                                 <Text style={styles.uploadTitle}>Upload Files</Text>
-                                <Text style={styles.uploadSubtitle}>PDF, DOCX, PPTX up to 10MB</Text>
+                                <Text style={styles.uploadSubtitle}>PDF, DOCX, PPTX</Text>
                             </View>
                         </TouchableOpacity>
 
