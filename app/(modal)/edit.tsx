@@ -613,8 +613,8 @@ export default function EditCourse() {
                                 <Ionicons name="cloud-upload" size={24} color={Colors.tint} />
                             </View>
                             <View>
-                                <Text style={styles.uploadTitle}>Upload Files</Text>
-                                <Text style={styles.uploadSubtitle}>PDF, DOCX, PPTX</Text>
+                                <Text style={styles.uploadTitle}>Upload your materials</Text>
+                                <Text style={styles.uploadSubtitle}>PDF, DOCX, PPTX supported</Text>
                             </View>
                         </TouchableOpacity>
 

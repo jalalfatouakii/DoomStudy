@@ -2283,7 +2283,7 @@ export default function Settings() {
                 {/* Progress Tracking Section */}
                 <View style={styles.statsContainer}>
                     <StatCard
-                        label="Courses"
+                        label={user.stats.coursesCompleted === 1 ? "Course" : "Courses"}
                         value={user.stats.coursesCompleted}
                         icon="book"
                         color="#4CAF50"
