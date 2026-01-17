@@ -8,6 +8,7 @@ export const Colors = {
     tabIconSelected: "#80f65c82",
     backgroundSecondary: '#1A1C1E',
     backgroundLighter: '#1E2022',
+    destructive: '#FF453A',
 
 };
 

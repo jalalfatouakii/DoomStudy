@@ -7,6 +7,7 @@ import ProcessingModal from "@/components/ProcessingModal";
 import { Colors } from "@/constants/colors";
 import { useCourses } from "@/context/CourseContext";
 import { GeminiError, generateSnippets } from "@/utils/gemini";
+import { WeightedSelector } from "@/utils/weightedSelection";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as DocumentPicker from 'expo-document-picker';
@@ -210,48 +211,49 @@ export default function AddCourse() {
         setProcessingProgress(0);
 
         try {
-            // Process each file individually
-            const totalFiles = files.length;
-            for (let i = 0; i < totalFiles; i++) {
-                const file = files[i];
-                if (!file.parsedText || file.parsedText.trim().length === 0) continue;
+            // NEW ALGORITHM: Select ONE file using weighted selection (temporary courseId for new courses)
+            const tempCourseId = `new-course-${Date.now()}`;
+            const selectedFile = await WeightedSelector.selectFile(tempCourseId, files);
 
-                setProcessingStatus(`Analyzing file ${i + 1} of ${totalFiles}: ${file.name}...`);
-                setProcessingProgress(i / totalFiles);
+            if (!selectedFile || !selectedFile.parsedText || selectedFile.parsedText.trim().length === 0) {
+                Alert.alert("No Valid Files", "Please upload files with content to generate AI snippets.");
+                return [];
+            }
 
-                try {
-                    const fileId = `new-course-${file.name}-${Date.now()}`;
-                    // Use unified generateSnippets function which handles both online and offline modes
-                    const fileSnippets = await generateSnippets(file.parsedText, geminiKey || '', 20, fileId);
+            setProcessingStatus(`Analyzing file: ${selectedFile.name}...`);
+            setProcessingProgress(0.5);
 
-                    // Tag snippets with the source filename so we can delete them later if the file is removed
-                    const taggedSnippets = fileSnippets.map(s => {
-                        try {
-                            const parsed = JSON.parse(s);
-                            parsed.sourceFileName = file.name;
-                            return JSON.stringify(parsed);
-                        } catch (e) {
-                            return s;
-                        }
-                    });
+            try {
+                const fileId = `${tempCourseId}-${selectedFile.name}`;
+                // Generate 20 snippets from this ONE file (chunk selection happens inside generateSnippets)
+                const fileSnippets = await generateSnippets(selectedFile.parsedText, geminiKey || '', 20, fileId);
 
-                    aiSnippets.push(...taggedSnippets);
-                } catch (err) {
-                    console.error(`Failed to generate snippets for ${file.name}:`, err);
-
-                    // If it's a GeminiError, show alert and stop processing
-                    if (err instanceof GeminiError) {
-                        setIsGeneratingAI(false);
-                        setProcessingVisible(false);
-                        Alert.alert(
-                            "AI Generation Error",
-                            err.message,
-                            [{ text: "OK" }]
-                        );
-                        // Return empty array to stop processing
-                        return [];
+                // Tag snippets with the source filename so we can delete them later if the file is removed
+                const taggedSnippets = fileSnippets.map(s => {
+                    try {
+                        const parsed = JSON.parse(s);
+                        parsed.sourceFileName = selectedFile.name;
+                        return JSON.stringify(parsed);
+                    } catch (e) {
+                        return s;
                     }
-                    // For other errors, continue with other files
+                });
+
+                aiSnippets.push(...taggedSnippets);
+            } catch (err) {
+                console.error(`Failed to generate snippets for ${selectedFile.name}:`, err);
+
+                // If it's a GeminiError, show alert and stop processing
+                if (err instanceof GeminiError) {
+                    setIsGeneratingAI(false);
+                    setProcessingVisible(false);
+                    Alert.alert(
+                        "AI Generation Error",
+                        err.message,
+                        [{ text: "OK" }]
+                    );
+                    // Return empty array to stop processing
+                    return [];
                 }
             }
 

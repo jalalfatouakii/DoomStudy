@@ -7,6 +7,7 @@ import { useRefresh } from "@/context/RefreshContext";
 import { useTabPress } from "@/hooks/useTabPress";
 import { SnippetType } from "@/utils/contentExtractor";
 import { GeminiError, generateSnippets } from "@/utils/gemini";
+import { WeightedSelector } from "@/utils/weightedSelection";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -183,88 +184,68 @@ export default function Index() {
         return;
       }
 
-      // Gather all 'valid' files from these courses
-      const allFiles: { parsedText: string, courseId: string, courseName: string, fileName: string, tags: string[] }[] = [];
+      // NEW ALGORITHM: Select 1 course using weighted selection
+      const selectedCourse = await WeightedSelector.selectCourse(candidateCourses);
 
-      candidateCourses.forEach(course => {
-        course.files.forEach(f => {
-          if (f.parsedText && f.parsedText.trim().length > 0) {
-            allFiles.push({
-              parsedText: f.parsedText,
-              courseId: course.id,
-              courseName: course.title,
-              fileName: f.name,
-              tags: course.tags
-            });
-          }
-        });
-      });
-
-      if (allFiles.length === 0) {
+      if (!selectedCourse) {
         setRefreshing(prev => ({ ...prev, [categoryId]: false }));
         return;
       }
 
-      // Shuffle files to ensure variety if we have many
-      const shuffledFiles = allFiles.sort(() => 0.5 - Math.random());
+      // NEW ALGORITHM: Select 1 file from that course using weighted selection
+      const selectedFile = await WeightedSelector.selectFile(selectedCourse.id, selectedCourse.files);
 
-      // We want ~20 snippets total
-      const TOTAL_SNIPPETS_TARGET = 20;
+      if (!selectedFile || !selectedFile.parsedText || selectedFile.parsedText.trim().length === 0) {
+        setRefreshing(prev => ({ ...prev, [categoryId]: false }));
+        return;
+      }
 
-      // Limit to max 10 files to avoid too many parallel requests, 
-      // but try to use as many as possible to be "from all files"
-      const maxFilesToUse = Math.min(shuffledFiles.length, 10);
-      const targetFiles = shuffledFiles.slice(0, maxFilesToUse);
-
-      const snippetsPerFile = Math.max(1, Math.floor(TOTAL_SNIPPETS_TARGET / targetFiles.length));
-
-      // Collect all new snippets first (without updating state)
+      // Generate 20 snippets from this ONE file (chunk selection happens inside generateSnippets)
+      const SNIPPETS_TO_GENERATE = 20;
       const allNewSnippets: ContentSnippet[] = [];
 
-      // Generate content for each selected file SEQUENTIALLY
-      for (let i = 0; i < targetFiles.length; i++) {
-        const file = targetFiles[i];
+      try {
+        const fileId = `${selectedCourse.id}-${selectedFile.name}`;
+        const fileSnippets = await generateSnippets(selectedFile.parsedText, key || '', SNIPPETS_TO_GENERATE, fileId);
 
-        try {
-          const fileId = `${file.courseId}-${file.fileName}`;
-          const fileSnippets = await generateSnippets(file.parsedText, key || '', snippetsPerFile, fileId);
+        fileSnippets.forEach((snippetStr, idx) => {
+          let type: SnippetType = 'text';
+          let content = snippetStr;
+          let answer = undefined;
+          let label = undefined;
 
-          fileSnippets.forEach((snippetStr, idx) => {
-            let type: SnippetType = 'text';
-            let content = snippetStr;
-            let answer = undefined;
-            let label = undefined;
-
-            try {
-              const parsed = JSON.parse(snippetStr);
-              if (parsed && typeof parsed === 'object' && parsed.content) {
-                type = parsed.type || 'text';
-                content = parsed.content;
-                answer = parsed.answer;
-                label = parsed.label;
-              }
-            } catch (e) {
-              // fallback
+          try {
+            const parsed = JSON.parse(snippetStr);
+            if (parsed && typeof parsed === 'object' && parsed.content) {
+              type = parsed.type || 'text';
+              content = parsed.content;
+              answer = parsed.answer;
+              label = parsed.label;
             }
+          } catch (e) {
+            // fallback
+          }
 
-            allNewSnippets.push({
-              id: `${file.courseId}-${file.fileName}-ai-gen-${Date.now()}-${idx}-${Math.random()}`,
-              type,
-              content,
-              answer,
-              label,
-              courseId: file.courseId,
-              courseName: file.courseName,
-              fileName: file.fileName,
-              tags: file.tags
-            });
+          allNewSnippets.push({
+            id: `${selectedCourse.id}-${selectedFile.name}-ai-gen-${Date.now()}-${idx}-${Math.random()}`,
+            type,
+            content,
+            answer,
+            label,
+            courseId: selectedCourse.id,
+            courseName: selectedCourse.title,
+            fileName: selectedFile.name,
+            tags: selectedCourse.tags
           });
-        } catch (error) {
-          console.error(`Error generating snippets for ${file.fileName}:`, error);
+        });
+      } catch (error) {
+        console.error(`Error generating snippets for ${selectedFile.name}:`, error);
+        if (error instanceof GeminiError) {
+          Alert.alert("AI Generation Error", error.message);
         }
       }
 
-      // Only replace old snippets once all new ones are ready
+      // Replace old snippets with new ones
       if (allNewSnippets.length > 0) {
         setCategorySnippets(prev => ({
           ...prev,
@@ -315,122 +296,92 @@ export default function Index() {
 
       if (candidateCourses.length === 0) return;
 
-      // Gather all 'valid' files from these courses
-      const allFiles: { parsedText: string, courseId: string, courseName: string, fileName: string, tags: string[] }[] = [];
+      // NEW ALGORITHM: Select 1 course using weighted selection
+      const selectedCourse = await WeightedSelector.selectCourse(candidateCourses);
 
-      candidateCourses.forEach(course => {
-        course.files.forEach(f => {
-          if (f.parsedText && f.parsedText.trim().length > 0) {
-            allFiles.push({
-              parsedText: f.parsedText,
-              courseId: course.id,
-              courseName: course.title,
-              fileName: f.name,
-              tags: course.tags
-            });
-          }
-        });
-      });
+      if (!selectedCourse) return;
 
-      if (allFiles.length === 0) return;
+      // NEW ALGORITHM: Select 1 file from that course using weighted selection
+      const selectedFile = await WeightedSelector.selectFile(selectedCourse.id, selectedCourse.files);
 
-      // Shuffle files to ensure variety if we have many
-      const shuffledFiles = allFiles.sort(() => 0.5 - Math.random());
+      if (!selectedFile || !selectedFile.parsedText || selectedFile.parsedText.trim().length === 0) return;
 
-      // We want ~20 snippets total
-      const TOTAL_SNIPPETS_TARGET = 20;
+      // Generate 20 snippets from this ONE file
+      const SNIPPETS_TO_GENERATE = 20;
 
-      // Limit to max 10 files to avoid too many parallel requests, 
-      // but try to use as many as possible to be "from all files"
-      const maxFilesToUse = Math.min(shuffledFiles.length, 10);
-      const targetFiles = shuffledFiles.slice(0, maxFilesToUse);
+      try {
+        const fileId = `${selectedCourse.id}-${selectedFile.name}`;
+        const fileSnippets = await generateSnippets(selectedFile.parsedText, key || '', SNIPPETS_TO_GENERATE, fileId);
 
-      const snippetsPerFile = Math.max(1, Math.floor(TOTAL_SNIPPETS_TARGET / targetFiles.length));
+        const newContentSnippets: ContentSnippet[] = [];
 
-      // Generate content for each selected file SEQUENTIALLY with delays
-      // This prevents rate limiting and shows snippets as they're generated
-      for (let i = 0; i < targetFiles.length; i++) {
-        const file = targetFiles[i];
+        fileSnippets.forEach((snippetStr, idx) => {
+          let type: SnippetType = 'text';
+          let content = snippetStr;
+          let answer = undefined;
+          let label = undefined;
 
-        try {
-          const fileId = `${file.courseId}-${file.fileName}`;
-          const fileSnippets = await generateSnippets(file.parsedText, key || '', snippetsPerFile, fileId);
-
-          const newContentSnippets: ContentSnippet[] = [];
-
-          fileSnippets.forEach((snippetStr, idx) => {
-            let type: SnippetType = 'text';
-            let content = snippetStr;
-            let answer = undefined;
-            let label = undefined;
-
-            try {
-              const parsed = JSON.parse(snippetStr);
-              if (parsed && typeof parsed === 'object' && parsed.content) {
-                type = parsed.type || 'text';
-                content = parsed.content;
-                answer = parsed.answer;
-                label = parsed.label;
-              }
-            } catch (e) {
-              // fallback
+          try {
+            const parsed = JSON.parse(snippetStr);
+            if (parsed && typeof parsed === 'object' && parsed.content) {
+              type = parsed.type || 'text';
+              content = parsed.content;
+              answer = parsed.answer;
+              label = parsed.label;
             }
+          } catch (e) {
+            // fallback
+          }
 
-            newContentSnippets.push({
-              id: `${file.courseId}-${file.fileName}-ai-gen-${Date.now()}-${idx}-${Math.random()}`,
-              type,
-              content,
-              answer,
-              label,
-              courseId: file.courseId,
-              courseName: file.courseName,
-              fileName: file.fileName,
-              tags: file.tags
-            });
+          newContentSnippets.push({
+            id: `${selectedCourse.id}-${selectedFile.name}-ai-gen-${Date.now()}-${idx}-${Math.random()}`,
+            type,
+            content,
+            answer,
+            label,
+            courseId: selectedCourse.id,
+            courseName: selectedCourse.title,
+            fileName: selectedFile.name,
+            tags: selectedCourse.tags
           });
+        });
 
-          // Update UI immediately with new snippets from this file
-          if (newContentSnippets.length > 0) {
-            setCategorySnippets(prev => ({
-              ...prev,
-              [categoryId]: enrichWithAds([...(prev[categoryId] || []), ...newContentSnippets])
-            }));
-          }
-
-          // Add delay between files to avoid rate limiting (except after last file)
-          if (i < targetFiles.length - 1) {
-            await new Promise(resolve => setTimeout(resolve, 3000)); // 1 second delay
-          }
-        } catch (err) {
-          console.error(`Failed to generate for file ${file.fileName}`, err);
-
-          // If it's a GeminiError, show alert and stop processing
-          if (err instanceof GeminiError) {
-            isGeneratingMoreRef.current[categoryId] = false;
-            setIsGeneratingMore(prev => ({ ...prev, [categoryId]: false }));
-
-            // Show user-friendly error message
-            let errorTitle = "AI Generation Error";
-            let errorMessage = err.message;
-
-            if (err.isRateLimit) {
-              errorTitle = "Rate Limit Reached";
-              errorMessage = "You've reached your Gemini API rate limit. Please try again later or check your API quota.";
-            } else if (err.isApiKeyError) {
-              errorTitle = "API Key Error";
-              errorMessage = "There's an issue with your Gemini API key. Please check your API key in settings.";
-            }
-
-            Alert.alert(
-              errorTitle,
-              errorMessage,
-              [{ text: "OK" }]
-            );
-            // Stop processing remaining files
-            return;
-          }
-          // For other errors, continue with next file
+        // Update UI immediately with new snippets
+        if (newContentSnippets.length > 0) {
+          setCategorySnippets(prev => ({
+            ...prev,
+            [categoryId]: enrichWithAds([...(prev[categoryId] || []), ...newContentSnippets])
+          }));
         }
+      } catch (err) {
+        console.error(`Failed to generate for file ${selectedFile.name}`, err);
+
+        // If it's a GeminiError, show alert and stop processing
+        if (err instanceof GeminiError) {
+          isGeneratingMoreRef.current[categoryId] = false;
+          setIsGeneratingMore(prev => ({ ...prev, [categoryId]: false }));
+
+          // Show user-friendly error message
+          let errorTitle = "AI Generation Error";
+          let errorMessage = err.message;
+
+          if (err.isRateLimit) {
+            errorTitle = "Rate Limit Reached";
+            errorMessage = "You've reached your Gemini API rate limit. Please try again later or check your API quota.";
+          } else if (err.isApiKeyError) {
+            errorTitle = "API Key Error";
+            errorMessage = "There's an issue with your Gemini API key. Please check your API key in settings.";
+          }
+
+          Alert.alert(
+            errorTitle,
+            errorMessage,
+            [{ text: "OK" }]
+          );
+          // Stop processing
+          return;
+        }
+        // For other errors, continue
       }
 
     } catch (error) {

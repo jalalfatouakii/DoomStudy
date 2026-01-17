@@ -6,8 +6,9 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
+    Alert,
     Animated,
     Dimensions,
     FlatList,
@@ -127,6 +128,11 @@ export default function Onboarding() {
     const [name, setName] = useState("");
     const [selectedGoals, setSelectedGoals] = useState<string[]>([]);
     const [selectedSnippetTypes, setSelectedSnippetTypes] = useState<string[]>(['fact', 'concept', 'qna', 'true_false']);
+    const [customSnippetTypes, setCustomSnippetTypes] = useState<{id: string, name: string, description: string, needsAnswer?: boolean}[]>([]);
+    const [showAddCustomType, setShowAddCustomType] = useState(false);
+    const [customTypeName, setCustomTypeName] = useState('');
+    const [customTypeDescription, setCustomTypeDescription] = useState('');
+    const [customTypeNeedsAnswer, setCustomTypeNeedsAnswer] = useState(false);
     const [videoBackgroundEnabled, setVideoBackgroundEnabledLocal] = useState(false);
 
     // Customization State
@@ -150,6 +156,29 @@ export default function Onboarding() {
         { id: "snippets", type: "snippets" },
         { id: "features", type: "features" }
     ];
+
+    const handleAddCustomType = () => {
+        if (!customTypeName.trim()) {
+            Alert.alert('Error', 'Please enter a name for the custom type');
+            return;
+        }
+
+        const newType = {
+            id: `custom_${Date.now()}`,
+            name: customTypeName.trim(),
+            description: customTypeDescription.trim() || 'Custom snippet type',
+            needsAnswer: customTypeNeedsAnswer
+        };
+
+        setCustomSnippetTypes(prev => [...prev, newType]);
+        setSelectedSnippetTypes(prev => [...prev, newType.id]);
+
+        // Reset form
+        setCustomTypeName('');
+        setCustomTypeDescription('');
+        setCustomTypeNeedsAnswer(false);
+        setShowAddCustomType(false);
+    };
 
     const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
         if (viewableItems.length > 0 && viewableItems[0].index !== null) {
@@ -220,6 +249,11 @@ export default function Onboarding() {
             await AsyncStorage.setItem("userName", name || "there");
             await AsyncStorage.setItem("userGoals", JSON.stringify(selectedGoals));
             await AsyncStorage.setItem("snippetTypePreferences", JSON.stringify(selectedSnippetTypes));
+
+            // Save custom snippet types
+            if (customSnippetTypes.length > 0) {
+                await AsyncStorage.setItem("customSnippetTypes", JSON.stringify(customSnippetTypes));
+            }
 
             // Persist video background preferences
             await setVideoBackgroundEnabled(videoBackgroundEnabled);
@@ -537,8 +571,92 @@ export default function Onboarding() {
                                     )}
                                 </TouchableOpacity>
                             ))}
+                            {customSnippetTypes.map((type) => (
+                                <TouchableOpacity
+                                    key={type.id}
+                                    style={[
+                                        styles.goalItem,
+                                        selectedSnippetTypes.includes(type.id) && styles.goalItemActive
+                                    ]}
+                                    onPress={() => toggleSnippetType(type.id)}
+                                >
+                                    <View style={styles.snippetTypeInfo}>
+                                        <Text style={[
+                                            styles.goalText,
+                                            selectedSnippetTypes.includes(type.id) && styles.goalTextActive
+                                        ]}>{type.name}</Text>
+                                        <Text style={[
+                                            styles.snippetTypeDescription,
+                                            selectedSnippetTypes.includes(type.id) && styles.snippetTypeDescriptionActive
+                                        ]}>{type.description}</Text>
+                                    </View>
+                                    {selectedSnippetTypes.includes(type.id) && (
+                                        <Ionicons name="checkmark-circle" size={20} color={Colors.background} />
+                                    )}
+                                </TouchableOpacity>
+                            ))}
+
+                            {!showAddCustomType && (
+                                <TouchableOpacity
+                                    style={styles.addCustomTypeButton}
+                                    onPress={() => setShowAddCustomType(true)}
+                                >
+                                    <Ionicons name="add-circle-outline" size={20} color={Colors.tint} />
+                                    <Text style={styles.addCustomTypeText}>Add Custom Type</Text>
+                                </TouchableOpacity>
+                            )}
+
+                            {showAddCustomType && (
+                                <View style={styles.addCustomTypeForm}>
+                                    <TextInput
+                                        style={styles.customTypeInput}
+                                        placeholder="Type name (e.g., 'Formula')"
+                                        placeholderTextColor={Colors.tabIconDefault}
+                                        value={customTypeName}
+                                        onChangeText={setCustomTypeName}
+                                    />
+                                    <TextInput
+                                        style={styles.customTypeInput}
+                                        placeholder="Description (e.g., 'Mathematical formulas')"
+                                        placeholderTextColor={Colors.tabIconDefault}
+                                        value={customTypeDescription}
+                                        onChangeText={setCustomTypeDescription}
+                                    />
+                                    <View style={styles.toggleRow}>
+                                        <View>
+                                            <Text style={styles.toggleLabel}>Requires Answer</Text>
+                                            <Text style={styles.toggleDescription}>For Q&A or verification types</Text>
+                                        </View>
+                                        <Switch
+                                            value={customTypeNeedsAnswer}
+                                            onValueChange={setCustomTypeNeedsAnswer}
+                                            trackColor={{ false: Colors.backgroundSecondary, true: Colors.tint + '80' }}
+                                            thumbColor={customTypeNeedsAnswer ? Colors.tint : Colors.tabIconDefault}
+                                        />
+                                    </View>
+                                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                                        <Pressable
+                                            style={[styles.secondaryButton, { flex: 1 }]}
+                                            onPress={() => {
+                                                setShowAddCustomType(false);
+                                                setCustomTypeName('');
+                                                setCustomTypeDescription('');
+                                                setCustomTypeNeedsAnswer(false);
+                                            }}
+                                        >
+                                            <Text style={styles.secondaryButtonText}>Cancel</Text>
+                                        </Pressable>
+                                        <Pressable
+                                            style={[styles.primaryButton, { flex: 1 }]}
+                                            onPress={handleAddCustomType}
+                                        >
+                                            <Text style={styles.primaryButtonText}>Add</Text>
+                                        </Pressable>
+                                    </View>
+                                </View>
+                            )}
                         </View>
-                        <Text style={styles.subDescription}>Preferences can be updated anytime in Settings.</Text>
+                        <Text style={styles.subDescription}>You can update preferences anytime in Settings.</Text>
                     </ScrollView>
                 </View>
             );
@@ -1105,6 +1223,80 @@ const styles = StyleSheet.create({
     },
     snippetTypeDescriptionActive: {
         color: `${Colors.background}CC`,
+    },
+    addCustomTypeButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 16,
+        marginTop: 12,
+        borderWidth: 1,
+        borderColor: Colors.tint,
+        borderRadius: 12,
+        borderStyle: 'dashed',
+        gap: 8,
+        backgroundColor: 'rgba(128, 246, 92, 0.05)',
+    },
+    addCustomTypeText: {
+        fontSize: 15,
+        fontWeight: '600',
+        color: Colors.tint,
+    },
+    addCustomTypeForm: {
+        padding: 16,
+        marginTop: 12,
+        backgroundColor: Colors.backgroundLighter,
+        borderRadius: 12,
+        gap: 12,
+    },
+    customTypeInput: {
+        backgroundColor: Colors.backgroundSecondary,
+        borderRadius: 8,
+        padding: 14,
+        fontSize: 15,
+        color: Colors.text,
+    },
+    primaryButton: {
+        padding: 14,
+        backgroundColor: Colors.tint,
+        borderRadius: 10,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    primaryButtonText: {
+        fontSize: 15,
+        fontWeight: '600',
+        color: Colors.background,
+    },
+    secondaryButton: {
+        padding: 14,
+        backgroundColor: Colors.backgroundSecondary,
+        borderRadius: 10,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    secondaryButtonText: {
+        fontSize: 15,
+        fontWeight: '600',
+        color: Colors.text,
+    },
+    toggleRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginTop: 12,
+        marginBottom: 4,
+        paddingVertical: 8,
+    },
+    toggleLabel: {
+        fontSize: 15,
+        fontWeight: '600',
+        color: Colors.text,
+        marginBottom: 4,
+    },
+    toggleDescription: {
+        fontSize: 13,
+        color: Colors.tabIconDefault,
     },
     featuresContent: {
         paddingVertical: 20,

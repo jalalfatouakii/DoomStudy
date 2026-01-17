@@ -167,6 +167,10 @@ async function generateSnippetsWithOfflineModel(
         const savedPreferences = await AsyncStorage.getItem("snippetTypePreferences");
         const enabledTypes = savedPreferences ? JSON.parse(savedPreferences) : ['fact', 'concept', 'qna', 'true_false'];
 
+        // Load custom snippet types
+        const customTypesData = await AsyncStorage.getItem("customSnippetTypes");
+        const customTypes: Array<{ id: string; name: string; description: string; needsAnswer?: boolean }> = customTypesData ? JSON.parse(customTypesData) : [];
+
         // Build type descriptions based on enabled types
         const typeDescriptions = [];
         const typesList = [];
@@ -188,7 +192,18 @@ async function generateSnippetsWithOfflineModel(
             typesList.push('"true_false"');
         }
 
-        const needsAnswer = enabledTypes.includes('qna') || enabledTypes.includes('true_false');
+        // Add custom types that are enabled
+        for (const customType of customTypes) {
+            if (enabledTypes.includes(customType.id)) {
+                typeDescriptions.push(`- ${customType.name}: ${customType.description} -> type: "${customType.id}"`);
+                typesList.push(`"${customType.id}"`);
+            }
+        }
+
+        // Check if any enabled type needs an answer (built-in or custom)
+        const needsAnswer = enabledTypes.includes('qna') ||
+                           enabledTypes.includes('true_false') ||
+                           customTypes.some(t => enabledTypes.includes(t.id) && t.needsAnswer);
 
         // Use full prompt with user preferences for Apple AI (more powerful)
         // Use simple prompt for MLC models (less powerful)
@@ -210,7 +225,7 @@ async function generateSnippetsWithOfflineModel(
         {
             "type": ${typesList.join(' | ')},
             "content": "The main text, question, or statement in the original language of the material not the prompt. For Q&A, this is ONLY the question. Do NOT include the answer here.",
-            ${!needsAnswer ? "" : "\"answer\": \"The answer or explanation (required for qna and true_false ONLY, NOT FACT OR CONCEPT, in the original language of the material not the prompt.)\","}
+            ${!needsAnswer ? "" : "\"answer\": \"The answer or explanation (required for types that need answers, NOT for fact or concept, in the original language of the material not the prompt.)\","}
             "label": "Optional label like 'Did you know?' or 'Key Concept' like the type, don't add extra text"
         }
         All in the original language of the material that is provided.
@@ -417,6 +432,10 @@ export async function generateSnippetsWithGemini(
         const savedPreferences = await AsyncStorage.getItem("snippetTypePreferences");
         const enabledTypes = savedPreferences ? JSON.parse(savedPreferences) : ['fact', 'concept', 'qna', 'true_false'];
 
+        // Load custom snippet types
+        const customTypesData = await AsyncStorage.getItem("customSnippetTypes");
+        const customTypes: Array<{ id: string; name: string; description: string; needsAnswer?: boolean }> = customTypesData ? JSON.parse(customTypesData) : [];
+
         // Build type descriptions based on enabled types
         const typeDescriptions = [];
         const typesList = [];
@@ -438,7 +457,18 @@ export async function generateSnippetsWithGemini(
             typesList.push('"true_false"');
         }
 
-        const doiaskforanswer = enabledTypes.includes('qna') || enabledTypes.includes('true_false');
+        // Add custom types that are enabled
+        for (const customType of customTypes) {
+            if (enabledTypes.includes(customType.id)) {
+                typeDescriptions.push(`- ${customType.name}: ${customType.description} -> type: "${customType.id}"`);
+                typesList.push(`"${customType.id}"`);
+            }
+        }
+
+        // Check if any enabled type needs an answer (built-in or custom)
+        const doiaskforanswer = enabledTypes.includes('qna') ||
+                               enabledTypes.includes('true_false') ||
+                               customTypes.some(t => enabledTypes.includes(t.id) && t.needsAnswer);
         console.log("Doiaskforanswer:", doiaskforanswer);
 
         const prompt = `
@@ -458,7 +488,7 @@ export async function generateSnippetsWithGemini(
         {
             "type": ${typesList.join(' | ')},
             "content": "The main text, question, or statement in the original language of the material not the prompt. For Q&A, this is ONLY the question. Do NOT include the answer here.",
-            ${!doiaskforanswer ? "" : "\"answer\": \"The answer or explanation (required for qna and true_false in the original language of the material not the prompt.)\","}
+            ${!doiaskforanswer ? "" : "\"answer\": \"The answer or explanation (required for types that need answers in the original language of the material not the prompt.)\","}
             "label": "Optional label like 'Did you know?' or 'Key Concept' like the type, don't add extra text"
         }
         All in the original language of the material that is provided.

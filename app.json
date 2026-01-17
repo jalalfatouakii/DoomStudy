@@ -2,7 +2,7 @@
   "expo": {
     "name": "DoomStudy",
     "slug": "doomstudy",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/images/image.png",
     "scheme": "doomstudy",

@@ -956,10 +956,16 @@ const SnippetTypesModal = ({ visible, onClose, onSave, selectedTypes }: {
 }) => {
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const [tempSelectedTypes, setTempSelectedTypes] = useState<string[]>(selectedTypes);
+    const [customTypes, setCustomTypes] = useState<{ id: string, name: string, description: string, needsAnswer?: boolean }[]>([]);
+    const [showAddCustomType, setShowAddCustomType] = useState(false);
+    const [customTypeName, setCustomTypeName] = useState('');
+    const [customTypeDescription, setCustomTypeDescription] = useState('');
+    const [customTypeNeedsAnswer, setCustomTypeNeedsAnswer] = useState(false);
 
     useEffect(() => {
         if (visible) {
             setTempSelectedTypes(selectedTypes);
+            loadCustomTypes();
             fadeAnim.setValue(0);
             Animated.timing(fadeAnim, {
                 toValue: 1,
@@ -968,6 +974,26 @@ const SnippetTypesModal = ({ visible, onClose, onSave, selectedTypes }: {
             }).start();
         }
     }, [visible, selectedTypes]);
+
+    const loadCustomTypes = async () => {
+        try {
+            const stored = await AsyncStorage.getItem('customSnippetTypes');
+            if (stored) {
+                setCustomTypes(JSON.parse(stored));
+            }
+        } catch (error) {
+            console.error('Error loading custom types:', error);
+        }
+    };
+
+    const saveCustomTypes = async (types: { id: string, name: string, description: string }[]) => {
+        try {
+            await AsyncStorage.setItem('customSnippetTypes', JSON.stringify(types));
+            setCustomTypes(types);
+        } catch (error) {
+            console.error('Error saving custom types:', error);
+        }
+    };
 
     const animateClose = () => {
         Animated.timing(fadeAnim, {
@@ -993,10 +1019,59 @@ const SnippetTypesModal = ({ visible, onClose, onSave, selectedTypes }: {
         });
     };
 
+    const handleAddCustomType = async () => {
+        if (!customTypeName.trim()) {
+            Alert.alert('Error', 'Please enter a name for the custom type');
+            return;
+        }
+
+        const newType = {
+            id: `custom_${Date.now()}`,
+            name: customTypeName.trim(),
+            description: customTypeDescription.trim() || 'Custom snippet type',
+            needsAnswer: customTypeNeedsAnswer
+        };
+
+        const updatedTypes = [...customTypes, newType];
+        await saveCustomTypes(updatedTypes);
+
+        // Auto-select the new type
+        setTempSelectedTypes(prev => [...prev, newType.id]);
+
+        // Reset form
+        setCustomTypeName('');
+        setCustomTypeDescription('');
+        setCustomTypeNeedsAnswer(false);
+        setShowAddCustomType(false);
+    };
+
+    const handleDeleteCustomType = async (typeId: string) => {
+        Alert.alert(
+            'Delete Custom Type',
+            'Are you sure you want to delete this custom snippet type?',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Delete',
+                    style: 'destructive',
+                    onPress: async () => {
+                        const updatedTypes = customTypes.filter(t => t.id !== typeId);
+                        await saveCustomTypes(updatedTypes);
+
+                        // Deselect if it was selected
+                        setTempSelectedTypes(prev => prev.filter(t => t !== typeId));
+                    }
+                }
+            ]
+        );
+    };
+
     const handleSave = () => {
         onSave(tempSelectedTypes);
         animateClose();
     };
+
+    const allTypes: Array<{ id: string; name?: string; label?: string; description: string }> = [...SNIPPET_TYPES, ...customTypes];
 
     if (!visible) return null;
 
@@ -1014,30 +1089,98 @@ const SnippetTypesModal = ({ visible, onClose, onSave, selectedTypes }: {
                             <Text style={styles.modalTitle}>Snippet Types</Text>
                             <Text style={styles.modalSubtitle}>Select which types to generate</Text>
 
-                            <View style={styles.checkboxList}>
-                                {SNIPPET_TYPES.map((type) => {
-                                    const isSelected = tempSelectedTypes.includes(type.id);
-                                    return (
-                                        <TouchableOpacity
-                                            key={type.id}
-                                            style={styles.checkboxItem}
-                                            onPress={() => toggleType(type.id)}
-                                        >
-                                            <View style={styles.checkboxLeft}>
-                                                <View style={[styles.checkbox, isSelected && styles.checkboxChecked]}>
-                                                    {isSelected && (
-                                                        <Ionicons name="checkmark" size={18} color={Colors.background} />
-                                                    )}
+                            <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false}>
+                                <View style={styles.checkboxList}>
+                                    {allTypes.map((type) => {
+                                        const isSelected = tempSelectedTypes.includes(type.id);
+                                        const isCustom = type.id.startsWith('custom_');
+                                        return (
+                                            <TouchableOpacity
+                                                key={type.id}
+                                                style={styles.checkboxItem}
+                                                onPress={() => toggleType(type.id)}
+                                            >
+                                                <View style={styles.checkboxLeft}>
+                                                    <View style={[styles.checkbox, isSelected && styles.checkboxChecked]}>
+                                                        {isSelected && (
+                                                            <Ionicons name="checkmark" size={18} color={Colors.background} />
+                                                        )}
+                                                    </View>
+                                                    <View style={styles.checkboxTextContainer}>
+                                                        <Text style={styles.checkboxLabel}>{'name' in type ? type.name : type.label}</Text>
+                                                        <Text style={styles.checkboxDescription}>{type.description}</Text>
+                                                    </View>
                                                 </View>
-                                                <View style={styles.checkboxTextContainer}>
-                                                    <Text style={styles.checkboxLabel}>{type.label}</Text>
-                                                    <Text style={styles.checkboxDescription}>{type.description}</Text>
-                                                </View>
+                                                {isCustom && (
+                                                    <TouchableOpacity onPress={() => handleDeleteCustomType(type.id)} style={{ padding: 8 }}>
+                                                        <Ionicons name="trash-outline" size={20} color={Colors.destructive} />
+                                                    </TouchableOpacity>
+                                                )}
+                                            </TouchableOpacity>
+                                        );
+                                    })}
+                                </View>
+
+                                {!showAddCustomType && (
+                                    <TouchableOpacity
+                                        style={styles.addCustomTypeButton}
+                                        onPress={() => setShowAddCustomType(true)}
+                                    >
+                                        <Ionicons name="add-circle-outline" size={20} color={Colors.tint} />
+                                        <Text style={styles.addCustomTypeText}>Add Custom Type</Text>
+                                    </TouchableOpacity>
+                                )}
+
+                                {showAddCustomType && (
+                                    <View style={styles.addCustomTypeForm}>
+                                        <TextInput
+                                            style={styles.customTypeInput}
+                                            placeholder="Type name (e.g., 'Formula')"
+                                            placeholderTextColor={Colors.tabIconDefault}
+                                            value={customTypeName}
+                                            onChangeText={setCustomTypeName}
+                                        />
+                                        <TextInput
+                                            style={styles.customTypeInput}
+                                            placeholder="Description (e.g., 'Mathematical formulas and equations')"
+                                            placeholderTextColor={Colors.tabIconDefault}
+                                            value={customTypeDescription}
+                                            onChangeText={setCustomTypeDescription}
+                                        />
+                                        <View style={styles.toggleRow}>
+                                            <View>
+                                                <Text style={styles.toggleLabel}>Requires Answer</Text>
+                                                <Text style={styles.toggleDescription}>For Q&A or verification types</Text>
                                             </View>
-                                        </TouchableOpacity>
-                                    );
-                                })}
-                            </View>
+                                            <Switch
+                                                value={customTypeNeedsAnswer}
+                                                onValueChange={setCustomTypeNeedsAnswer}
+                                                trackColor={{ false: Colors.backgroundSecondary, true: Colors.tint + '80' }}
+                                                thumbColor={customTypeNeedsAnswer ? Colors.tint : Colors.tabIconDefault}
+                                            />
+                                        </View>
+                                        <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                                            <Pressable
+                                                style={[styles.modalButton, styles.cancelButton, { flex: 1 }]}
+                                                onPress={() => {
+                                                    setShowAddCustomType(false);
+                                                    setCustomTypeName('');
+                                                    setCustomTypeDescription('');
+                                                    setCustomTypeNeedsAnswer(false);
+                                                }}
+                                            >
+                                                <Text style={styles.cancelButtonText}>Cancel</Text>
+                                            </Pressable>
+                                            <Pressable
+                                                style={[styles.modalButton, styles.saveButton, { flex: 1 }]}
+                                                onPress={handleAddCustomType}
+                                            >
+                                                <Text style={styles.saveButtonText}>Add</Text>
+                                            </Pressable>
+                                        </View>
+                                    </View>
+                                )}
+                            </ScrollView>
 
                             <View style={styles.modalButtons}>
                                 <Pressable style={[styles.modalButton, styles.cancelButton]} onPress={animateClose}>
@@ -2455,7 +2598,7 @@ export default function Settings() {
                         }}
                     />
                 )}
-                {__DEV__ && (
+                __DEV__ && (
                     <ActionItem
                         icon="trash"
                         title="Delete Async Storage"
@@ -2467,6 +2610,7 @@ export default function Settings() {
                     />
                 )}
                 */}
+
 
 
 
@@ -3123,11 +3267,15 @@ const styles = StyleSheet.create({
         marginBottom: 20,
     },
     checkboxItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
         padding: 16,
         backgroundColor: Colors.backgroundLighter,
         borderRadius: 12,
     },
     checkboxLeft: {
+        flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
         gap: 12,
@@ -3662,6 +3810,54 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: '600',
         color: Colors.background,
+    },
+    addCustomTypeButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 12,
+        borderWidth: 1,
+        borderColor: Colors.tint,
+        borderRadius: 8,
+        borderStyle: 'dashed',
+        gap: 8,
+        marginBottom: 16,
+    },
+    addCustomTypeText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: Colors.tint,
+    },
+    addCustomTypeForm: {
+        padding: 12,
+        marginTop: 8,
+        backgroundColor: Colors.backgroundLighter,
+        borderRadius: 8,
+        gap: 8,
+        marginBottom: 16
+    },
+    customTypeInput: {
+        backgroundColor: Colors.backgroundSecondary,
+        borderRadius: 8,
+        padding: 12,
+        fontSize: 14,
+        color: Colors.text,
+    },
+    toggleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: 8,
+    },
+    toggleLabel: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: Colors.text,
+    },
+    toggleDescription: {
+        fontSize: 12,
+        color: Colors.tabIconDefault,
+        marginTop: 2,
     },
 });
 
