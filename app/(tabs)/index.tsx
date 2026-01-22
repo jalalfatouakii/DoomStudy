@@ -11,6 +11,7 @@ import { WeightedSelector } from "@/utils/weightedSelection";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
+import * as StoreReview from 'expo-store-review';
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -31,6 +32,7 @@ import {
 
 
 import NativeAdCard from "@/components/NativeAdCard"; // [NEW]
+import { useStats } from "@/context/StatsContext";
 
 const { width } = Dimensions.get("window");
 const INITIAL_LOAD = 20;
@@ -74,6 +76,31 @@ export default function Index() {
   const mainListRef = useRef<FlatList>(null);
   const headerListRef = useRef<FlatList>(null);
   const verticalListRefs = useRef<Record<string, FlatList | null>>({});
+
+  const { streak, timeSaved, weeklyData, weeklyLabels, resetStats } = useStats();
+
+  useEffect(
+    () => {
+      const checkForReviewPrompt = async () => {
+
+        const timePassed = timeSaved / 60; // timeSaved is in seconds, convert to minutes
+        const didWeAlreadyAskForReview = await AsyncStorage.getItem('didAskForReview');
+        console.log('Time passed (minutes):', timePassed);
+        console.log('Did we already ask for review:', didWeAlreadyAskForReview);
+        if (didWeAlreadyAskForReview === 'true') {
+          return;
+        }
+
+        if (timePassed >= 5 && Platform.OS === 'ios') {
+          StoreReview.requestReview()
+            .then(() => AsyncStorage.setItem('didAskForReview', 'true'))
+            .catch((error) => console.error('Error requesting review:', error));
+        }
+      };
+      checkForReviewPrompt();
+    }
+    , []
+  )
 
   // Track tab focus to pause videos when navigating away
   useFocusEffect(
