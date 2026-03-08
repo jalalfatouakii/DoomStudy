@@ -99,7 +99,7 @@ export default function Index() {
       };
       checkForReviewPrompt();
     }
-    , []
+    , [timeSaved]
   )
 
   // Track tab focus to pause videos when navigating away
