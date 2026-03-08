@@ -1,12 +1,14 @@
 import { Course } from "@/context/CourseContext";
 
-export type SnippetType = 'text' | 'fact' | 'qna' | 'true_false' | 'concept' | 'ad';
+export type SnippetType = 'text' | 'fact' | 'qna' | 'true_false' | 'concept' | 'multiple_choice' | 'ad';
 
 export type ContentSnippet = {
     id: string;
     type: SnippetType;
     content: string; // Main text, question, or statement
     answer?: string; // For Q&A and True/False
+    options?: string[]; // For multiple choice
+    correctIndices?: number[]; // 0-based indices of correct options
     label?: string; // Optional subtitle or label
     courseId: string;
     courseName: string;
@@ -46,6 +48,11 @@ export function generateSnippets(
 
     // Extract snippets from each course
     filteredCourses.forEach(course => {
+        // Build set of selected file names for this course
+        const selectedFileNames = new Set(
+            course.files.filter(f => f.selected !== false).map(f => f.name)
+        );
+
         // Add AI Snippets if available
         if (course.aiSnippets && course.aiSnippets.length > 0) {
             // Check tags for AI snippets too (using course tags)
@@ -58,11 +65,17 @@ export function generateSnippets(
                         // Try to parse as structured snippet
                         const parsed = JSON.parse(snippetStr);
                         if (parsed && typeof parsed === 'object' && parsed.type && parsed.content) {
+                            // Skip snippets from unselected files
+                            if (parsed.sourceFileName && !selectedFileNames.has(parsed.sourceFileName)) {
+                                return;
+                            }
                             allSnippets.push({
                                 id: `${course.id}-ai-${idx}`,
                                 type: parsed.type as SnippetType,
                                 content: parsed.content,
                                 answer: parsed.answer,
+                                options: parsed.options,
+                                correctIndices: parsed.correctIndices,
                                 label: parsed.label,
                                 courseId: course.id,
                                 courseName: course.title,

@@ -68,7 +68,7 @@ export class WeightedSelector {
    * @returns Selected file or null if none available
    */
   static async selectFile(courseId: string, files: any[]): Promise<any | null> {
-    const validFiles = files.filter(f => f.parsedText && f.parsedText.trim().length > 0);
+    const validFiles = files.filter(f => f.parsedText && f.parsedText.trim().length > 0 && f.selected !== false);
 
     if (validFiles.length === 0) return null;
     if (validFiles.length === 1) return validFiles[0];

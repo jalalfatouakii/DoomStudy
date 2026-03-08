@@ -1,8 +1,10 @@
+import WhatsNewModal from "@/components/WhatsNewModal";
 import { Colors } from "@/constants/colors";
 import { useRefresh } from "@/context/RefreshContext";
 import { emitTabPress } from "@/hooks/useTabPress";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import Constants from "expo-constants";
 import { Tabs, usePathname, useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import { Animated, Platform } from "react-native";
@@ -167,20 +169,46 @@ function AnimatedHomeButton({ focused, spinTrigger }: { focused: boolean; spinTr
 export default function TabLayout() {
     const pathname = usePathname();
     const [spinTrigger, setSpinTrigger] = useState(0);
+    const [showWhatsNew, setShowWhatsNew] = useState(false);
 
     const insets = useSafeAreaInsets();
 
+    useEffect(() => {
+        const checkWhatsNew = async () => {
+            try {
+                const hasOnboarded = await AsyncStorage.getItem("hasOnboarded");
+                if (hasOnboarded !== "true") return;
+
+                const currentVersion = Constants.expoConfig?.version || "1.1.0";
+                const lastSeenVersion = await AsyncStorage.getItem("lastSeenVersion");
+
+                if (!lastSeenVersion || lastSeenVersion < currentVersion) {
+                    setShowWhatsNew(true);
+                }
+            } catch (error) {
+                console.error("Error checking what's new:", error);
+            }
+        };
+        checkWhatsNew();
+    }, []);
+
+    const handleWhatsNewClose = async () => {
+        setShowWhatsNew(false);
+        const currentVersion = Constants.expoConfig?.version || "1.1.0";
+        await AsyncStorage.setItem("lastSeenVersion", currentVersion);
+    };
+
     const getTabBarHeight = () => {
         if (Platform.OS === 'android') {
-            // If bottom inset is 0, device uses button navigation
-            // If bottom inset > 0, device uses gesture navigation
             const hasButtonNavigation = insets.bottom === 0;
             return hasButtonNavigation ? 60 : 55 + insets.bottom;
         }
-        return undefined; // Let iOS handle it automatically
+        return undefined;
     };
 
     return (
+        <>
+        <WhatsNewModal visible={showWhatsNew} onClose={handleWhatsNewClose} />
         <Tabs
             detachInactiveScreens={false}
             screenOptions={{
@@ -246,5 +274,6 @@ export default function TabLayout() {
                 }}
             />
         </Tabs>
+        </>
     );
 }

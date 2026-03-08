@@ -240,6 +240,8 @@ export default function Index() {
           let content = snippetStr;
           let answer = undefined;
           let label = undefined;
+          let options = undefined;
+          let correctIndices = undefined;
 
           try {
             const parsed = JSON.parse(snippetStr);
@@ -248,6 +250,8 @@ export default function Index() {
               content = parsed.content;
               answer = parsed.answer;
               label = parsed.label;
+              options = parsed.options;
+              correctIndices = parsed.correctIndices;
             }
           } catch (e) {
             // fallback
@@ -258,6 +262,8 @@ export default function Index() {
             type,
             content,
             answer,
+            options,
+            correctIndices,
             label,
             courseId: selectedCourse.id,
             courseName: selectedCourse.title,
@@ -347,6 +353,8 @@ export default function Index() {
           let content = snippetStr;
           let answer = undefined;
           let label = undefined;
+          let options = undefined;
+          let correctIndices = undefined;
 
           try {
             const parsed = JSON.parse(snippetStr);
@@ -355,6 +363,8 @@ export default function Index() {
               content = parsed.content;
               answer = parsed.answer;
               label = parsed.label;
+              options = parsed.options;
+              correctIndices = parsed.correctIndices;
             }
           } catch (e) {
             // fallback
@@ -365,6 +375,8 @@ export default function Index() {
             type,
             content,
             answer,
+            options,
+            correctIndices,
             label,
             courseId: selectedCourse.id,
             courseName: selectedCourse.title,

@@ -44,7 +44,8 @@ export default function AddCourse() {
         name: string,
         size: string,
         uri: string,
-        parsedText?: string
+        parsedText?: string,
+        selected?: boolean
     }[]>([]);
 
     const [pdfBase64, setPdfBase64] = useState<string | null>(null);
@@ -124,6 +125,10 @@ export default function AddCourse() {
         if (viewingTextFileId === id) setViewingTextFileId(null);
     };
 
+    const handleToggleFileSelected = (id: string) => {
+        setFiles(files.map(f => f.id === id ? { ...f, selected: !(f.selected !== false) } : f));
+    };
+
     const handleCreate = async () => {
         if (!title.trim()) {
             Alert.alert("Please enter a title.");
@@ -160,6 +165,13 @@ export default function AddCourse() {
         const hasValidFile = files.some(f => f.parsedText && f.parsedText.trim().length > 0);
         if (!hasValidFile) {
             Alert.alert("Please add at least one file (PDF, DOCX, or PPTX) with content before creating a course.");
+            return;
+        }
+
+        // Require at least one selected file
+        const hasSelectedFile = files.some(f => f.selected !== false);
+        if (!hasSelectedFile) {
+            Alert.alert("No files selected", "Please select at least one file before creating a course.");
             return;
         }
 
@@ -213,7 +225,7 @@ export default function AddCourse() {
         try {
             // NEW ALGORITHM: Select ONE file using weighted selection (temporary courseId for new courses)
             const tempCourseId = `new-course-${Date.now()}`;
-            const selectedFile = await WeightedSelector.selectFile(tempCourseId, files);
+            const selectedFile = await WeightedSelector.selectFile(tempCourseId, files.filter(f => f.selected !== false));
 
             if (!selectedFile || !selectedFile.parsedText || selectedFile.parsedText.trim().length === 0) {
                 Alert.alert("No Valid Files", "Please upload files with content to generate AI snippets.");
@@ -285,7 +297,8 @@ export default function AddCourse() {
                 name: f.name,
                 size: f.size,
                 uri: f.uri,
-                parsedText: f.parsedText
+                parsedText: f.parsedText,
+                selected: f.selected !== false,
             })),
             aiSnippets
         });
@@ -339,7 +352,8 @@ export default function AddCourse() {
                 id: Date.now().toString() + Math.random().toString(),
                 name: asset.name,
                 size: `${(asset.size ? asset.size / 1024 / 1024 : 0).toFixed(2)} MB`,
-                uri: asset.uri
+                uri: asset.uri,
+                selected: true,
             }));
 
             setFiles(prev => [...prev, ...newFiles]);
@@ -578,7 +592,14 @@ export default function AddCourse() {
                         {/* Old Parsing Text Removed */}
 
                         {files.map((file) => (
-                            <View key={file.id} style={styles.fileItem}>
+                            <View key={file.id} style={[styles.fileItem, file.selected === false && { opacity: 0.5 }]}>
+                                <TouchableOpacity onPress={() => handleToggleFileSelected(file.id)} style={styles.fileSelectBtn}>
+                                    <Ionicons
+                                        name={file.selected !== false ? "checkbox" : "square-outline"}
+                                        size={22}
+                                        color={file.selected !== false ? Colors.tint : Colors.tabIconDefault}
+                                    />
+                                </TouchableOpacity>
                                 <View style={styles.fileIcon}>
                                     <Ionicons name="document-text" size={20} color={Colors.tint} />
                                 </View>
@@ -763,6 +784,10 @@ const styles = StyleSheet.create({
         padding: 12,
         borderRadius: 12,
         marginBottom: 8,
+    },
+    fileSelectBtn: {
+        padding: 4,
+        marginRight: 8,
     },
     fileIcon: {
         width: 40,

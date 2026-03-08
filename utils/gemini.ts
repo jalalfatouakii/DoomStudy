@@ -191,6 +191,10 @@ async function generateSnippetsWithOfflineModel(
             typeDescriptions.push('- True/False statements with explanation. -> type: "true_false"');
             typesList.push('"true_false"');
         }
+        if (enabledTypes.includes('multiple_choice')) {
+            typeDescriptions.push('- Multiple choice questions with 3-5 options where one or more can be correct -> type: "multiple_choice". Include "options": ["option1", "option2", ...] and "correctIndices": [0] (0-based indices of correct options)');
+            typesList.push('"multiple_choice"');
+        }
 
         // Add custom types that are enabled
         for (const customType of customTypes) {
@@ -204,6 +208,7 @@ async function generateSnippetsWithOfflineModel(
         const needsAnswer = enabledTypes.includes('qna') ||
                            enabledTypes.includes('true_false') ||
                            customTypes.some(t => enabledTypes.includes(t.id) && t.needsAnswer);
+        const needsOptions = enabledTypes.includes('multiple_choice');
 
         // Use full prompt with user preferences for Apple AI (more powerful)
         // Use simple prompt for MLC models (less powerful)
@@ -226,6 +231,8 @@ async function generateSnippetsWithOfflineModel(
             "type": ${typesList.join(' | ')},
             "content": "The main text, question, or statement in the original language of the material not the prompt. For Q&A, this is ONLY the question. Do NOT include the answer here.",
             ${!needsAnswer ? "" : "\"answer\": \"The answer or explanation (required for types that need answers, NOT for fact or concept, in the original language of the material not the prompt.)\","}
+            ${!needsOptions ? "" : "\"options\": [\"option1\", \"option2\", \"option3\", \"option4\"] (required for multiple_choice, provide 3-5 options),"}
+            ${!needsOptions ? "" : "\"correctIndices\": [0] (required for multiple_choice, 0-based indices of correct options, can be one or more),"}
             "label": "Optional label like 'Did you know?' or 'Key Concept' like the type, don't add extra text"
         }
         All in the original language of the material that is provided.
@@ -309,9 +316,14 @@ Create ${actualSnippetCount} learning snippets. Output ONLY a JSON array, no oth
                         content: s.content || String(s),
                         label: s.label || 'Learning Point'
                     };
-                    // Preserve answer field if present
                     if (s.answer) {
                         snippet.answer = s.answer;
+                    }
+                    if (s.options) {
+                        snippet.options = s.options;
+                    }
+                    if (s.correctIndices) {
+                        snippet.correctIndices = s.correctIndices;
                     }
                     return JSON.stringify(snippet);
                 }
@@ -334,9 +346,14 @@ Create ${actualSnippetCount} learning snippets. Output ONLY a JSON array, no oth
                             content: s.content || String(s),
                             label: s.label || 'Learning Point'
                         };
-                        // Preserve answer field if present
                         if (s.answer) {
                             snippet.answer = s.answer;
+                        }
+                        if (s.options) {
+                            snippet.options = s.options;
+                        }
+                        if (s.correctIndices) {
+                            snippet.correctIndices = s.correctIndices;
                         }
                         return JSON.stringify(snippet);
                     }
@@ -456,6 +473,10 @@ export async function generateSnippetsWithGemini(
             typeDescriptions.push('- True/False statements with explanation. -> type: "true_false"');
             typesList.push('"true_false"');
         }
+        if (enabledTypes.includes('multiple_choice')) {
+            typeDescriptions.push('- Multiple choice questions with 3-5 options where one or more can be correct -> type: "multiple_choice". Include "options": ["option1", "option2", ...] and "correctIndices": [0] (0-based indices of correct options)');
+            typesList.push('"multiple_choice"');
+        }
 
         // Add custom types that are enabled
         for (const customType of customTypes) {
@@ -469,6 +490,7 @@ export async function generateSnippetsWithGemini(
         const doiaskforanswer = enabledTypes.includes('qna') ||
                                enabledTypes.includes('true_false') ||
                                customTypes.some(t => enabledTypes.includes(t.id) && t.needsAnswer);
+        const doiaskforoptions = enabledTypes.includes('multiple_choice');
         console.log("Doiaskforanswer:", doiaskforanswer);
 
         const prompt = `
@@ -489,6 +511,8 @@ export async function generateSnippetsWithGemini(
             "type": ${typesList.join(' | ')},
             "content": "The main text, question, or statement in the original language of the material not the prompt. For Q&A, this is ONLY the question. Do NOT include the answer here.",
             ${!doiaskforanswer ? "" : "\"answer\": \"The answer or explanation (required for types that need answers in the original language of the material not the prompt.)\","}
+            ${!doiaskforoptions ? "" : "\"options\": [\"option1\", \"option2\", \"option3\", \"option4\"] (required for multiple_choice, provide 3-5 options),"}
+            ${!doiaskforoptions ? "" : "\"correctIndices\": [0] (required for multiple_choice, 0-based indices of correct options, can be one or more),"}
             "label": "Optional label like 'Did you know?' or 'Key Concept' like the type, don't add extra text"
         }
         All in the original language of the material that is provided.

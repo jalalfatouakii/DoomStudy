@@ -168,6 +168,7 @@ const SNIPPET_TYPES = [
     { id: 'concept', name: 'Concept', label: 'Key Concepts', description: 'Defined simply' },
     { id: 'qna', name: 'Q&A', label: 'Q&A Format', description: 'Question and Answer' },
     { id: 'true_false', name: 'True/False', label: 'True or False', description: 'With explanation' },
+    { id: 'multiple_choice', name: 'Multiple Choice', label: 'Multiple Choice', description: 'Select correct answers' },
 ];
 
 type DownloadState = { status: 'idle' | 'downloading' | 'downloaded' | 'preparing', progress: number };
@@ -2588,7 +2589,7 @@ export default function Settings() {
 
                 */}
 
-                {/*
+
                 {__DEV__ && (
                     <ActionItem
                         icon="alert"
@@ -2598,18 +2599,19 @@ export default function Settings() {
                         }}
                     />
                 )}
-                __DEV__ && (
-                    <ActionItem
-                        icon="trash"
-                        title="Delete Async Storage"
-                        onPress={async () => {
-                            await AsyncStorage.clear();
-                            await resetStats();
-                            Alert.alert("Async Storage cleared, please restart the app");
-                        }}
-                    />
-                )}
-                */}
+                <ActionItem
+                    icon="trash"
+                    title="Delete Async Storage"
+                    onPress={async () => {
+                        await AsyncStorage.clear();
+                        await resetStats();
+                        Alert.alert("Async Storage cleared, please restart the app");
+                    }}
+                />
+
+
+
+
 
 
 

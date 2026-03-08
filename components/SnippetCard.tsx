@@ -30,6 +30,7 @@ type SnippetCardProps = {
 
 export default function SnippetCard({ snippet, height }: SnippetCardProps) {
     const [isRevealed, setIsRevealed] = useState(false);
+    const [selectedOptions, setSelectedOptions] = useState<Set<number>>(new Set());
     const fadeAnim = useRef(new Animated.Value(1)).current;
 
     const {
@@ -48,6 +49,19 @@ export default function SnippetCard({ snippet, height }: SnippetCardProps) {
         }).start(() => {
             LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
             setIsRevealed(true);
+        });
+    };
+
+    const toggleOption = (index: number) => {
+        if (isRevealed) return;
+        setSelectedOptions(prev => {
+            const next = new Set(prev);
+            if (next.has(index)) {
+                next.delete(index);
+            } else {
+                next.add(index);
+            }
+            return next;
         });
     };
 
@@ -72,6 +86,8 @@ export default function SnippetCard({ snippet, height }: SnippetCardProps) {
                 return <Ionicons name="checkbox" size={24} color={isVideoBackgroundEnabled ? cardTextColor : "#34C759"} />;
             case "concept":
                 return <Ionicons name="key" size={24} color={isVideoBackgroundEnabled ? cardTextColor : "#AF52DE"} />;
+            case "multiple_choice":
+                return <Ionicons name="list" size={24} color={isVideoBackgroundEnabled ? cardTextColor : "#5856D6"} />;
             default:
                 return <Ionicons name="document" size={24} color={isVideoBackgroundEnabled ? cardTextColor : Colors.tabIconDefault} />;
         }
@@ -84,6 +100,7 @@ export default function SnippetCard({ snippet, height }: SnippetCardProps) {
             case "qna": return "Question";
             case "true_false": return "True or False?";
             case "concept": return "Key Concept";
+            case "multiple_choice": return "Multiple Choice";
             default: return "Snippet";
         }
     };
@@ -180,6 +197,79 @@ export default function SnippetCard({ snippet, height }: SnippetCardProps) {
                                     {snippet.answer}
                                 </Text>
                             </View>
+                        )}
+                    </View>
+                )}
+
+                {snippet.type === "multiple_choice" && snippet.options && snippet.correctIndices && (
+                    <View style={styles.interactiveContainer}>
+                        <View style={styles.mcOptionsContainer}>
+                            {snippet.options.map((option, idx) => {
+                                const isSelected = selectedOptions.has(idx);
+                                const isCorrect = snippet.correctIndices!.includes(idx);
+
+                                let optionStyle = styles.mcOption;
+                                let iconName: "ellipse-outline" | "checkbox" | "checkmark-circle" | "close-circle" = "ellipse-outline";
+                                let iconColor = Colors.tabIconDefault;
+                                let textColor = cardTextColor;
+
+                                if (!isRevealed && isSelected) {
+                                    optionStyle = { ...styles.mcOption, ...styles.mcOptionSelected };
+                                    iconName = "checkbox";
+                                    iconColor = Colors.tint;
+                                }
+
+                                if (isRevealed) {
+                                    if (isCorrect && isSelected) {
+                                        optionStyle = { ...styles.mcOption, ...styles.mcOptionCorrect };
+                                        iconName = "checkmark-circle";
+                                        iconColor = "#34C759";
+                                        textColor = "#34C759";
+                                    } else if (isCorrect && !isSelected) {
+                                        optionStyle = { ...styles.mcOption, ...styles.mcOptionCorrectMissed };
+                                        iconName = "checkmark-circle";
+                                        iconColor = "#34C759";
+                                        textColor = "#34C759";
+                                    } else if (!isCorrect && isSelected) {
+                                        optionStyle = { ...styles.mcOption, ...styles.mcOptionWrong };
+                                        iconName = "close-circle";
+                                        iconColor = "#FF3B30";
+                                        textColor = "#FF3B30";
+                                    } else {
+                                        optionStyle = { ...styles.mcOption, ...styles.mcOptionNeutral };
+                                    }
+                                }
+
+                                return (
+                                    <TouchableOpacity
+                                        key={idx}
+                                        style={optionStyle}
+                                        onPress={() => toggleOption(idx)}
+                                        activeOpacity={isRevealed ? 1 : 0.7}
+                                    >
+                                        <Ionicons name={iconName} size={22} color={iconColor} />
+                                        <Text style={[styles.mcOptionText, { color: textColor }]}>{option}</Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </View>
+                        {!isRevealed && (
+                            <Animated.View style={{ opacity: fadeAnim, marginTop: 12 }}>
+                                <TouchableOpacity
+                                    style={[
+                                        styles.revealButton,
+                                        { backgroundColor: Colors.tint }
+                                    ]}
+                                    onPress={handleReveal}
+                                >
+                                    <Text style={[
+                                        styles.revealButtonText,
+                                        { color: Colors.background }
+                                    ]}>
+                                        Reveal Answer
+                                    </Text>
+                                </TouchableOpacity>
+                            </Animated.View>
                         )}
                     </View>
                 )}
@@ -330,5 +420,44 @@ const styles = StyleSheet.create({
         // color will be set dynamically
         fontSize: 12,
         fontWeight: '600',
+    },
+    mcOptionsContainer: {
+        gap: 8,
+    },
+    mcOption: {
+        flexDirection: "row" as const,
+        alignItems: "center" as const,
+        padding: 12,
+        borderRadius: 12,
+        borderWidth: 1.5,
+        borderColor: Colors.backgroundSecondary,
+        backgroundColor: Colors.backgroundSecondary,
+        gap: 10,
+    },
+    mcOptionSelected: {
+        borderColor: Colors.tint,
+        backgroundColor: Colors.tint + '15',
+    },
+    mcOptionCorrect: {
+        borderColor: "#34C759",
+        backgroundColor: "#34C75920",
+    },
+    mcOptionCorrectMissed: {
+        borderColor: "#34C759",
+        backgroundColor: "#34C75910",
+    },
+    mcOptionWrong: {
+        borderColor: "#FF3B30",
+        backgroundColor: "#FF3B3020",
+    },
+    mcOptionNeutral: {
+        borderColor: Colors.backgroundSecondary,
+        backgroundColor: Colors.backgroundSecondary,
+        opacity: 0.6,
+    },
+    mcOptionText: {
+        fontSize: 15,
+        fontWeight: "500" as const,
+        flex: 1,
     },
 });

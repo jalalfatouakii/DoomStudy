@@ -89,7 +89,7 @@ export default function CourseDetail() {
 
         try {
             // Pick a random file to generate content from so we can attribute it correctly
-            const validFiles = course.files.filter(f => f.parsedText && f.parsedText.trim().length > 0);
+            const validFiles = course.files.filter(f => f.parsedText && f.parsedText.trim().length > 0 && f.selected !== false);
 
             if (validFiles.length === 0) return;
 
@@ -107,6 +107,8 @@ export default function CourseDetail() {
                     let content = snippetStr;
                     let answer = undefined;
                     let label = undefined;
+                    let options = undefined;
+                    let correctIndices = undefined;
 
                     try {
                         const parsed = JSON.parse(snippetStr);
@@ -115,6 +117,8 @@ export default function CourseDetail() {
                             content = parsed.content;
                             answer = parsed.answer;
                             label = parsed.label;
+                            options = parsed.options;
+                            correctIndices = parsed.correctIndices;
                         }
                     } catch (e) {
                         // fallback
@@ -125,6 +129,8 @@ export default function CourseDetail() {
                         type,
                         content,
                         answer,
+                        options,
+                        correctIndices,
                         label,
                         courseId: course.id,
                         courseName: course.title,

@@ -6,7 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import {
     Alert,
     Animated,
@@ -44,6 +44,7 @@ const SNIPPET_TYPES = [
     { id: 'concept', label: 'Core Concepts', description: 'Key concepts explained simply' },
     { id: 'qna', label: 'Practice Questions', description: 'Question and answer format' },
     { id: 'true_false', label: 'Quick Checks', description: 'True or false statements' },
+    { id: 'multiple_choice', label: 'Multiple Choice', description: 'Select correct answers from options' },
 ];
 
 // Mock snippet for welcome preview
@@ -127,8 +128,8 @@ export default function Onboarding() {
     // User Data State
     const [name, setName] = useState("");
     const [selectedGoals, setSelectedGoals] = useState<string[]>([]);
-    const [selectedSnippetTypes, setSelectedSnippetTypes] = useState<string[]>(['fact', 'concept', 'qna', 'true_false']);
-    const [customSnippetTypes, setCustomSnippetTypes] = useState<{id: string, name: string, description: string, needsAnswer?: boolean}[]>([]);
+    const [selectedSnippetTypes, setSelectedSnippetTypes] = useState<string[]>(['fact', 'concept', 'qna', 'true_false', 'multiple_choice']);
+    const [customSnippetTypes, setCustomSnippetTypes] = useState<{ id: string, name: string, description: string, needsAnswer?: boolean }[]>([]);
     const [showAddCustomType, setShowAddCustomType] = useState(false);
     const [customTypeName, setCustomTypeName] = useState('');
     const [customTypeDescription, setCustomTypeDescription] = useState('');
@@ -726,13 +727,7 @@ export default function Onboarding() {
                         <View style={{ width: 44 }} />
                     )}
                     <View style={{ flex: 1 }} />
-                    {currentIndex > 1 && currentIndex < slides.length - 1 ? (
-                        <TouchableOpacity onPress={handleSkip} style={styles.skipButton}>
-                            <Text style={styles.skipText}>Skip</Text>
-                        </TouchableOpacity>
-                    ) : (
-                        <View style={{ width: 60 }} />
-                    )}
+
                 </View>
 
                 {/* Progress Bar */}

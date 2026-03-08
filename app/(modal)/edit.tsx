@@ -7,6 +7,7 @@ import ProcessingModal from "@/components/ProcessingModal";
 import { Colors } from "@/constants/colors";
 import { useCourses } from "@/context/CourseContext";
 import { GeminiError, generateSnippets } from "@/utils/gemini";
+import { WeightedSelector } from "@/utils/weightedSelection";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as DocumentPicker from 'expo-document-picker';
@@ -33,6 +34,7 @@ type FileState = {
     uri?: string;
     parsedText?: string;
     isNew?: boolean; // Track if file was added in this session
+    selected?: boolean;
 };
 
 export default function EditCourse() {
@@ -100,7 +102,8 @@ export default function EditCourse() {
                 size: f.size,
                 uri: f.uri,
                 parsedText: f.parsedText,
-                isNew: false
+                isNew: false,
+                selected: f.selected !== false,
             })));
         }
     }, [id, courses]);
@@ -119,6 +122,10 @@ export default function EditCourse() {
     const handleRemoveFile = (id: string) => {
         setFiles(files.filter(f => f.id !== id));
         if (viewingTextFileId === id) setViewingTextFileId(null);
+    };
+
+    const handleToggleFileSelected = (id: string) => {
+        setFiles(files.map(f => f.id === id ? { ...f, selected: !(f.selected !== false) } : f));
     };
 
     // Helper function to detect file type
@@ -149,7 +156,8 @@ export default function EditCourse() {
                 name: asset.name,
                 size: `${(asset.size ? asset.size / 1024 / 1024 : 0).toFixed(2)} MB`,
                 uri: asset.uri,
-                isNew: true
+                isNew: true,
+                selected: true,
             }));
 
             setFiles(prev => [...prev, ...newFiles]);
@@ -277,6 +285,12 @@ export default function EditCourse() {
     const handleUpdate = async () => {
         if (!title.trim() || !id) return;
 
+        // Require at least one selected file
+        if (files.length > 0 && !files.some(f => f.selected !== false)) {
+            Alert.alert("No files selected", "Please select at least one file before saving.");
+            return;
+        }
+
         // Logic for AI generation on NEW files
         const existingCourse = courses.find(c => c.id === id);
         let currentAiSnippets = existingCourse?.aiSnippets ? [...existingCourse.aiSnippets] : [];
@@ -302,7 +316,7 @@ export default function EditCourse() {
         });
 
         // Identify new files that have content
-        const newFilesWithContent = files.filter(f => f.isNew && f.parsedText && f.parsedText.trim().length > 0);
+        const newFilesWithContent = files.filter(f => f.isNew && f.parsedText && f.parsedText.trim().length > 0 && f.selected !== false);
 
         // Check if we can generate AI content (either online or offline mode)
         const modePreference = await AsyncStorage.getItem("modelModePreference");
@@ -347,7 +361,8 @@ export default function EditCourse() {
                 name: f.name,
                 size: f.size,
                 uri: f.uri,
-                parsedText: f.parsedText
+                parsedText: f.parsedText,
+                selected: f.selected !== false,
             })),
             aiSnippets: currentAiSnippets
         });
@@ -372,58 +387,51 @@ export default function EditCourse() {
         const updatedSnippets = [...currentAiSnippets];
 
         try {
-            const totalFiles = newFilesWithContent.length;
-            for (let i = 0; i < totalFiles; i++) {
-                const file = newFilesWithContent[i];
-                setProcessingStatus(`Analyzing new file ${i + 1} of ${totalFiles}: ${file.name}...`);
-                setProcessingProgress(i / totalFiles);
+            // Same algorithm as course creation: pick ONE file using weighted selection
+            const selectedFile = await WeightedSelector.selectFile(courseId, newFilesWithContent);
 
-                try {
-                    // Force non-null assertion because we filtered for parsedText above
-                    const fileId = `${courseId}-${file.name}`;
-                    // Use unified generateSnippets function which handles both online and offline modes
-                    const snippets = await generateSnippets(file.parsedText!, geminiKey || '', 20, fileId);
+            if (!selectedFile || !selectedFile.parsedText || selectedFile.parsedText.trim().length === 0) {
+                return updatedSnippets;
+            }
 
-                    // Tag newly generated snippets
-                    const taggedSnippets = snippets.map(s => {
-                        try {
-                            const parsed = JSON.parse(s);
-                            parsed.sourceFileName = file.name;
-                            return JSON.stringify(parsed);
-                        } catch (e) {
-                            return s;
-                        }
-                    });
+            setProcessingStatus(`Analyzing file: ${selectedFile.name}...`);
+            setProcessingProgress(0.5);
 
-                    updatedSnippets.push(...taggedSnippets);
-                } catch (err) {
-                    console.error(`Error generating snippets for ${file.name}`, err);
+            try {
+                const fileId = `${courseId}-${selectedFile.name}`;
+                const snippets = await generateSnippets(selectedFile.parsedText!, geminiKey || '', 20, fileId);
 
-                    // If it's a GeminiError, show alert and stop processing
-                    if (err instanceof GeminiError) {
-                        setIsGeneratingAI(false);
-                        setProcessingVisible(false);
-                        Alert.alert(
-                            "AI Generation Error",
-                            err.message,
-                            [{ text: "OK" }]
-                        );
-                        // Return current snippets to stop processing
-                        return updatedSnippets;
+                const taggedSnippets = snippets.map(s => {
+                    try {
+                        const parsed = JSON.parse(s);
+                        parsed.sourceFileName = selectedFile.name;
+                        return JSON.stringify(parsed);
+                    } catch (e) {
+                        return s;
                     }
-                    // For other errors, continue with other files
+                });
+
+                updatedSnippets.push(...taggedSnippets);
+            } catch (err) {
+                console.error(`Error generating snippets for ${selectedFile.name}`, err);
+
+                if (err instanceof GeminiError) {
+                    setIsGeneratingAI(false);
+                    setProcessingVisible(false);
+                    Alert.alert("AI Generation Error", err.message, [{ text: "OK" }]);
+                    return updatedSnippets;
                 }
             }
+
             setProcessingStatus("Finalizing course...");
             setProcessingProgress(1);
         } catch (error) {
             console.error("AI Generation in Edit failed:", error);
 
-            // Check if it's a GeminiError
             if (error instanceof GeminiError) {
                 Alert.alert("AI Generation Error", error.message, [{ text: "OK" }]);
             } else {
-                Alert.alert("AI update failed", "Could not generate snippets for some files.");
+                Alert.alert("AI update failed", "Could not generate snippets for the new file.");
             }
         } finally {
             setIsGeneratingAI(false);
@@ -442,7 +450,8 @@ export default function EditCourse() {
                 name: f.name,
                 size: f.size,
                 uri: f.uri,
-                parsedText: f.parsedText
+                parsedText: f.parsedText,
+                selected: f.selected !== false,
             })),
             aiSnippets
         });
@@ -474,7 +483,8 @@ export default function EditCourse() {
                 name: f.name,
                 size: f.size,
                 uri: f.uri,
-                parsedText: f.parsedText
+                parsedText: f.parsedText,
+                selected: f.selected !== false,
             })),
             aiSnippets: currentAiSnippets
         });
@@ -621,7 +631,14 @@ export default function EditCourse() {
                         {/* Old Parsing Text Removed */}
 
                         {files.map((file, index) => (
-                            <View key={file.id} style={styles.fileItem}>
+                            <View key={file.id} style={[styles.fileItem, file.selected === false && { opacity: 0.5 }]}>
+                                <TouchableOpacity onPress={() => handleToggleFileSelected(file.id)} style={styles.fileSelectBtn}>
+                                    <Ionicons
+                                        name={file.selected !== false ? "checkbox" : "square-outline"}
+                                        size={22}
+                                        color={file.selected !== false ? Colors.tint : Colors.tabIconDefault}
+                                    />
+                                </TouchableOpacity>
                                 <View style={styles.fileIcon}>
                                     <Ionicons name="document-text" size={20} color={Colors.tint} />
                                 </View>
@@ -812,6 +829,10 @@ const styles = StyleSheet.create({
         padding: 12,
         borderRadius: 12,
         marginBottom: 8,
+    },
+    fileSelectBtn: {
+        padding: 4,
+        marginRight: 8,
     },
     fileIcon: {
         width: 40,
