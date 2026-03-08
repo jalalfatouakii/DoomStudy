@@ -44,6 +44,11 @@ const FEATURES: FeatureItem[] = [
         title: "Improved Algorithms",
         description: "Smarter content selection with weighted rotation so you see fresh material more often.",
     },
+    {
+        icon: "cloud-outline",
+        title: "New Models",
+        description: "Added Gemini 3.1 Pro and Gemini 3.1 Flash Lite support.",
+    }
 ];
 
 export default function WhatsNewModal({ visible, onClose }: WhatsNewModalProps) {

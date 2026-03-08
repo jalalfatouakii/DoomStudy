@@ -209,7 +209,7 @@ export default function SnippetCard({ snippet, height }: SnippetCardProps) {
                                 const isCorrect = snippet.correctIndices!.includes(idx);
 
                                 let optionStyle = styles.mcOption;
-                                let iconName: "ellipse-outline" | "checkbox" | "checkmark-circle" | "close-circle" = "ellipse-outline";
+                                let iconName: "square-outline" | "checkbox" | "checkmark-circle" | "close-circle" = "square-outline";
                                 let iconColor = Colors.tabIconDefault;
                                 let textColor = cardTextColor;
 

@@ -192,7 +192,7 @@ async function generateSnippetsWithOfflineModel(
             typesList.push('"true_false"');
         }
         if (enabledTypes.includes('multiple_choice')) {
-            typeDescriptions.push('- Multiple choice questions with 3-5 options where one or more can be correct -> type: "multiple_choice". Include "options": ["option1", "option2", ...] and "correctIndices": [0] (0-based indices of correct options)');
+            typeDescriptions.push('- Multiple choice questions with 3-4 options where one or more can be correct -> type: "multiple_choice". Include "options": ["option1", "option2", ...] and "correctIndices": [0] (0-based indices of correct options)');
             typesList.push('"multiple_choice"');
         }
 
@@ -206,8 +206,8 @@ async function generateSnippetsWithOfflineModel(
 
         // Check if any enabled type needs an answer (built-in or custom)
         const needsAnswer = enabledTypes.includes('qna') ||
-                           enabledTypes.includes('true_false') ||
-                           customTypes.some(t => enabledTypes.includes(t.id) && t.needsAnswer);
+            enabledTypes.includes('true_false') ||
+            customTypes.some(t => enabledTypes.includes(t.id) && t.needsAnswer);
         const needsOptions = enabledTypes.includes('multiple_choice');
 
         // Use full prompt with user preferences for Apple AI (more powerful)
@@ -488,8 +488,8 @@ export async function generateSnippetsWithGemini(
 
         // Check if any enabled type needs an answer (built-in or custom)
         const doiaskforanswer = enabledTypes.includes('qna') ||
-                               enabledTypes.includes('true_false') ||
-                               customTypes.some(t => enabledTypes.includes(t.id) && t.needsAnswer);
+            enabledTypes.includes('true_false') ||
+            customTypes.some(t => enabledTypes.includes(t.id) && t.needsAnswer);
         const doiaskforoptions = enabledTypes.includes('multiple_choice');
         console.log("Doiaskforanswer:", doiaskforanswer);
 

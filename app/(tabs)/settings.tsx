@@ -8,6 +8,7 @@ import {
     Animated,
     Keyboard,
     Modal,
+    PanResponder,
     Platform,
     Pressable,
     ScrollView,
@@ -127,7 +128,9 @@ const EditNameModal = ({ visible, onClose, onSave, initialName }: { visible: boo
 const MODELS = [
     { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite' },
     { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
-    { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash' }
+    { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash' },
+    { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro' },
+    { id: 'gemini-3.1-flash-lite-preview', name: 'Gemini 3.1 Flash Lite' },
 ];
 
 const BASE_OFFLINE_MODELS = [
@@ -172,6 +175,115 @@ const SNIPPET_TYPES = [
 ];
 
 type DownloadState = { status: 'idle' | 'downloading' | 'downloaded' | 'preparing', progress: number };
+
+// Simple draggable slider using PanResponder (no external library)
+const SimpleSlider = ({
+    value,
+    min,
+    max,
+    step,
+    onChange,
+}: {
+    value: number;
+    min: number;
+    max: number;
+    step: number;
+    onChange: (val: number) => void;
+}) => {
+    const trackRef = useRef<View>(null);
+    const trackAbsX = useRef(0);
+    const trackWidth = useRef(0);
+    // Keep onChange in a ref so the PanResponder closure never goes stale
+    const onChangeRef = useRef(onChange);
+    onChangeRef.current = onChange;
+
+    const clamp = (v: number) => Math.min(max, Math.max(min, v));
+    const snap = (v: number) => Math.round((v - min) / step) * step + min;
+    const computeValue = (pageX: number) => {
+        if (trackWidth.current === 0) return;
+        const ratio = Math.min(1, Math.max(0, (pageX - trackAbsX.current) / trackWidth.current));
+        onChangeRef.current(snap(clamp(min + ratio * (max - min))));
+    };
+
+    const panResponder = useRef(
+        PanResponder.create({
+            onStartShouldSetPanResponder: () => true,
+            onMoveShouldSetPanResponder: () => true,
+            onPanResponderGrant: (e) => {
+                // Re-measure on each touch in case the modal has scrolled
+                trackRef.current?.measure((_x, _y, width, _h, pageX) => {
+                    trackAbsX.current = pageX;
+                    trackWidth.current = width;
+                    computeValue(e.nativeEvent.pageX);
+                });
+            },
+            onPanResponderMove: (e) => {
+                computeValue(e.nativeEvent.pageX);
+            },
+        })
+    ).current;
+
+    const fillPercent = ((value - min) / (max - min)) * 100;
+
+    return (
+        <View
+            ref={trackRef}
+            style={simpleSliderStyles.track}
+            onLayout={() => {
+                trackRef.current?.measure((_x, _y, width, _h, pageX) => {
+                    trackAbsX.current = pageX;
+                    trackWidth.current = width;
+                });
+            }}
+            {...panResponder.panHandlers}
+        >
+            <View style={simpleSliderStyles.trackLine} />
+            <View style={[simpleSliderStyles.fill, { width: `${fillPercent}%` as any }]} />
+            <View style={[simpleSliderStyles.thumb, { left: `${fillPercent}%` as any }]} />
+        </View>
+    );
+};
+
+const simpleSliderStyles = StyleSheet.create({
+    track: {
+        height: 36,
+        justifyContent: 'center',
+        position: 'relative',
+        marginVertical: 2,
+    },
+    trackLine: {
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        height: 4,
+        backgroundColor: Colors.backgroundLighter,
+        borderRadius: 2,
+    },
+    fill: {
+        height: 4,
+        backgroundColor: Colors.tint,
+        borderRadius: 2,
+        position: 'absolute',
+        left: 0,
+        top: '50%',
+        marginTop: -2,
+    },
+    thumb: {
+        width: 22,
+        height: 22,
+        borderRadius: 11,
+        backgroundColor: Colors.tint,
+        position: 'absolute',
+        top: '50%',
+        marginTop: -11,
+        marginLeft: -11,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 3,
+        elevation: 4,
+    },
+});
 
 // Model List Modal - Shows when clicking on selected model
 const ModelListModal = ({ visible, onClose, mode, selectedModel, selectedOfflineModel, onModelSelect, onOfflineModelSelect, onOfflineModelsUpdate }: {
@@ -567,7 +679,9 @@ const ModelPreferencesModal = ({ visible, onClose, geminiKey, selectedModel, sel
     const [tempGeminiKey, setTempGeminiKey] = useState(geminiKey);
     const [showModelList, setShowModelList] = useState(false);
     const [snippetCount, setSnippetCount] = useState(10);
+    const [snippetCountInput, setSnippetCountInput] = useState('10');
     const [chunkSize, setChunkSize] = useState(mode === 'offline' ? 2000 : 30000);
+    const [chunkSizeInput, setChunkSizeInput] = useState('30000');
 
     useEffect(() => {
         if (visible) {
@@ -583,11 +697,14 @@ const ModelPreferencesModal = ({ visible, onClose, geminiKey, selectedModel, sel
 
             // Load snippet count and chunk size
             AsyncStorage.getItem("snippetCount").then(val => {
-                if (val) setSnippetCount(parseInt(val, 10));
+                const n = val ? parseInt(val, 10) : 10;
+                setSnippetCount(n);
+                setSnippetCountInput(n.toString());
             });
             AsyncStorage.getItem("snippetChunkSize").then(val => {
-                if (val) setChunkSize(parseInt(val, 10));
-                else setChunkSize(savedModelMode === 'offline' ? 2000 : 30000);
+                const n = val ? parseInt(val, 10) : (savedModelMode === 'offline' ? 2000 : 30000);
+                setChunkSize(n);
+                setChunkSizeInput(n.toString());
             });
         }
     }, [visible, geminiKey, selectedOfflineModel, savedModelMode]);
@@ -698,86 +815,83 @@ const ModelPreferencesModal = ({ visible, onClose, geminiKey, selectedModel, sel
 
                         {/* Snippet Count */}
                         <View style={styles.sliderContainer}>
-                            <Text style={styles.sliderLabel}>Snippets per generation: {snippetCount}</Text>
-                            <View style={styles.sliderRow}>
-                                <Text style={styles.sliderMinMax}>1</Text>
-                                <View style={styles.sliderWrapper}>
-                                    <View style={styles.sliderTrack}>
-                                        <View style={[styles.sliderFill, { width: `${((snippetCount - 1) / 9) * 100}%` }]} />
-                                    </View>
-                                </View>
-                                <Text style={styles.sliderMinMax}>10</Text>
-                            </View>
-                            <View style={styles.sliderButtons}>
-                                <TouchableOpacity
-                                    style={[styles.sliderButton, snippetCount <= 1 && styles.sliderButtonDisabled]}
-                                    onPress={() => setSnippetCount(Math.max(1, snippetCount - 1))}
-                                    disabled={snippetCount <= 1}
-                                >
-                                    <Ionicons name="remove" size={20} color={snippetCount <= 1 ? Colors.tabIconDefault : Colors.tint} />
-                                </TouchableOpacity>
+                            <View style={styles.sliderLabelRow}>
+                                <Text style={styles.sliderLabel}>Snippets per generation</Text>
                                 <TextInput
                                     style={styles.sliderInput}
-                                    value={snippetCount.toString()}
+                                    value={snippetCountInput}
                                     onChangeText={(text) => {
-                                        const num = parseInt(text, 10);
-                                        if (!isNaN(num) && num >= 1 && num <= 10) {
+                                        setSnippetCountInput(text);
+                                    }}
+                                    onBlur={() => {
+                                        const num = parseInt(snippetCountInput, 10);
+                                        if (!isNaN(num) && num >= 1 && num <= 30) {
                                             setSnippetCount(num);
+                                            setSnippetCountInput(num.toString());
+                                        } else {
+                                            setSnippetCountInput(snippetCount.toString());
                                         }
                                     }}
                                     keyboardType="numeric"
                                     maxLength={2}
+                                    returnKeyType="done"
+                                    selectTextOnFocus
                                 />
-                                <TouchableOpacity
-                                    style={[styles.sliderButton, snippetCount >= 10 && styles.sliderButtonDisabled]}
-                                    onPress={() => setSnippetCount(Math.min(10, snippetCount + 1))}
-                                    disabled={snippetCount >= 10}
-                                >
-                                    <Ionicons name="add" size={20} color={snippetCount >= 10 ? Colors.tabIconDefault : Colors.tint} />
-                                </TouchableOpacity>
+                            </View>
+                            <SimpleSlider
+                                value={snippetCount}
+                                min={1}
+                                max={30}
+                                step={1}
+                                onChange={(val) => {
+                                    setSnippetCount(val);
+                                    setSnippetCountInput(val.toString());
+                                }}
+                            />
+                            <View style={styles.sliderMinMaxRow}>
+                                <Text style={styles.sliderMinMax}>1</Text>
+                                <Text style={styles.sliderMinMax}>30</Text>
                             </View>
                         </View>
 
                         {/* Chunk Size */}
                         <View style={styles.sliderContainer}>
-                            <Text style={styles.sliderLabel}>Chunk Size: {chunkSize.toLocaleString()} chars</Text>
-                            <View style={styles.sliderRow}>
-                                <Text style={styles.sliderMinMax}>500</Text>
-                                <View style={styles.sliderWrapper}>
-                                    <View style={styles.sliderTrack}>
-                                        <View style={[styles.sliderFill, { width: `${((chunkSize - 500) / 29500) * 100}%` }]} />
-                                    </View>
-                                </View>
-                                <Text style={styles.sliderMinMax}>30K</Text>
-                            </View>
-                            <View style={styles.sliderButtons}>
-                                <TouchableOpacity
-                                    style={[styles.sliderButton, chunkSize <= 500 && styles.sliderButtonDisabled]}
-                                    onPress={() => setChunkSize(Math.max(500, chunkSize - 500))}
-                                    disabled={chunkSize <= 500}
-                                >
-                                    <Ionicons name="remove" size={20} color={chunkSize <= 500 ? Colors.tabIconDefault : Colors.tint} />
-                                </TouchableOpacity>
+                            <View style={styles.sliderLabelRow}>
+                                <Text style={styles.sliderLabel}>Chunk size (chars)</Text>
                                 <TextInput
                                     style={styles.sliderInput}
-                                    value={chunkSize.toString()}
+                                    value={chunkSizeInput}
                                     onChangeText={(text) => {
-                                        const num = parseInt(text, 10);
+                                        setChunkSizeInput(text);
+                                    }}
+                                    onBlur={() => {
+                                        const num = parseInt(chunkSizeInput, 10);
                                         if (!isNaN(num) && num >= 500 && num <= 30000) {
                                             setChunkSize(num);
+                                            setChunkSizeInput(num.toString());
+                                        } else {
+                                            setChunkSizeInput(chunkSize.toString());
                                         }
                                     }}
                                     keyboardType="numeric"
                                     maxLength={5}
                                     returnKeyType="done"
+                                    selectTextOnFocus
                                 />
-                                <TouchableOpacity
-                                    style={[styles.sliderButton, chunkSize >= 30000 && styles.sliderButtonDisabled]}
-                                    onPress={() => setChunkSize(Math.min(30000, chunkSize + 500))}
-                                    disabled={chunkSize >= 30000}
-                                >
-                                    <Ionicons name="add" size={20} color={chunkSize >= 30000 ? Colors.tabIconDefault : Colors.tint} />
-                                </TouchableOpacity>
+                            </View>
+                            <SimpleSlider
+                                value={chunkSize}
+                                min={500}
+                                max={30000}
+                                step={500}
+                                onChange={(val) => {
+                                    setChunkSize(val);
+                                    setChunkSizeInput(val.toString());
+                                }}
+                            />
+                            <View style={styles.sliderMinMaxRow}>
+                                <Text style={styles.sliderMinMax}>500</Text>
+                                <Text style={styles.sliderMinMax}>30 000</Text>
                             </View>
                         </View>
 
@@ -3011,62 +3125,33 @@ const styles = StyleSheet.create({
     sliderContainer: {
         marginBottom: 20,
     },
+    sliderLabelRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 4,
+    },
     sliderLabel: {
         fontSize: 14,
         fontWeight: '500',
         color: Colors.text,
-        marginBottom: 8,
     },
-    sliderRow: {
+    sliderMinMaxRow: {
         flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 12,
+        justifyContent: 'space-between',
+        marginTop: 2,
     },
     sliderMinMax: {
-        fontSize: 12,
+        fontSize: 11,
         color: Colors.tabIconDefault,
-        width: 40,
-        textAlign: 'center',
-    },
-    sliderWrapper: {
-        flex: 1,
-        marginHorizontal: 8,
-    },
-    sliderTrack: {
-        height: 4,
-        backgroundColor: Colors.backgroundLighter,
-        borderRadius: 2,
-        position: 'relative',
-    },
-    sliderFill: {
-        height: '100%',
-        backgroundColor: Colors.tint,
-        borderRadius: 2,
-    },
-    sliderButtons: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 12,
-    },
-    sliderButton: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        backgroundColor: Colors.backgroundLighter,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    sliderButtonDisabled: {
-        opacity: 0.5,
     },
     sliderInput: {
-        width: 60,
-        height: 36,
+        width: 68,
+        height: 34,
         backgroundColor: Colors.backgroundLighter,
         borderRadius: 8,
         textAlign: 'center',
-        fontSize: 16,
+        fontSize: 15,
         fontWeight: '600',
         color: Colors.text,
         borderWidth: 1,
