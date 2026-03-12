@@ -2703,7 +2703,7 @@ export default function Settings() {
 
                 */}
 
-
+                {/*
                 {__DEV__ && (
                     <ActionItem
                         icon="alert"
@@ -2722,6 +2722,7 @@ export default function Settings() {
                         Alert.alert("Async Storage cleared, please restart the app");
                     }}
                 />
+                */}
 
 
 
